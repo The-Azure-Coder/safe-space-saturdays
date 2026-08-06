@@ -1,3 +1,4 @@
+import socket
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -19,6 +20,8 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     upload_dir: Path = DEFAULT_UPLOAD_DIR
     max_upload_bytes: int = 5_000_000
+    redis_url: str = "redis://localhost:6379/0"
+    realtime_node_id: str = socket.gethostname()
 
 
 @lru_cache

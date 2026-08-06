@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.db import engine
+from app.games.realtime import realtime_bus
 from app.routes.api import router as api_router
 from app.routes.health import router as health_router
 
@@ -17,6 +18,7 @@ settings.upload_dir.mkdir(parents=True, exist_ok=True)
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
+    await realtime_bus.close()
     await engine.dispose()
 
 

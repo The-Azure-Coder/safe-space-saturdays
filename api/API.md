@@ -83,4 +83,4 @@ POST /api/games/sessions/{match_id}/actions
 { "action": { "answer": 1 } }                  # Trivia
 ```
 
-Ludo uses exact-home movement and six-to-leave-base rules; Dominoes uses a double-six block line with pass/block resolution; Bingo uses a server-drawn 75-ball card with a free centre and line claim; Trivia uses five multiple-choice questions with server-side scoring. The current match manager is intentionally single-process for local Docker development; production horizontal scaling requires moving live sessions to a shared store/pub-sub layer before running multiple API replicas.
+Ludo uses exact-home movement and six-to-leave-base rules; Dominoes uses a double-six block line with pass/block resolution; Bingo uses a server-drawn 75-ball card with a free centre and line claim; Trivia uses five multiple-choice questions with server-side scoring. PostgreSQL stores snapshots, events, and rewards, while Redis distributes live state updates between API replicas. If Redis is unavailable, the local WebSocket still works.

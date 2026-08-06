@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     JSON,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -147,3 +149,50 @@ class GameWinner(TimestampMixin, Base):
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     result: Mapped[str] = mapped_column(String(160))
+
+
+class GameMatch(TimestampMixin, Base):
+    __tablename__ = "game_matches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    room_id: Mapped[int] = mapped_column(
+        ForeignKey("game_rooms.id", ondelete="CASCADE"), index=True
+    )
+    game_type: Mapped[str] = mapped_column(String(30), index=True)
+    player_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    state: Mapped[dict[str, Any]] = mapped_column(JSON)
+    version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    status: Mapped[str] = mapped_column(String(20), default="active", server_default="active")
+
+
+class GameEvent(Base):
+    __tablename__ = "game_events"
+    __table_args__ = (
+        UniqueConstraint("match_id", "sequence", name="uq_game_event_match_sequence"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[str] = mapped_column(
+        ForeignKey("game_matches.id", ondelete="CASCADE"), index=True
+    )
+    sequence: Mapped[int] = mapped_column(Integer)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    action: Mapped[dict[str, Any]] = mapped_column(JSON)
+    state: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class RewardLedger(TimestampMixin, Base):
+    __tablename__ = "reward_ledger"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_reward_ledger_idempotency"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    match_id: Mapped[str] = mapped_column(
+        ForeignKey("game_matches.id", ondelete="CASCADE"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(40))
+    xp: Mapped[int] = mapped_column(Integer)
+    idempotency_key: Mapped[str] = mapped_column(String(160), unique=True)
