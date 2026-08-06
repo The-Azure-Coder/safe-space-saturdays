@@ -16,11 +16,16 @@ export class ApiError extends Error {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!(init?.body instanceof FormData)) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${API_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    headers,
-  })
+  let response: Response
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...init,
+      credentials: 'include',
+      headers,
+    })
+  } catch {
+    throw new ApiError(0, 'We could not reach Safe Space Saturdays. Please try again in a moment.')
+  }
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: unknown } | null
     const detail = Array.isArray(body?.detail)
