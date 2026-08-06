@@ -58,7 +58,8 @@ export const api = {
   dashboard: () => apiFetch<Dashboard>('/api/dashboard'),
   checkIns: (page = 1, limit = 20) => apiFetch<Array<CheckIn>>(`/api/check-ins?page=${page}&limit=${limit}`),
   createCheckIn: (body: Omit<CheckIn, 'id' | 'created_at'>) => apiFetch<CheckIn>('/api/check-ins', { method: 'POST', body: JSON.stringify(body) }),
-  quotes: (category?: string, page = 1, limit = 4) => apiFetch<Array<Quote>>(`/api/quotes?page=${page}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
+  quotes: (category?: string, page = 1, limit = 4, savedOnly = false) => apiFetch<Array<Quote>>(`/api/quotes?page=${page}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}${savedOnly ? '&saved_only=true' : ''}`),
+  savedQuotes: (page = 1, limit = 5) => apiFetch<Array<Quote>>(`/api/quotes?page=${page}&limit=${limit}&saved_only=true`),
   saveQuote: (id: number) => apiFetch<Quote>(`/api/quotes/${id}/save`, { method: 'POST' }),
   posts: (page = 1, limit = 10) => apiFetch<Array<Post>>(`/api/community/posts?page=${page}&limit=${limit}`),
   createPost: (text: string, image?: File) => {

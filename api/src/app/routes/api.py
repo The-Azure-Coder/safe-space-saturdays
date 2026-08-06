@@ -219,13 +219,22 @@ def quote_out(quote: Quote, saved_ids: set[int]) -> QuoteResponse:
 
 @router.get("/quotes", response_model=list[QuoteResponse])
 async def list_quotes(
-    user: CurrentUser, db: DbSession, category: str | None = None, page: int = 1, limit: int = 20
+    user: CurrentUser,
+    db: DbSession,
+    category: str | None = None,
+    saved_only: bool = False,
+    page: int = 1,
+    limit: int = 20,
 ) -> list[QuoteResponse]:
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
     query = select(Quote).order_by(Quote.is_featured.desc(), Quote.id)
     if category and category != "All":
         query = query.where(Quote.category == category)
+    if saved_only:
+        query = query.join(SavedQuote, SavedQuote.quote_id == Quote.id).where(
+            SavedQuote.user_id == user.id
+        )
     quotes = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
     saved_ids = set(
         (await db.scalars(select(SavedQuote.quote_id).where(SavedQuote.user_id == user.id))).all()

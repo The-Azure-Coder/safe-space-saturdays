@@ -16,6 +16,7 @@ import {
   Eye,
   EyeSlash,
   Flame,
+  GameController,
   Heart,
   House,
   Leaf,
@@ -54,6 +55,7 @@ type Icon = ComponentType<{ size?: number; weight?: 'regular' | 'fill' | 'duoton
 const navItems: Array<{ href: string; label: string; icon: Icon }> = [
   { href: '/', label: 'Home', icon: House },
   { href: '/check-in', label: 'Daily Check-In', icon: Heart },
+  { href: '/games', label: 'Games', icon: GameController },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/community', label: 'Community', icon: UsersThree },
   { href: '/quotes', label: 'Quotes', icon: Quotes },
@@ -135,6 +137,14 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow?: string; tit
   )
 }
 
+function ApiLoader({ label = 'Making a little space…' }: { label?: string }) {
+  return <div className="api-loader" role="status" aria-live="polite"><span className="api-loader__spark" aria-hidden="true">✦</span><span>{label}</span></div>
+}
+
+function ContentSkeleton({ rows = 3 }: { rows?: number }) {
+  return <div className="content-skeleton" aria-label="Loading content">{Array.from({ length: rows }, (_, index) => <div className="content-skeleton__row" key={index}><span className="content-skeleton__avatar" /><span className="content-skeleton__copy"><i /><i /><i /></span></div>)}</div>
+}
+
 function StatCard({ icon: StatIcon, label, value, detail, tone = 'sage', progress }: { icon: Icon; label: string; value: string; detail: string; tone?: string; progress?: number }) {
   return (
     <article className={`stat-card stat-card--${tone}`}>
@@ -214,6 +224,7 @@ function HomeScreen() {
     <PageHeader screen="home" />
     <main className="page-content home-page">
       <WelcomeCarousel />
+      {dashboard.isLoading && <ApiLoader label="Gathering your safe-space details…" />}
       <section className="stats-grid">
         <StatCard icon={Flame} label="Login Streak" value={data ? String(data.user.streak) : '—'} detail="days" />
         <StatCard icon={Star} label="Total XP" value={data ? data.user.xp.toLocaleString() : '—'} detail="XP" tone="peach" progress={data?.level_progress} />
@@ -281,17 +292,21 @@ function RangeRow({ label, left, right, accent = false, value, onChange }: { lab
 function QuotesScreen() {
   const [category, setCategory] = useState('All')
   const [page, setPage] = useState(1)
+  const [quoteDraft, setQuoteDraft] = useState('')
+  const [shareStatus, setShareStatus] = useState('')
   const queryClient = useQueryClient()
   const quotes = useQuery({ queryKey: ['quotes', category, page], queryFn: () => api.quotes(category, page, 4) })
   const save = useMutation({ mutationFn: api.saveQuote, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotes'] }) })
+  const share = useMutation({ mutationFn: (text: string) => api.createPost(text), onSuccess: () => { setQuoteDraft(''); setShareStatus('Shared with the community.'); queryClient.invalidateQueries({ queryKey: ['posts'] }) } })
   const featured = quotes.data?.find((quote) => quote.is_featured) ?? quotes.data?.[0]
-  return <><PageHeader screen="quotes" /><main className="page-content quotes-page"><SectionHeading title="A little something for today" description="Words can uplift, comfort, and remind us we’re not alone. Take what you need, and come back anytime." /><article className="featured-quote"><span className="quote-mark"><Quotes size={28} weight="fill" /></span><blockquote>“{featured?.text ?? 'Take a moment for yourself today.'}”</blockquote><cite>— {featured?.author ?? 'Safe Space Saturdays'}</cite><div className="carousel-dots"><i /><i /><i /></div></article><div className="quote-grid">{(quotes.data ?? []).filter((quote) => quote.id !== featured?.id).slice(0, 3).map((quote, index) => <article className={`small-quote small-quote--${index}`} key={quote.id}><Quotes size={20} weight="fill" /><p>{quote.text}</p><cite>— {quote.author}</cite></article>)}</div><div className="quote-actions"><button className="button button--primary" type="button" disabled={!featured} onClick={() => featured && save.mutate(featured.id)}><BookmarkSimple size={20} /> {featured?.saved ? 'Saved' : 'Save this quote'}</button><button className="button button--secondary" type="button"><UsersThree size={20} /> Share with community</button></div><div className="filter-row">{['All', 'Encouragement', 'Rest', 'Growth', 'Connection'].map((filter, index) => <button className={category === filter ? 'filter-chip filter-chip--active' : 'filter-chip'} type="button" onClick={() => { setCategory(filter); setPage(1) }} key={filter}>{index === 0 ? <Leaf size={18} /> : index === 1 ? <Sparkle size={18} /> : index === 2 ? <span>☾</span> : <Leaf size={18} />}{filter}</button>)}</div><PaginationControls page={page} itemCount={quotes.data?.length ?? 0} pageSize={4} onPageChange={setPage} label="Quotes" /></main><PageFooter /></>
+  return <><PageHeader screen="quotes" /><main className="page-content quotes-page">{quotes.isLoading && <ContentSkeleton rows={3} />}<SectionHeading title="A little something for today" description="Words can uplift, comfort, and remind us we’re not alone. Take what you need, and come back anytime." /><article className="featured-quote"><span className="quote-mark"><Quotes size={28} weight="fill" /></span><blockquote>“{featured?.text ?? 'Take a moment for yourself today.'}”</blockquote><cite>— {featured?.author ?? 'Safe Space Saturdays'}</cite><div className="carousel-dots"><i /><i /><i /></div></article><div className="quote-grid">{(quotes.data ?? []).filter((quote) => quote.id !== featured?.id).slice(0, 3).map((quote, index) => <article className={`small-quote small-quote--${index}`} key={quote.id}><Quotes size={20} weight="fill" /><p>{quote.text}</p><cite>— {quote.author}</cite></article>)}</div><div className="quote-actions"><button className="button button--primary" type="button" disabled={!featured} onClick={() => featured && save.mutate(featured.id)}><BookmarkSimple size={20} /> {featured?.saved ? 'Saved' : 'Save this quote'}</button><button className="button button--secondary" type="button" disabled={!featured || share.isPending} onClick={() => featured && share.mutate(`“${featured.text}” — ${featured.author}`)}><UsersThree size={20} /> {share.isPending ? 'Sharing…' : 'Share with community'}</button></div><section className="quote-share-card" aria-labelledby="write-quote-title"><div className="card-title"><PencilSimple size={22} /><span id="write-quote-title">Write your own</span></div><p>Share a few words that might give someone else a little hope today.</p><form onSubmit={(event) => { event.preventDefault(); const text = quoteDraft.trim(); if (text) share.mutate(text) }}><textarea value={quoteDraft} onChange={(event) => { setQuoteDraft(event.target.value); setShareStatus('') }} placeholder="Write an encouraging thought or personal quote…" maxLength={1000} aria-label="Write your own quote" /><div className="quote-share-card__footer"><small>{quoteDraft.length}/1000</small><button className="button button--primary button--small" type="submit" disabled={!quoteDraft.trim() || share.isPending}>{share.isPending ? 'Sharing…' : 'Share quote'}</button></div></form>{shareStatus && <p className="form-success" role="status">{shareStatus}</p>}{share.isError && <p className="form-error" role="alert">{share.error.message}</p>}</section><div className="filter-row">{['All', 'Encouragement', 'Rest', 'Growth', 'Connection'].map((filter, index) => <button className={category === filter ? 'filter-chip filter-chip--active' : 'filter-chip'} type="button" onClick={() => { setCategory(filter); setPage(1) }} key={filter}>{index === 0 ? <Leaf size={18} /> : index === 1 ? <Sparkle size={18} /> : index === 2 ? <span>☾</span> : <Leaf size={18} />}{filter}</button>)}</div><PaginationControls page={page} itemCount={quotes.data?.length ?? 0} pageSize={4} onPageChange={setPage} label="Quotes" /></main><PageFooter /></>
 }
 
 function CommunityScreen() {
   const [draft, setDraft] = useState('')
   const [page, setPage] = useState(1)
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
+  const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({})
   const [openReplyPostId, setOpenReplyPostId] = useState<number | null>(null)
   const [imageFile, setImageFile] = useState<File | undefined>()
   const [imageError, setImageError] = useState('')
@@ -313,7 +328,7 @@ function CommunityScreen() {
     setImageError('')
     setImageFile(file)
   }
-  return <><PageHeader screen="community" /><main className="page-content community-page"><section className="community-hero"><img src="/assets/community-circle.png" alt="A group of friends supporting each other" /><SectionHeading title="Community" description="A place to talk, listen, and feel less alone." /></section><div className="community-promos"><PromoCard title="Wellness Circle" body="Open talks and guided conversations in a judgement-free space." cta="Join Circle" tone="sage" icon="🌿" /><PromoCard title="Game Night" body="Play fun games, connect, and unwind with friends." cta="See Upcoming" tone="peach" icon="🎮" /><PromoCard title="Small Wins" body="Celebrate progress, share wins, and uplift each other." cta="Share a Win" tone="lilac" icon="🪴" /></div><div className="community-layout"><section className="conversation-card"><div className="section-row"><div className="card-title"><ChatCircleDots size={24} weight="fill" /><span>Community Conversations</span><small>Share, support, and grow together.</small></div><button className="button button--primary" type="button" onClick={() => document.getElementById('post-composer')?.focus()}><PencilSimple size={18} /> Start a Post</button></div><div className="post-composer"><label className="sr-only" htmlFor="post-composer">Share something with the community</label><textarea id="post-composer" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a small win or a kind thought…" /><div className="post-composer__controls"><label className="button button--secondary button--small post-image-picker"><span>Attach image</span><input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} /></label>{imageFile && <small>{imageFile.name}</small>}{imageError && <p className="form-error" role="alert">{imageError}</p>}<button className="button button--small button--primary" type="button" disabled={!draft.trim() || create.isPending || Boolean(imageError)} onClick={() => create.mutate()}>{create.isPending ? 'Posting…' : 'Post'}</button></div></div>{(postsQuery.data ?? []).map((post) => <article className="post-row" key={post.id}><Avatar initials={post.initials} color="sage" /><div className="post-row__body"><div className="post-row__meta"><strong>{post.author}</strong><span>• {new Date(post.created_at).toLocaleString()}</span></div><p>{post.text}</p>{post.image_url && <img className="post-row__image" src={`${API_URL}${post.image_url}`} alt={`Image shared by ${post.author}`} />}<div className="post-row__actions"><button className={post.my_reaction === 'like' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Like ${post.author}'s post`} aria-pressed={post.my_reaction === 'like'} onClick={() => react.mutate({ id: post.id, kind: 'like' })}><ThumbsUp size={17} weight="fill" /> <span>Like</span> {post.likes}</button><button className={post.my_reaction === 'dislike' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Dislike ${post.author}'s post`} aria-pressed={post.my_reaction === 'dislike'} onClick={() => react.mutate({ id: post.id, kind: 'dislike' })}><ThumbsDown size={17} weight="fill" /> <span>Dislike</span> {post.dislikes}</button><button className="reaction-button" type="button" aria-expanded={openReplyPostId === post.id} onClick={() => setOpenReplyPostId((current) => current === post.id ? null : post.id)}><ChatCircleDots size={17} /> <span>Reply</span></button></div>{post.comments.length > 0 && <div className="post-replies" aria-label={`Replies to ${post.author}'s post`}>{post.comments.map((comment) => <div className="post-reply" key={comment.id}><Avatar initials={comment.initials} color="lilac" /><div><strong>{comment.author}</strong><p>{comment.text}</p></div></div>)}</div>}{openReplyPostId === post.id && <form className="reply-form" onSubmit={(event) => { event.preventDefault(); const text = (replyDrafts[post.id] ?? '').trim(); if (text) reply.mutate({ id: post.id, text }) }}><label className="sr-only" htmlFor={`reply-${post.id}`}>Reply to {post.author}'s post</label><input id={`reply-${post.id}`} autoFocus value={replyDrafts[post.id] ?? ''} onChange={(event) => setReplyDrafts((drafts) => ({ ...drafts, [post.id]: event.target.value }))} placeholder="Write a thoughtful reply…" maxLength={1000} /><button className="button button--secondary button--small" type="submit" disabled={!(replyDrafts[post.id] ?? '').trim() || reply.isPending}>Reply</button></form>}</div><button className="more-button" aria-label={`More actions for ${post.author}`} type="button">•••</button></article>)}<PaginationControls page={page} itemCount={postsQuery.data?.length ?? 0} pageSize={10} onPageChange={setPage} label="Community posts" /></section><aside className="guidelines-card"><div className="card-title"><Leaf size={24} weight="fill" /><span>Community guidelines</span></div><p>We care for each other.</p>{[['🧡', 'Be Kind', 'Choose compassion and respect in every interaction.'], ['🔒', 'Respect Privacy', 'What’s shared here stays here. Protect each other’s stories.'], ['🌱', 'Encourage & Uplift', 'Cheer each other on and celebrate every step forward.']].map(([icon, title, text]) => <div className="guideline" key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</aside></div></main><PageFooter /></>
+  return <><PageHeader screen="community" /><main className="page-content community-page"><section className="community-hero"><img src="/assets/community-circle.png" alt="A group of friends supporting each other" /><SectionHeading title="Community" description="A place to talk, listen, and feel less alone." /></section><div className="community-promos"><PromoCard title="Wellness Circle" body="Open talks and guided conversations in a judgement-free space." cta="Join Circle" tone="sage" icon="🌿" /><PromoCard title="Game Night" body="Play fun games, connect, and unwind with friends." cta="See Upcoming" tone="peach" icon="🎮" /><PromoCard title="Small Wins" body="Celebrate progress, share wins, and uplift each other." cta="Share a Win" tone="lilac" icon="🪴" /></div><div className="community-layout"><section className="conversation-card"><div className="section-row"><div className="card-title"><ChatCircleDots size={24} weight="fill" /><span>Community Conversations</span><small>Share, support, and grow together.</small></div><button className="button button--primary" type="button" onClick={() => document.getElementById('post-composer')?.focus()}><PencilSimple size={18} /> Start a Post</button></div><div className="post-composer"><label className="sr-only" htmlFor="post-composer">Share something with the community</label><textarea id="post-composer" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a small win or a kind thought…" /><div className="post-composer__controls"><label className="button button--secondary button--small post-image-picker"><span>Attach image</span><input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} /></label>{imageFile && <small>{imageFile.name}</small>}{imageError && <p className="form-error" role="alert">{imageError}</p>}<button className="button button--small button--primary" type="button" disabled={!draft.trim() || create.isPending || Boolean(imageError)} onClick={() => create.mutate()}>{create.isPending ? 'Posting…' : 'Post'}</button></div></div>{postsQuery.isLoading && <ContentSkeleton rows={4} />}{(postsQuery.data ?? []).map((post) => <article className="post-row" key={post.id}><Avatar initials={post.initials} color="sage" /><div className="post-row__body"><div className="post-row__meta"><strong>{post.author}</strong><span>• {new Date(post.created_at).toLocaleString()}</span></div><p>{post.text}</p>{post.image_url && <img className="post-row__image" src={`${API_URL}${post.image_url}`} alt={`Image shared by ${post.author}`} />}<div className="post-row__actions"><button className={post.my_reaction === 'like' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Like ${post.author}'s post`} aria-pressed={post.my_reaction === 'like'} onClick={() => react.mutate({ id: post.id, kind: 'like' })}><ThumbsUp size={17} weight="fill" /> <span>Like</span> {post.likes}</button><button className={post.my_reaction === 'dislike' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Dislike ${post.author}'s post`} aria-pressed={post.my_reaction === 'dislike'} onClick={() => react.mutate({ id: post.id, kind: 'dislike' })}><ThumbsDown size={17} weight="fill" /> <span>Dislike</span> {post.dislikes}</button><button className="reaction-button" type="button" aria-expanded={openReplyPostId === post.id} onClick={() => setOpenReplyPostId((current) => current === post.id ? null : post.id)}><ChatCircleDots size={17} /> <span>Reply</span></button></div>{post.comments.length > 0 && <div className="post-replies" aria-label={`Replies to ${post.author}'s post`}>{post.comments.slice(0, expandedReplies[post.id] ? undefined : 2).map((comment) => <div className="post-reply" key={comment.id}><Avatar initials={comment.initials} color="lilac" /><div><strong>{comment.author}</strong><p>{comment.text}</p></div></div>)}{post.comments.length > 2 && <button className="view-replies-button" type="button" aria-expanded={Boolean(expandedReplies[post.id])} onClick={() => setExpandedReplies((current) => ({ ...current, [post.id]: !current[post.id] }))}>{expandedReplies[post.id] ? 'Show fewer replies' : `View ${post.comments.length - 2} more repl${post.comments.length - 2 === 1 ? 'y' : 'ies'}`}</button>}</div>}{openReplyPostId === post.id && <form className="reply-form" onSubmit={(event) => { event.preventDefault(); const text = (replyDrafts[post.id] ?? '').trim(); if (text) reply.mutate({ id: post.id, text }) }}><label className="sr-only" htmlFor={`reply-${post.id}`}>Reply to {post.author}'s post</label><input id={`reply-${post.id}`} autoFocus value={replyDrafts[post.id] ?? ''} onChange={(event) => setReplyDrafts((drafts) => ({ ...drafts, [post.id]: event.target.value }))} placeholder="Write a thoughtful reply…" maxLength={1000} /><button className="button button--secondary button--small" type="submit" disabled={!(replyDrafts[post.id] ?? '').trim() || reply.isPending}>Reply</button></form>}</div><button className="more-button" aria-label={`More actions for ${post.author}`} type="button">•••</button></article>)}<PaginationControls page={page} itemCount={postsQuery.data?.length ?? 0} pageSize={10} onPageChange={setPage} label="Community posts" /></section><aside className="community-sidebar"><section className="announcement-card" aria-labelledby="announcement-title"><div className="card-title"><Sparkle size={24} weight="fill" /><span id="announcement-title">Announcements</span></div><p className="announcement-card__intro">A few things happening around Safe Space Saturdays.</p><div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Games are coming soon</strong><p>We’re preparing friendly rooms, bot play, and game-night rules. Watch this space.</p><Link to="/games">See the update <ArrowRight size={15} /></Link></div></div><div className="announcement-item"><span className="announcement-item__badge announcement-item__badge--sage">Today</span><div><strong>Make space for a check-in</strong><p>A few honest minutes can help you notice what you need.</p><Link to="/check-in">Start a check-in <ArrowRight size={15} /></Link></div></div></section><section className="guidelines-card"><div className="card-title"><Leaf size={24} weight="fill" /><span>Community guidelines</span></div><p>We care for each other.</p>{[['🧡', 'Be Kind', 'Choose compassion and respect in every interaction.'], ['🔒', 'Respect Privacy', 'What’s shared here stays here. Protect each other’s stories.'], ['🌱', 'Encourage & Uplift', 'Cheer each other on and celebrate every step forward.']].map(([icon, title, text]) => <div className="guideline" key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</section></aside></div></main><PageFooter /></>
 }
 
 function PromoCard({
@@ -614,6 +629,8 @@ function ProfileScreen() {
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [likedPage, setLikedPage] = useState(1)
   const [repliedPage, setRepliedPage] = useState(1)
+  const [savedQuotesPage, setSavedQuotesPage] = useState(1)
+  const [checkInsPage, setCheckInsPage] = useState(1)
   const [avatarError, setAvatarError] = useState('')
   const [theme, setTheme] = useState<'sage' | 'night' | 'high-contrast'>(() => {
     if (typeof window === 'undefined') return 'sage'
@@ -650,6 +667,16 @@ function ProfileScreen() {
   const repliedPosts = useQuery({
     queryKey: ['replied-posts', repliedPage],
     queryFn: () => api.repliedPosts(repliedPage),
+    enabled: activeTab === 'activity',
+  })
+  const savedQuotes = useQuery({
+    queryKey: ['saved-quotes', savedQuotesPage],
+    queryFn: () => api.savedQuotes(savedQuotesPage),
+    enabled: activeTab === 'activity',
+  })
+  const checkIns = useQuery({
+    queryKey: ['check-ins', checkInsPage],
+    queryFn: () => api.checkIns(checkInsPage, 5),
     enabled: activeTab === 'activity',
   })
   const saveAvatar = useMutation({
@@ -897,6 +924,7 @@ function ProfileScreen() {
           )}
           {activeTab === 'activity' && (
             <div className="profile-activity">
+              {(likedPosts.isLoading || repliedPosts.isLoading || savedQuotes.isLoading || checkIns.isLoading) && <ContentSkeleton rows={3} />}
               <section className="profile-card">
                 <div className="card-title">
                   <Heart size={22} weight="fill" />
@@ -970,6 +998,51 @@ function ProfileScreen() {
                   onPageChange={setRepliedPage}
                   label="Replied posts"
                 />
+              </section>
+              <section className="profile-card">
+                <div className="card-title">
+                  <BookmarkSimple size={22} weight="fill" />
+                  <span>Saved quotes</span>
+                </div>
+                {(savedQuotes.data ?? []).length > 0 ? (
+                  (savedQuotes.data ?? []).map((quote) => (
+                    <article className="activity-post activity-quote" key={quote.id}>
+                      <p>“{quote.text}”</p>
+                      <small>— {quote.author} · {quote.category}</small>
+                    </article>
+                  ))
+                ) : (
+                  <div className="profile-empty-state">
+                    <p>Quotes you save will stay here for a quieter moment.</p>
+                    <Link className="button button--secondary button--small" to="/quotes">
+                      Find a quote
+                    </Link>
+                  </div>
+                )}
+                <PaginationControls page={savedQuotesPage} itemCount={savedQuotes.data?.length ?? 0} pageSize={5} onPageChange={setSavedQuotesPage} label="Saved quotes" />
+              </section>
+              <section className="profile-card">
+                <div className="card-title">
+                  <Heart size={22} />
+                  <span>Check-in history</span>
+                </div>
+                {(checkIns.data ?? []).length > 0 ? (
+                  (checkIns.data ?? []).map((checkIn) => (
+                    <article className="activity-post" key={checkIn.id}>
+                      <strong>{checkIn.mood}</strong>
+                      <p>{checkIn.gratitude || checkIn.thoughts || 'You made space to check in with yourself.'}</p>
+                      <small>{new Date(checkIn.created_at).toLocaleDateString()} · Energy {checkIn.energy}/5 · Stress {checkIn.stress}/5</small>
+                    </article>
+                  ))
+                ) : (
+                  <div className="profile-empty-state">
+                    <p>Your private check-in reflections will appear here.</p>
+                    <Link className="button button--secondary button--small" to="/check-in">
+                      Make a check-in
+                    </Link>
+                  </div>
+                )}
+                <PaginationControls page={checkInsPage} itemCount={checkIns.data?.length ?? 0} pageSize={5} onPageChange={setCheckInsPage} label="Check-in history" />
               </section>
             </div>
           )}
