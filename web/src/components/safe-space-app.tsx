@@ -196,7 +196,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
     const password = String(data.get('password') ?? '')
     const confirmPassword = String(data.get('confirm-password') ?? '')
     if (!isLogin && name.length < 2) return setFormError('Please enter your full name.')
-    if (password.length < 10) return setFormError('Your password must be at least 10 characters.')
+    if (!isLogin && password.length < 10) return setFormError('Your password must be at least 10 characters.')
     if (!isLogin && password !== confirmPassword) return setFormError('Passwords do not match.')
     setFormError('')
     mutation.mutate({ name, email, password, confirm_password: confirmPassword })
