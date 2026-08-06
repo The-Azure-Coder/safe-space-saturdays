@@ -221,7 +221,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
         <span className="auth-panel__leaf" aria-hidden="true">❧</span>
         <h2 id="auth-title">{isLogin ? 'Welcome back' : 'Create your safe space'}</h2>
         <p className="auth-panel__intro">{isLogin ? 'It’s good to have you here.' : 'Join a community that cares. You are not alone.'}</p>
-        {submitted && <div className="form-success" role="status"><CheckCircle size={20} weight="fill" /> {isLogin ? 'Welcome back, Jasmine.' : 'Your account is ready to begin.'}</div>}
+        {submitted && <div className="form-success" role="status"><CheckCircle size={20} weight="fill" /> {isLogin ? 'Welcome back.' : 'Your account is ready to begin.'}</div>}
         {(formError || mutation.isError) && <div className="form-error" role="alert">{formError || mutation.error?.message || 'We could not complete that request.'}</div>}
         <form onSubmit={onSubmit} noValidate>
           {!isLogin && <label>Full name<input name="name" type="text" placeholder="Your full name" required /></label>}
