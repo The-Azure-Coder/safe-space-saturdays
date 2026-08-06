@@ -2,7 +2,7 @@ import asyncio
 import io
 from collections import Counter
 from collections.abc import Iterable
-from datetime import UTC, date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -243,6 +243,21 @@ async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
 async def create_check_in(
     payload: CheckInRequest, user: CurrentUser, db: DbSession
 ) -> CheckInResponse:
+    latest = await db.scalar(
+        select(CheckIn)
+        .where(CheckIn.user_id == user.id, CheckIn.completed.is_(True))
+        .order_by(CheckIn.created_at.desc())
+        .limit(1)
+    )
+    if latest and latest.created_at:
+        created_at = latest.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        if datetime.now(UTC) - created_at < timedelta(hours=12):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Your next check-in will be available 12 hours after your last one.",
+            )
     checkin = CheckIn(user_id=user.id, **payload.model_dump())
     db.add(checkin)
     await db.flush()

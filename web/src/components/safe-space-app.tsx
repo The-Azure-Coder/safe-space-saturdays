@@ -284,6 +284,14 @@ function ComingSoonBanner() {
   return <section className="coming-soon-banner" aria-labelledby="coming-soon-title"><div className="coming-soon-banner__mark" aria-hidden="true">✦</div><div><span className="eyebrow">Game night is on its way</span><h2 id="coming-soon-title">A little more play is coming soon <span className="heart-doodle">♡</span></h2><p>We’re thoughtfully building the rooms, rules, and friendly bot experience. Until then, there is always space to check in, connect, and grow together.</p></div><Link className="button button--small button--primary" to="/community">Stay connected <ArrowRight size={16} /></Link></section>
 }
 
+function formatCooldown(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
 function CheckInScreen() {
   const [selectedMood, setSelectedMood] = useState('')
   const [needs, setNeeds] = useState<Array<string>>([])
@@ -291,11 +299,21 @@ function CheckInScreen() {
   const [stress, setStress] = useState(3)
   const [thoughts, setThoughts] = useState('')
   const [gratitude, setGratitude] = useState('')
-  const [complete, setComplete] = useState(false)
+  const [completedCheckIn, setCompletedCheckIn] = useState<CheckIn | null>(null)
   const [draftSaved, setDraftSaved] = useState(false)
   const queryClient = useQueryClient()
   const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
-  const mutation = useMutation({ mutationFn: api.createCheckIn, onSuccess: () => { setComplete(true); queryClient.invalidateQueries({ queryKey: ['me'] }) } })
+  const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: api.dashboard, retry: false })
+  const [now, setNow] = useState(() => Date.now())
+  const latestCheckIn = completedCheckIn ?? dashboard.data?.latest_check_in ?? null
+  const nextCheckInAt = latestCheckIn?.completed ? new Date(latestCheckIn.created_at).getTime() + 12 * 60 * 60 * 1000 : 0
+  const remainingCooldown = Math.max(0, nextCheckInAt - now)
+  const cooldownActive = Boolean(latestCheckIn?.completed && remainingCooldown > 0)
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const mutation = useMutation({ mutationFn: api.createCheckIn, onSuccess: (checkIn) => { setCompletedCheckIn(checkIn); queryClient.invalidateQueries({ queryKey: ['me'] }); queryClient.invalidateQueries({ queryKey: ['dashboard'] }) } })
   const submit = () => {
     if (!selectedMood) return
     mutation.mutate({ mood: selectedMood, needs, energy, stress, thoughts: thoughts || null, gratitude: gratitude || null, completed: true })
@@ -304,7 +322,7 @@ function CheckInScreen() {
     window.localStorage.setItem('safe-space-checkin-draft', JSON.stringify({ selectedMood, needs, energy, stress, thoughts, gratitude }))
     setDraftSaved(true)
   }
-  if (complete) return <><PageHeader screen="check-in" /><main className="page-content checkin-complete-page"><section className="checkin-complete-card" aria-labelledby="checkin-complete-title"><div className="checkin-complete-card__icon"><CheckCircle size={34} weight="fill" /></div><span className="eyebrow">A moment kept for you</span><h1 id="checkin-complete-title">Your check-in is complete.</h1><p className="checkin-complete-card__intro">You made space to notice what is happening inside you. That is meaningful progress.</p><div className="checkin-complete-summary"><div><small>Today you felt</small><strong>{selectedMood}</strong></div><div><small>Energy</small><strong>{energy} / 5</strong></div><div><small>Stress</small><strong>{stress} / 5</strong></div><div><small>Current streak</small><strong>{currentUser.data?.streak ?? '—'} days</strong></div></div>{needs.length > 0 && <p className="checkin-complete-note"><Leaf size={18} weight="fill" /> You asked for <strong>{needs.join(', ')}</strong>.</p>}{gratitude && <blockquote className="checkin-complete-reflection">“{gratitude}”</blockquote>}<div className="checkin-complete-actions"><Link className="button button--primary" to="/profile">Review your reflections</Link><Link className="button button--secondary" to="/">Return home</Link></div></section></main><PageFooter /></>
+  if (cooldownActive && latestCheckIn) return <><PageHeader screen="check-in" /><main className="page-content checkin-complete-page"><section className="checkin-complete-card checkin-cooldown-card" aria-labelledby="checkin-complete-title"><div className="checkin-cooldown-card__visual"><img src="/assets/community-circle.png" alt="Friends reflecting together in a supportive circle" /><span className="checkin-complete-card__icon"><CheckCircle size={34} weight="fill" /></span></div><span className="eyebrow">A moment kept for you</span><h1 id="checkin-complete-title">Your check-in is complete.</h1><p className="checkin-complete-card__intro">You made space to notice what is happening inside you. Take this time to let your reflection settle.</p><div className="checkin-cooldown" role="timer" aria-live="polite"><small>Your next check-in opens in</small><strong>{formatCooldown(remainingCooldown)}</strong><span>Come back when you are ready to check in again.</span></div><CheckInReflection checkIn={latestCheckIn} /><div className="checkin-complete-actions"><Link className="button button--primary" to="/profile">Review your reflections</Link><Link className="button button--secondary" to="/">Return home</Link></div></section></main><PageFooter /></>
   return <><PageHeader screen="check-in" /><main className="page-content checkin-page"><div className="checkin-main"><SectionHeading title="Daily Check-In" description="Take a moment to check in with yourself. Your responses help us support you better." />
     <section className="form-card"><h2><Smiley size={24} weight="fill" /> 1. How are you feeling today?</h2><div className="mood-row mood-row--large">{moods.map((mood) => <button className={selectedMood === mood.label ? 'mood-option mood-option--selected' : 'mood-option'} key={mood.label} type="button" onClick={() => setSelectedMood(mood.label)}><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div></section>
     <div className="two-column"><section className="form-card"><h2><Leaf size={24} weight="fill" /> 2. What do you need today?</h2><div className="choice-list">{['Rest', 'Encouragement', 'Space', 'Someone to Talk To', 'Motivation', 'Fun', 'Prayer / Positive Words'].map((choice) => <button type="button" key={choice} className={needs.includes(choice) ? 'choice-chip choice-chip--selected' : 'choice-chip'} onClick={() => setNeeds((current) => current.includes(choice) ? current.filter((item) => item !== choice) : [...current, choice])}><span aria-hidden="true">{choice === 'Rest' ? '🛏️' : choice === 'Encouragement' ? '🧡' : choice === 'Space' ? '☁️' : choice === 'Motivation' ? '⭐' : '🌿'}</span>{choice}</button>)}</div></section><section className="form-card"><h2><Sparkle size={24} weight="fill" /> 3. Energy & Stress Check</h2><RangeRow label="Energy Level" left="Low" right="High" value={energy} onChange={setEnergy} /><RangeRow label="Stress Level" left="Calm" right="Overwhelmed" value={stress} onChange={setStress} accent /></section></div>

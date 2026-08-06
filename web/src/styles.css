@@ -680,6 +680,26 @@ html[data-theme='night'] .auth-panel .auth-switch a:hover { color: #ffd1c2; }
 html[data-theme='night'] .mood-row button { border-color: var(--line); background: #263a31; color: var(--ink); }
 html[data-theme='night'] .mood-row button small { color: var(--ink); }
 html[data-theme='night'] .coming-soon-banner .eyebrow { color: #b9d8b5; }
+
+.checkin-cooldown-card { overflow: hidden; }
+.checkin-cooldown-card__visual { position: relative; width: min(100%, 390px); height: 156px; margin: -10px auto 24px; overflow: hidden; border-radius: 22px; background: var(--sage-pale); }
+.checkin-cooldown-card__visual img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 52%; mix-blend-mode: multiply; opacity: .86; }
+.checkin-cooldown-card__visual .checkin-complete-card__icon { position: absolute; right: 16px; bottom: 14px; width: 58px; height: 58px; margin: 0; border: 4px solid var(--paper); }
+.checkin-cooldown { display: grid; gap: 5px; margin: 26px auto 22px; padding: 17px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--sage-pale); }
+.checkin-cooldown small, .checkin-cooldown span { color: var(--muted); }
+.checkin-cooldown small { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.checkin-cooldown strong { color: var(--sage-dark); font-family: 'DM Sans', sans-serif; font-size: clamp(31px, 6vw, 44px); font-variant-numeric: tabular-nums; letter-spacing: .08em; line-height: 1.1; }
+.checkin-cooldown span { font-size: 13px; }
+.checkin-cooldown-card .checkin-reflection { margin-top: 26px; text-align: left; }
+html[data-theme='night'] .checkin-cooldown-card__visual { background: #30483b; }
+html[data-theme='night'] .checkin-cooldown-card__visual img { mix-blend-mode: screen; opacity: .68; }
+html[data-theme='night'] .checkin-cooldown,
+html[data-theme='night'] .checkin-cooldown-card .checkin-reflection__metrics span { background: #30483b; }
+html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
+@media (max-width: 760px) {
+  .checkin-cooldown-card__visual { height: 132px; margin-top: -2px; }
+  .checkin-cooldown-card .checkin-reflection { margin-inline: 0; }
+}
 @media (max-width: 760px) {
   .leaderboard-hero > .progress-card { order: 2; }
   .leaderboard-hero > .podium { order: 3; }
