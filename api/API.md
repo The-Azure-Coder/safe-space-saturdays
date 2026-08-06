@@ -17,22 +17,25 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 | Auth | POST | `/api/auth/logout` | End the current session |
 | Auth | GET | `/api/auth/me` | Current user |
 | Auth | PATCH | `/api/auth/me` | Update display name |
+| Auth | POST | `/api/auth/me/avatar` | Save a JPEG, PNG, or WebP profile picture (maximum 5 MB) |
 | Dashboard | GET | `/api/dashboard` | Progress, rank, quote, latest check-in |
-| Check-ins | GET | `/api/check-ins` | Private check-in history |
+| Check-ins | GET | `/api/check-ins?page=1&limit=20` | Private check-in history with pagination |
 | Check-ins | POST | `/api/check-ins` | Save a completed check-in |
-| Quotes | GET | `/api/quotes?category=...` | List/filter quotes |
+| Quotes | GET | `/api/quotes?category=...&page=1&limit=20` | List/filter quotes with pagination |
 | Quotes | POST | `/api/quotes/{id}/save` | Toggle a saved quote |
-| Community | GET | `/api/community/posts` | List visible posts |
+| Community | GET | `/api/community/posts?page=1&limit=20` | List visible posts with pagination and replies |
+| Community | GET | `/api/community/activity/liked?page=1&limit=10` | Posts the current member liked or loved |
+| Community | GET | `/api/community/activity/replied?page=1&limit=10` | Posts the current member replied to |
 | Community | POST | `/api/community/posts` | Create a post |
 | Community | POST | `/api/community/posts/with-image` | Create a post with a JPEG, PNG, or WebP image (maximum 5 MB) |
 | Community | POST | `/api/community/posts/{id}/reactions` | Toggle or change a `like`, `dislike`, or `love` reaction |
 | Community | POST | `/api/community/posts/{id}/comments` | Add a comment |
-| Games | GET | `/api/games` | Featured games |
-| Games | GET | `/api/games/rooms` | Open rooms |
+| Games | GET | `/api/games?page=1&limit=20` | Featured games with pagination |
+| Games | GET | `/api/games/rooms?page=1&limit=10` | Open rooms with pagination |
 | Games | POST | `/api/games/rooms` | Create a room |
 | Games | POST | `/api/games/rooms/{id}/join` | Join a room |
-| Games | GET | `/api/games/winners` | Recent winners |
-| Leaderboard | GET | `/api/leaderboard?period=week` | Ranked members |
+| Games | GET | `/api/games/winners?page=1&limit=10` | Recent winners with pagination |
+| Leaderboard | GET | `/api/leaderboard?period=week&page=1&limit=10` | Ranked members with pagination |
 
 All request bodies and response bodies are typed and visible in the generated OpenAPI schema. Validation errors use FastAPI's standard `422` response; missing authentication uses `401`; missing resources use `404`; duplicate or full resources use `409`.
 

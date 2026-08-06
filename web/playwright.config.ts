@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results/visual',
   fullyParallel: true,
+  workers: 1,
   reporter: 'list',
   use: {
     baseURL: 'http://localhost:3000',

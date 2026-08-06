@@ -9,6 +9,7 @@ class UserResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    avatar_url: str | None = None
     role: str
     xp: int
     streak: int
@@ -79,6 +80,7 @@ class PostResponse(BaseModel):
     dislikes: int
     loves: int
     my_reaction: Literal["like", "dislike", "love"] | None = None
+    comments: list["CommentResponse"] = Field(default_factory=list)
     mine: bool
 
 
@@ -92,6 +94,15 @@ class ReactionRequest(BaseModel):
 
 class CommentCreateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
+
+
+class CommentResponse(BaseModel):
+    id: int
+    post_id: int
+    author: str
+    initials: str
+    text: str
+    created_at: datetime
 
 
 class GameResponse(BaseModel):

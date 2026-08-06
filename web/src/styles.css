@@ -25,7 +25,7 @@ main { min-height: 100vh; }
 .profile-menu:hover, .profile-menu[aria-expanded='true'] { transform: translateY(-1px); border-color: var(--line); background: #fffaf2; }
 .profile-menu__name { white-space: nowrap; }
 .avatar { display: inline-grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 3px solid #f7f2e8; border-radius: 50%; color: var(--ink); font-family: 'Playfair Display', serif; font-size: 20px; box-shadow: 0 0 0 1px rgb(74 85 67 / 10%); }
-.avatar--sage { background: #bdcaa9; }.avatar--peach { background: #e8ae91; }.avatar--gold { background: #e3b85a; }.avatar--lilac { background: #c0b4d5; }.avatar--blue { background: #9db7ca; }
+.avatar--sage { background: #bdcaa9; }.avatar--peach { background: #e8ae91; }.avatar--gold { background: #e3b85a; }.avatar--lilac { background: #c0b4d5; }.avatar--blue { background: #9db7ca; }.avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .page-content { width: min(92%, 1490px); margin: 0 auto; padding: 48px 0 34px; }
 .page-footer { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 88px; margin-top: 24px; padding: 20px 30px; background: #c3c9af; color: #26392a; font-family: 'Sacramento', cursive; font-size: 29px; }
 .footer-leaf { font-family: Georgia, serif; color: var(--sage-dark); font-size: 44px; transform: rotate(-25deg); }.footer-leaf--right { transform: rotate(25deg) scaleX(-1); }.footer-heart { color: var(--orange); font-family: Georgia, serif; font-size: 38px; }
@@ -57,6 +57,20 @@ main { min-height: 100vh; }
 .reaction-button { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 6px 9px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--muted); font-size: 13px; transition: color .2s ease, background-color .2s ease, border-color .2s ease; }
 .reaction-button:hover, .reaction-button--active { border-color: var(--line); background: var(--sage-pale); color: var(--sage-dark); }
 .reaction-button--active { font-weight: 700; }
+.pagination-controls { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 18px 22px; color: var(--muted); font-size: 13px; }
+.pagination-controls .button { min-width: 82px; }
+.post-replies { display: grid; gap: 10px; margin: 14px 0; padding: 12px 14px; border-left: 2px solid var(--sage-pale); background: rgb(232 234 219 / 35%); }
+.post-reply { display: flex; align-items: flex-start; gap: 9px; }
+.post-reply .avatar { width: 30px; height: 30px; border-width: 2px; font-size: 13px; }
+.post-reply strong { font-size: 13px; }
+.post-reply p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.reply-form { display: flex; gap: 8px; margin-top: 10px; }
+.reply-form input { min-width: 0; flex: 1; min-height: 36px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); }
+.reply-form .button { flex: 0 0 auto; }
+.profile-activity { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.activity-post { padding: 14px 0; border-top: 1px solid var(--line); }
+.activity-post p { margin: 5px 0; line-height: 1.4; }
+.activity-post small { color: var(--muted); font-size: 12px; }
 .range-row input[type='range'] { width: 100%; accent-color: var(--sage-dark); }
 .profile-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 18px; margin-top: 22px; }
 .profile-card { padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); box-shadow: 0 14px 30px rgb(57 62 37 / 5%); }
@@ -390,6 +404,7 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 }
 @media (max-width: 760px) { .profile-layout { grid-template-columns: 1fr; }.profile-card--identity { grid-column: auto; }.profile-stats { justify-content: space-between; gap: 10px; }.privacy-row { align-items: flex-start; flex-direction: column; } }
 @media (max-width: 760px) { .profile-settings-grid, .theme-options { grid-template-columns: 1fr; }.profile-tabs { margin-inline: -2px; }.profile-tab { flex: 1 0 auto; } }
+@media (max-width: 760px) { .profile-activity { grid-template-columns: 1fr; }.reply-form { align-items: stretch; flex-direction: column; }.reply-form .button { align-self: flex-start; } }
 @media (max-width: 760px) { .post-composer { grid-template-columns: 1fr; }.post-composer__controls { justify-content: flex-start; }.post-composer__controls .button--primary { margin-left: auto; }.post-row__actions { flex-wrap: wrap; gap: 5px; } }
 
 /* Final interaction pass: tactile fields, accessible range controls, and quiet navigation surfaces. */

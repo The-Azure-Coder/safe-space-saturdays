@@ -39,6 +39,7 @@ from app.schemas import (
     CheckInRequest,
     CheckInResponse,
     CommentCreateRequest,
+    CommentResponse,
     DashboardResponse,
     GameResponse,
     LeaderboardEntry,
@@ -141,6 +142,16 @@ async def update_me(
     return user_response(user)
 
 
+@router.post("/auth/me/avatar", response_model=UserResponse)
+async def update_avatar(
+    user: CurrentUser, db: DbSession, image: Annotated[UploadFile, File(...)]
+) -> UserResponse:
+    user.avatar_url = await save_post_image(image)
+    await db.commit()
+    await db.refresh(user)
+    return user_response(user)
+
+
 @router.get("/dashboard", response_model=DashboardResponse)
 async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
     latest = await db.scalar(
@@ -179,14 +190,16 @@ async def create_check_in(
 
 @router.get("/check-ins", response_model=list[CheckInResponse])
 async def list_check_ins(
-    user: CurrentUser, db: DbSession, limit: int = 20
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 20
 ) -> list[CheckInResponse]:
+    page = max(page, 1)
     limit = min(max(limit, 1), 100)
     rows = (
         await db.scalars(
             select(CheckIn)
             .where(CheckIn.user_id == user.id)
             .order_by(CheckIn.created_at.desc())
+            .offset((page - 1) * limit)
             .limit(limit)
         )
     ).all()
@@ -206,12 +219,14 @@ def quote_out(quote: Quote, saved_ids: set[int]) -> QuoteResponse:
 
 @router.get("/quotes", response_model=list[QuoteResponse])
 async def list_quotes(
-    user: CurrentUser, db: DbSession, category: str | None = None
+    user: CurrentUser, db: DbSession, category: str | None = None, page: int = 1, limit: int = 20
 ) -> list[QuoteResponse]:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
     query = select(Quote).order_by(Quote.is_featured.desc(), Quote.id)
     if category and category != "All":
         query = query.where(Quote.category == category)
-    quotes = (await db.scalars(query)).all()
+    quotes = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
     saved_ids = set(
         (await db.scalars(select(SavedQuote.quote_id).where(SavedQuote.user_id == user.id))).all()
     )
@@ -246,6 +261,27 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
             PostReaction.post_id == post.id, PostReaction.user_id == user_id
         )
     )
+    comment_rows = (
+        await db.scalars(
+            select(Comment)
+            .where(Comment.post_id == post.id)
+            .order_by(Comment.created_at.asc())
+            .limit(50)
+        )
+    ).all()
+    comment_responses: list[CommentResponse] = []
+    for comment in comment_rows:
+        comment_author = await db.get(User, comment.user_id)
+        comment_responses.append(
+            CommentResponse(
+                id=comment.id,
+                post_id=comment.post_id,
+                author=comment_author.name if comment_author else "Member",
+                initials=(comment_author.name[0].upper() if comment_author else "M"),
+                text=comment.text,
+                created_at=comment.created_at,
+            )
+        )
     counts = Counter(reactions)
     return PostResponse(
         id=post.id,
@@ -258,6 +294,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
         dislikes=counts["dislike"],
         loves=counts["love"],
         my_reaction=my_reaction,
+        comments=comment_responses,
         mine=post.user_id == user_id,
     )
 
@@ -287,16 +324,65 @@ async def save_post_image(image: UploadFile) -> str:
 
 
 @router.get("/community/posts", response_model=list[PostResponse])
-async def list_posts(user: CurrentUser, db: DbSession, limit: int = 20) -> list[PostResponse]:
+async def list_posts(
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 20
+) -> list[PostResponse]:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
     rows = (
         await db.scalars(
             select(Post)
             .where(Post.is_hidden.is_(False))
             .order_by(Post.created_at.desc())
-            .limit(min(max(limit, 1), 100))
+            .offset((page - 1) * limit)
+            .limit(limit)
         )
     ).all()
     return [await post_out(post, user.id, db) for post in rows]
+
+
+async def list_activity_posts(
+    user: CurrentUser,
+    db: DbSession,
+    reaction_kinds: tuple[str, ...] | None = None,
+    replied_only: bool = False,
+    page: int = 1,
+    limit: int = 20,
+) -> list[PostResponse]:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = select(Post).where(Post.is_hidden.is_(False))
+    if reaction_kinds:
+        query = query.join(PostReaction, PostReaction.post_id == Post.id).where(
+            PostReaction.user_id == user.id, PostReaction.kind.in_(reaction_kinds)
+        )
+    if replied_only:
+        query = query.join(Comment, Comment.post_id == Post.id).where(Comment.user_id == user.id)
+    rows = (
+        await db.scalars(
+            query.order_by(Post.created_at.desc())
+            .distinct()
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+    return [await post_out(post, user.id, db) for post in rows]
+
+
+@router.get("/community/activity/liked", response_model=list[PostResponse])
+async def liked_posts(
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 10
+) -> list[PostResponse]:
+    return await list_activity_posts(
+        user, db, reaction_kinds=("like", "love"), page=page, limit=limit
+    )
+
+
+@router.get("/community/activity/replied", response_model=list[PostResponse])
+async def replied_posts(
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 10
+) -> list[PostResponse]:
+    return await list_activity_posts(user, db, replied_only=True, page=page, limit=limit)
 
 
 @router.post("/community/posts", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
@@ -335,9 +421,7 @@ async def react_to_post(
     if post is None or post.is_hidden:
         raise HTTPException(status_code=404, detail="Post not found")
     reaction = await db.scalar(
-        select(PostReaction).where(
-            PostReaction.post_id == post_id, PostReaction.user_id == user.id
-        )
+        select(PostReaction).where(PostReaction.post_id == post_id, PostReaction.user_id == user.id)
     )
     if reaction:
         if reaction.kind == payload.kind:
@@ -350,29 +434,45 @@ async def react_to_post(
     return await post_out(post, user.id, db)
 
 
-@router.post("/community/posts/{post_id}/comments", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/community/posts/{post_id}/comments",
+    response_model=CommentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def comment_on_post(
     post_id: int, payload: CommentCreateRequest, user: CurrentUser, db: DbSession
-) -> dict[str, object]:
+) -> CommentResponse:
     if await db.get(Post, post_id) is None:
         raise HTTPException(status_code=404, detail="Post not found")
     comment = Comment(post_id=post_id, user_id=user.id, text=payload.text.strip())
     db.add(comment)
     await db.commit()
-    return {
-        "id": comment.id,
-        "post_id": post_id,
-        "text": comment.text,
-        "created_at": comment.created_at,
-    }
+    await db.refresh(comment)
+    return CommentResponse(
+        id=comment.id,
+        post_id=comment.post_id,
+        author=user.name,
+        initials=user.name[0].upper(),
+        text=comment.text,
+        created_at=comment.created_at,
+    )
 
 
 @router.get("/games", response_model=list[GameResponse])
-async def list_games(user: CurrentUser, db: DbSession) -> list[GameResponse]:
+async def list_games(
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 20
+) -> list[GameResponse]:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
     return [
         GameResponse.model_validate(game)
         for game in (
-            await db.scalars(select(Game).order_by(Game.is_featured.desc(), Game.id))
+            await db.scalars(
+                select(Game)
+                .order_by(Game.is_featured.desc(), Game.id)
+                .offset((page - 1) * limit)
+                .limit(limit)
+            )
         ).all()
     ]
 
@@ -405,10 +505,18 @@ async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomRespon
 
 
 @router.get("/games/rooms", response_model=list[RoomResponse])
-async def list_rooms(user: CurrentUser, db: DbSession) -> list[RoomResponse]:
+async def list_rooms(
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 10
+) -> list[RoomResponse]:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
     rooms = (
         await db.scalars(
-            select(GameRoom).where(GameRoom.status == "open").order_by(GameRoom.created_at.desc())
+            select(GameRoom)
+            .where(GameRoom.status == "open")
+            .order_by(GameRoom.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
         )
     ).all()
     return [await room_out(room, user.id, db) for room in rooms]
@@ -458,9 +566,18 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
 
 
 @router.get("/games/winners", response_model=list[dict[str, object]])
-async def list_winners(user: CurrentUser, db: DbSession) -> list[dict[str, object]]:
+async def list_winners(
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 10
+) -> list[dict[str, object]]:
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
     winners = (
-        await db.scalars(select(GameWinner).order_by(GameWinner.created_at.desc()).limit(10))
+        await db.scalars(
+            select(GameWinner)
+            .order_by(GameWinner.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
     ).all()
     result: list[dict[str, object]] = []
     for winner in winners:
@@ -480,14 +597,21 @@ async def list_winners(user: CurrentUser, db: DbSession) -> list[dict[str, objec
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 async def leaderboard(
-    user: CurrentUser, db: DbSession, period: str = "week"
+    user: CurrentUser, db: DbSession, period: str = "week", page: int = 1, limit: int = 10
 ) -> list[LeaderboardEntry]:
     if period not in {"week", "month", "all"}:
         raise HTTPException(status_code=422, detail="Invalid leaderboard period")
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
     users = (
-        await db.scalars(select(User).order_by(User.xp.desc(), User.created_at.asc()).limit(100))
+        await db.scalars(
+            select(User)
+            .order_by(User.xp.desc(), User.created_at.asc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
     ).all()
     return [
-        LeaderboardEntry(rank=index, user=user_response(member))
+        LeaderboardEntry(rank=(page - 1) * limit + index, user=user_response(member))
         for index, member in enumerate(users, start=1)
     ]
