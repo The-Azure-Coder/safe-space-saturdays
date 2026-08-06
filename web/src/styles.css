@@ -434,6 +434,12 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
   border-color: rgb(120 105 82 / 18%);
 }
 .input-wrap > input { padding: 0; }
+.auth-panel .input-wrap > input,
+.auth-panel .input-wrap > input:focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
 .form-card textarea { min-height: 112px; }
 .post-composer textarea { padding: 14px 16px; }
 .auth-panel input:focus,
