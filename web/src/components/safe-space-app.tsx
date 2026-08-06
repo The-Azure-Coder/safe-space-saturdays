@@ -230,7 +230,7 @@ function HomeScreen() {
 }
 
 function GameStrip() {
-  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '🎯', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
+  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-ludo.png', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
 }
 
 function GameTile({ game, compact = false }: { game: GameDefinition; compact?: boolean }) {
