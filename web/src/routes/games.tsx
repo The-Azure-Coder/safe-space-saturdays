@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { Outlet } from '@tanstack/react-router'
 
-import { SafeSpaceApp } from '../components/safe-space-app'
-
-export const Route = createFileRoute('/games')({ component: () => <SafeSpaceApp screen="games" /> })
+export const Route = createFileRoute('/games')({ component: () => <Outlet /> })

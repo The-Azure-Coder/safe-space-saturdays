@@ -91,14 +91,33 @@ function PageHeader({ screen }: { screen: Screen }) {
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
   const logout = useMutation({ mutationFn: api.logout, onSuccess: () => { queryClient.clear(); window.location.href = '/login' } })
   const displayName = currentUser.data?.name
+  useEffect(() => {
+    setMenuOpen(false)
+    setMobileNavOpen(false)
+  }, [screen])
+  useEffect(() => {
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) setMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
   return (
     <header className="app-header">
       <Logo compact />
       <nav id="main-navigation" className={mobileNavOpen ? 'app-nav app-nav--mobile-open' : 'app-nav'} aria-label="Main navigation">
         {navItems.map(({ href, label, icon: NavIcon }) => (
-          <Link onClick={() => setMobileNavOpen(false)} className={isActive(screen, href) ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to={href} key={href}>
+          <Link onClick={() => { setMobileNavOpen(false); setMenuOpen(false) }} className={isActive(screen, href) ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to={href} key={href}>
             <NavIcon size={22} weight={isActive(screen, href) ? 'fill' : 'regular'} aria-hidden="true" />
             <span>{label}</span>
           </Link>
@@ -107,7 +126,7 @@ function PageHeader({ screen }: { screen: Screen }) {
       <button className="mobile-nav-toggle" type="button" aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen} aria-controls="main-navigation" onClick={() => setMobileNavOpen((open) => !open)}>
         {mobileNavOpen ? <X size={22} aria-hidden="true" /> : <List size={22} aria-hidden="true" />}
       </button>
-      {displayName ? <div className="profile-menu-wrap">
+      {displayName ? <div className="profile-menu-wrap" ref={profileMenuRef}>
         <button className="profile-menu" type="button" aria-label={`Open ${displayName} profile menu`} aria-expanded={menuOpen} aria-haspopup="menu" onClick={() => setMenuOpen((open) => !open)}>
           <span className="avatar avatar--gold">{currentUser.data?.avatar_url ? <img src={`${API_URL}${currentUser.data.avatar_url}`} alt="" /> : displayName[0].toUpperCase()}</span>
           <span className="profile-menu__name">{displayName}</span>
@@ -259,7 +278,28 @@ function WelcomeCarousel() {
 }
 
 function GameStrip() {
-  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-bingo.png', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
+  const navigate = useNavigate()
+  const catalog = useQuery({ queryKey: ['games', 'home'], queryFn: () => api.games(1, 20), retry: false })
+  const launch = useMutation({
+    mutationFn: async (game: GameDefinition) => {
+      const catalogGame = catalog.data?.find((item) => item.name.toLowerCase() === game.name.toLowerCase() || item.name.toLowerCase().includes(game.name.toLowerCase().split(' ')[0]))
+      if (!catalogGame) throw new Error('Open Games to load this game')
+      const room = await api.createRoom({ game_id: catalogGame.id, name: `${catalogGame.name} · Friendly bot`, max_players: 2 })
+      if (catalogGame.name === 'Connect Four') {
+        const match = await api.createMatch({ room_id: room.id, with_bot: true, bot_difficulty: 'friendly' })
+        return { kind: 'connect-four' as const, id: match.match_id }
+      }
+      const match = await api.createGameSession(room.id)
+      return { kind: 'session' as const, id: match.match_id }
+    },
+    onSuccess: (match) => {
+      if (match.kind === 'connect-four') navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
+      else navigate({ to: '/games/session/$matchId', params: { matchId: match.id } })
+    },
+    onError: () => navigate({ to: '/games' }),
+  })
+  const featured = games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-bingo.png', color: 'peach' })
+  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{featured.map((game) => <GameTile game={game} key={game.name} compact onPlay={() => launch.mutate(game)} />)}</div></section>
 }
 
 function GameTile({ game, compact = false, onPlay }: { game: GameDefinition; compact?: boolean; onPlay?: () => void }) {
