@@ -45,7 +45,63 @@ function GameSessionScreen() {
 }
 
 function LudoBoard({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {
-  return <section className="mini-game-card"><div className="ludo-track">{Array.from({ length: 28 }, (_, index) => <span className={index % 7 === 0 ? 'ludo-space ludo-space--safe' : 'ludo-space'} key={index}>{index === 0 && 'START'}</span>)}</div><div className="token-row">{state.positions?.[0]?.map((position: number, index: number) => <button className="game-token game-token--peach" type="button" disabled={state.current_player !== 0 || state.winner !== null} onClick={() => send({ token: index })} key={index}>●<small>{position < 0 ? 'Base' : position === 56 ? 'Home' : position}</small></button>)}</div><div className="game-action-row"><DiceFive size={21} /><span>{state.roll ? `You rolled ${state.roll}` : 'Choose a token to roll and move'}</span></div></section>
+  const [rolling, setRolling] = useState(false)
+  const [movingToken, setMovingToken] = useState<number | null>(null)
+  const [diceFace, setDiceFace] = useState(Number(state.roll) || 1)
+  const previousBotPositions = useRef<Array<number>>(state.positions?.[1] ?? [])
+  const botMoving = JSON.stringify(previousBotPositions.current) !== JSON.stringify(state.positions?.[1] ?? [])
+  useEffect(() => {
+    if (botMoving) {
+      const timer = window.setTimeout(() => { previousBotPositions.current = state.positions?.[1] ?? [] }, 650)
+      return () => window.clearTimeout(timer)
+    }
+    return undefined
+  }, [botMoving, state.positions])
+  const rollAndMove = (token: number) => {
+    if (rolling || state.current_player !== 0 || state.winner !== null) return
+    setRolling(true)
+    setMovingToken(token)
+    let ticks = 0
+    const diceTimer = window.setInterval(() => {
+      ticks += 1
+      setDiceFace((ticks % 6) + 1)
+      if (ticks >= 7) {
+        window.clearInterval(diceTimer)
+        send({ token })
+        window.setTimeout(() => { setRolling(false); setMovingToken(null) }, 700)
+      }
+    }, 90)
+  }
+  const positions = state.positions ?? [Array(4).fill(-1), Array(4).fill(-1)]
+  return <section className="ludo-game-card">
+    <div className="ludo-player-bar">
+      <div className="ludo-player ludo-player--you"><span className="ludo-avatar">You</span><div><strong>You</strong><small>{state.current_player === 0 ? 'Your turn' : 'Waiting for the bot'}</small></div></div>
+      <div className="ludo-player ludo-player--bot"><span className="ludo-avatar">MB</span><div><strong>Milo Bot</strong><small>{botMoving ? 'Rolling and moving…' : state.current_player === 1 ? 'Bot turn' : 'Ready to play'}</small></div><span className={botMoving ? 'bot-status bot-status--active' : 'bot-status'} aria-label={botMoving ? 'Bot is active' : 'Bot is ready'} /></div>
+    </div>
+    <div className="ludo-board-wrap">
+      <div className="ludo-board" role="grid" aria-label="Ludo board">
+        <div className="ludo-home ludo-home--you"><span>Your home</span>{positions[0]?.map((position: number, index: number) => <button className={movingToken === index ? 'ludo-piece ludo-piece--you ludo-piece--moving' : 'ludo-piece ludo-piece--you'} type="button" aria-label={`Your piece ${index + 1}, ${pieceLabel(position)}`} disabled={state.current_player !== 0 || state.winner !== null || rolling} onClick={() => rollAndMove(index)} key={`you-${index}`}>●</button>)}</div>
+        <div className="ludo-home ludo-home--bot"><span>Bot home</span>{positions[1]?.map((position: number, index: number) => <span className="ludo-piece ludo-piece--bot" aria-label={`Bot piece ${index + 1}, ${pieceLabel(position)}`} key={`bot-${index}`}>●</span>)}</div>
+        <div className="ludo-track-grid">{LUDO_TRACK.map((coordinate, index) => <span className={index % 13 === 0 ? 'ludo-track-cell ludo-track-cell--safe' : 'ludo-track-cell'} style={{ gridRow: coordinate[0] + 1, gridColumn: coordinate[1] + 1 }} key={index}>{positions[0]?.some((position: number) => position >= 0 && position < 52 && position === index) && <span className="ludo-board-piece ludo-board-piece--you" />}{positions[1]?.some((position: number) => position >= 0 && position < 52 && position === index) && <span className="ludo-board-piece ludo-board-piece--bot" />}</span>)}</div>
+        <div className="ludo-goal"><span>HOME</span><div className="ludo-goal-heart">✦</div></div>
+      </div>
+    </div>
+    <div className="ludo-controls"><div className={rolling ? 'ludo-dice ludo-dice--rolling' : 'ludo-dice'} aria-label={`Dice shows ${diceFace}`}>{diceFace}</div><div><strong>{rolling ? 'Rolling the dice…' : botMoving ? 'Milo is making a move…' : state.current_player === 0 ? 'Choose a piece to roll and move' : 'Milo is thinking…'}</strong><small>Six gets a piece out of home. Exact roll reaches the finish.</small></div><button className="button button--primary" type="button" disabled={state.current_player !== 0 || rolling || state.winner !== null} onClick={() => rollAndMove(0)}><DiceFive size={19} /> Roll & move</button></div>
+  </section>
+}
+
+const LUDO_TRACK: Array<[number, number]> = [
+  ...Array.from({ length: 13 }, (_, column) => [1, column + 1] as [number, number]),
+  ...Array.from({ length: 12 }, (_, row) => [row + 2, 13] as [number, number]),
+  ...Array.from({ length: 12 }, (_, column) => [13, 12 - column] as [number, number]),
+  ...Array.from({ length: 11 }, (_, row) => [12 - row, 1] as [number, number]),
+  [6, 6], [7, 6], [8, 6], [7, 7],
+]
+
+function pieceLabel(position: number) {
+  if (position < 0) return 'in home'
+  if (position >= 56) return 'finished'
+  return `on space ${position + 1}`
 }
 
 function DominoBoard({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {
