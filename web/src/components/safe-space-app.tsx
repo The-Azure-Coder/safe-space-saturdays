@@ -16,7 +16,6 @@ import {
   Eye,
   EyeSlash,
   Flame,
-  GameController,
   Heart,
   House,
   Leaf,
@@ -55,7 +54,6 @@ type Icon = ComponentType<{ size?: number; weight?: 'regular' | 'fill' | 'duoton
 const navItems: Array<{ href: string; label: string; icon: Icon }> = [
   { href: '/', label: 'Home', icon: House },
   { href: '/check-in', label: 'Daily Check-In', icon: Heart },
-  { href: '/games', label: 'Games', icon: GameController },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/community', label: 'Community', icon: UsersThree },
   { href: '/quotes', label: 'Quotes', icon: Quotes },
@@ -69,14 +67,6 @@ const moods = [
   { label: 'Struggling', icon: '😔' },
 ]
 
-type GameDefinition = { name: string; players: string; icon: Icon | string; color: string }
-
-const games: Array<GameDefinition> = [
-  { name: 'Ludo', players: '2–4 players', icon: '/assets/game-ludo.png', color: 'sage' },
-  { name: 'Dominoes', players: '2–4 players', icon: '/assets/game-dominoes.png', color: 'peach' },
-  { name: 'Trivia Battle', players: '2+ players', icon: '/assets/game-trivia.png', color: 'lilac' },
-  { name: 'Connect Four', players: '2 players', icon: '/assets/game-connect-four.png', color: 'blue' },
-]
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -234,7 +224,7 @@ function HomeScreen() {
         <article className="check-card"><div className="card-title"><Smiley size={22} weight="fill" /> <span>How are you feeling today?</span></div><p>Your check-in helps us support you better.</p><div className="mood-row">{moods.map((mood) => <button key={mood.label} type="button"><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div><Link className="button button--primary" to="/check-in">Check In</Link></article>
         <article className="community-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Community Corner</span></div><h3>You are not alone.</h3><p>Join a space that listens, encourages, and grows together.</p><Link className="button button--lilac" to="/community">Explore Community <ArrowRight size={16} /></Link></article>
       </section>
-      <GameStrip />
+      <ComingSoonBanner />
     </main>
     <PageFooter />
   </>
@@ -258,20 +248,8 @@ function WelcomeCarousel() {
   return <section className={`welcome-carousel welcome-carousel--${slide.tone}`} aria-roledescription="carousel" aria-label="A little encouragement"><div key={`copy-${activeSlide}`} className="welcome-carousel__copy" aria-live="polite"><span className="welcome-carousel__eyebrow">{slide.eyebrow}</span><h2>{slide.title}</h2><p>{slide.body}</p><Link className="button button--primary button--small" to={slide.to}>{slide.cta} <ArrowRight size={16} /></Link></div><div key={`art-${activeSlide}`} className="welcome-carousel__art"><img className="welcome-carousel__image" src="/assets/community-circle.png" alt="Friends supporting one another in a safe space" /><span className="welcome-carousel__sun" aria-hidden="true" /><span className="welcome-carousel__flower welcome-carousel__flower--one" aria-hidden="true">✦</span><span className="welcome-carousel__flower welcome-carousel__flower--two" aria-hidden="true">✿</span><span className="welcome-carousel__icon" aria-hidden="true"><SlideIcon size={36} weight="fill" /></span></div><div className="welcome-carousel__controls"><button type="button" aria-label="Previous encouragement" onClick={() => move(-1)}><CaretLeft size={20} /></button><div className="welcome-carousel__dots">{welcomeSlides.map((item, index) => <button type="button" key={item.title} className={index === activeSlide ? 'welcome-carousel__dot welcome-carousel__dot--active' : 'welcome-carousel__dot'} aria-label={`Show encouragement ${index + 1}`} aria-current={index === activeSlide ? 'true' : undefined} onClick={() => setActiveSlide(index)} />)}</div><button type="button" aria-label="Next encouragement" onClick={() => move(1)}><CaretRight size={20} /></button></div></section>
 }
 
-function GameStrip() {
-  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-bingo.png', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
-}
-
-function GameTile({ game, compact = false }: { game: GameDefinition; compact?: boolean }) {
-  const GameIcon = typeof game.icon === 'string' ? null : game.icon
-  const generatedIcon = typeof game.icon === 'string' && game.icon.startsWith('/') ? game.icon : ({
-    Ludo: '/assets/game-ludo.png',
-    Dominoes: '/assets/game-dominoes.png',
-    'Trivia Battle': '/assets/game-trivia.png',
-    'Connect Four': '/assets/game-connect-four.png',
-    Bingo: '/assets/game-bingo.png',
-  }[game.name] ?? null)
-  return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__icon" aria-hidden="true">{generatedIcon ? <img src={generatedIcon} alt="" /> : GameIcon ? <GameIcon size={compact ? 34 : 48} weight="duotone" /> : null}</span><h3>{game.name}</h3><Link className="button button--small button--primary" to="/games">Play</Link>{!compact && <small>{game.players}</small>}</article>
+function ComingSoonBanner() {
+  return <section className="coming-soon-banner" aria-labelledby="coming-soon-title"><div className="coming-soon-banner__mark" aria-hidden="true">✦</div><div><span className="eyebrow">Game night is on its way</span><h2 id="coming-soon-title">A little more play is coming soon <span className="heart-doodle">♡</span></h2><p>We’re thoughtfully building the rooms, rules, and friendly bot experience. Until then, there is always space to check in, connect, and grow together.</p></div><Link className="button button--small button--primary" to="/community">Stay connected <ArrowRight size={16} /></Link></section>
 }
 
 function CheckInScreen() {
@@ -366,6 +344,15 @@ function PromoCard({
 }
 
 function GamesScreen() {
+  return <ComingSoonScreen />
+}
+
+function ComingSoonScreen() {
+  return <><PageHeader screen="games" /><main className="page-content coming-soon-page"><section className="coming-soon-card" aria-labelledby="games-coming-soon-title"><div className="coming-soon-card__art" aria-hidden="true">🎲</div><span className="eyebrow">A little more time to play</span><h1 id="games-coming-soon-title">Games are coming soon <span className="heart-doodle">♡</span></h1><p>We’re carefully building the rooms, rules, bots, and gentle game-night experience. The rest of Safe Space Saturdays is ready for you now.</p><Link className="button button--primary" to="/community">Stay connected <ArrowRight size={16} /></Link></section></main><PageFooter /></>
+}
+
+/* Full games implementation stays isolated on feat/games-persistence until it is ready for pre-production.
+function GamesScreenLegacy() {
   const [gamesPage, setGamesPage] = useState(1)
   const [roomsPage, setRoomsPage] = useState(1)
   const gamesQuery = useQuery({
@@ -489,6 +476,9 @@ function GamesScreen() {
     </>
   )
 }
+
+}
+*/
 
 function LeaderboardScreen() {
   const [period, setPeriod] = useState('week')
