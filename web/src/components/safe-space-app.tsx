@@ -586,6 +586,10 @@ function LeaderboardScreen() {
     queryKey: ['leaderboard', period, page],
     queryFn: () => api.leaderboard(period, page, 10),
   })
+  const progress = useQuery({
+    queryKey: ['leaderboard-me', period],
+    queryFn: () => api.leaderboardMe(period),
+  })
   const entries = leaderboard.data ?? []
   return (
     <>
@@ -623,16 +627,13 @@ function LeaderboardScreen() {
                 Rank
                 <strong>
                   #
-                  {entries.find((entry) => entry.user.name === 'Jasmine')
-                    ?.rank ?? '—'}
+                  {progress.data?.rank ?? '—'}
                 </strong>
               </span>
               <span>
                 Total XP
                 <strong>
-                  {entries
-                    .find((entry) => entry.user.name === 'Jasmine')
-                    ?.user.xp.toLocaleString() ?? '—'}{' '}
+                  {progress.data?.user.xp.toLocaleString() ?? '—'}{' '}
                   <small>XP</small>
                 </strong>
               </span>

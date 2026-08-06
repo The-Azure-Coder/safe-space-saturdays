@@ -85,6 +85,7 @@ export const api = {
   createRoom: (body: { game_id: number; name: string; max_players: number }) => apiFetch<Room>('/api/games/rooms', { method: 'POST', body: JSON.stringify(body) }),
   joinRoom: (id: number) => apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
   leaderboard: (period: string, page = 1, limit = 10) => apiFetch<Array<LeaderboardEntry>>(`/api/leaderboard?period=${period}&page=${page}&limit=${limit}`),
+  leaderboardMe: (period: string) => apiFetch<LeaderboardEntry>(`/api/leaderboard/me?period=${period}`),
   createBugReport: (body: { title: string; description: string; severity: string; page_url?: string }) => apiFetch<BugReport>('/api/bug-reports', { method: 'POST', body: JSON.stringify(body) }),
   adminBugReports: (page = 1, limit = 20, status?: string) => apiFetch<Array<BugReport>>(`/api/admin/bug-reports?page=${page}&limit=${limit}${status ? `&report_status=${encodeURIComponent(status)}` : ''}`),
   updateBugReport: (id: number, body: { status: string; admin_note?: string }) => apiFetch<BugReport>(`/api/admin/bug-reports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

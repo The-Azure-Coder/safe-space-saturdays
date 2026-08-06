@@ -14,7 +14,10 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { title: 'Safe Space Saturdays' },
       { name: 'description', content: 'A warm, welcoming space to reflect, connect, and grow together.' },
     ],
-    links: [{ rel: 'stylesheet', href: appCss }],
+    links: [
+      { rel: 'stylesheet', href: appCss },
+      { rel: 'icon', type: 'image/png', href: '/assets/safe-space-favicon.png' },
+    ],
   }),
   shellComponent: RootDocument,
 })

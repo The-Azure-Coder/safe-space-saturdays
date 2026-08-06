@@ -731,6 +731,16 @@ async def leaderboard(
     ]
 
 
+@router.get("/leaderboard/me", response_model=LeaderboardEntry)
+async def leaderboard_me(
+    user: CurrentUser, db: DbSession, period: str = "week"
+) -> LeaderboardEntry:
+    if period not in {"week", "month", "all"}:
+        raise HTTPException(status_code=422, detail="Invalid leaderboard period")
+    rank = (await db.scalar(select(func.count(User.id)).where(User.xp > user.xp)) or 0) + 1
+    return LeaderboardEntry(rank=rank, user=user_response(user))
+
+
 @router.get("/admin/bug-reports", response_model=list[BugReportResponse])
 async def admin_bug_reports(
     admin: CurrentAdmin,
