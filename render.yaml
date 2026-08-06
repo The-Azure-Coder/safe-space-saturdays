@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: safe-space-saturdays-api
+    runtime: docker
+    plan: free
+    repo: https://github.com/The-Azure-Coder/safe-space-saturdays.git
+    branch: pre-prod
+    autoDeployTrigger: commit
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: ./api
+    healthCheckPath: /health/ready
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        sync: false
+      - key: API_CORS_ORIGINS
+        sync: false
+      - key: UPLOAD_DIR
+        value: ./uploads
+      - key: MAX_UPLOAD_BYTES
+        value: "5000000"
+
+  - type: web
+    name: safe-space-saturdays-web
+    runtime: docker
+    plan: free
+    repo: https://github.com/The-Azure-Coder/safe-space-saturdays.git
+    branch: pre-prod
+    autoDeployTrigger: commit
+    dockerfilePath: ./web/Dockerfile
+    dockerContext: ./web
+    healthCheckPath: /
+    envVars:
+      - key: VITE_API_URL
+        sync: false

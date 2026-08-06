@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "start": "node server.mjs",
     "generate-routes": "tsr generate",
     "typecheck": "npm run generate-routes && tsc --noEmit",
     "build": "vite build",
