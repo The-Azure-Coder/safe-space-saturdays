@@ -69,7 +69,7 @@ const moods = [
   { label: 'Struggling', icon: '😔' },
 ]
 
-type GameDefinition = { name: string; players: string; icon: Icon | string; color: string }
+type GameDefinition = { id?: number; name: string; players: string; icon: Icon | string; color: string }
 
 const games: Array<GameDefinition> = [
   { name: 'Ludo', players: '2–4 players', icon: '/assets/game-ludo.png', color: 'sage' },
@@ -262,7 +262,7 @@ function GameStrip() {
   return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-bingo.png', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
 }
 
-function GameTile({ game, compact = false }: { game: GameDefinition; compact?: boolean }) {
+function GameTile({ game, compact = false, onPlay }: { game: GameDefinition; compact?: boolean; onPlay?: () => void }) {
   const GameIcon = typeof game.icon === 'string' ? null : game.icon
   const generatedIcon = typeof game.icon === 'string' && game.icon.startsWith('/') ? game.icon : ({
     Ludo: '/assets/game-ludo.png',
@@ -271,7 +271,7 @@ function GameTile({ game, compact = false }: { game: GameDefinition; compact?: b
     'Connect Four': '/assets/game-connect-four.png',
     Bingo: '/assets/game-bingo.png',
   }[game.name] ?? null)
-  return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__icon" aria-hidden="true">{generatedIcon ? <img src={generatedIcon} alt="" /> : GameIcon ? <GameIcon size={compact ? 34 : 48} weight="duotone" /> : null}</span><h3>{game.name}</h3><Link className="button button--small button--primary" to="/games">Play</Link>{!compact && <small>{game.players}</small>}</article>
+  return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__icon" aria-hidden="true">{generatedIcon ? <img src={generatedIcon} alt="" /> : GameIcon ? <GameIcon size={compact ? 34 : 48} weight="duotone" /> : null}</span><h3>{game.name}</h3>{onPlay ? <button className="button button--small button--primary" type="button" onClick={onPlay}>Play</button> : <Link className="button button--small button--primary" to="/games">Play</Link>}{!compact && <small>{game.players}</small>}</article>
 }
 
 function CheckInScreen() {
@@ -394,6 +394,22 @@ function GamesScreen() {
     mutationFn: api.createGameSession,
     onSuccess: (match) => navigate({ to: '/games/session/$matchId', params: { matchId: match.match_id } }),
   })
+  const playGame = useMutation({
+    mutationFn: async (game: GameDefinition) => {
+      if (!game.id) throw new Error('This game is not available yet')
+      const room = await api.createRoom({ game_id: game.id, name: `${game.name} · Friendly bot`, max_players: 2 })
+      if (game.name === 'Connect Four') {
+        const match = await api.createMatch({ room_id: room.id, with_bot: true, bot_difficulty: 'friendly' })
+        return { kind: 'connect-four' as const, id: match.match_id }
+      }
+      const match = await api.createGameSession(room.id)
+      return { kind: 'session' as const, id: match.match_id }
+    },
+    onSuccess: (match) => {
+      if (match.kind === 'connect-four') navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
+      else navigate({ to: '/games/session/$matchId', params: { matchId: match.id } })
+    },
+  })
   const createRoom = useMutation({
     mutationFn: api.createRoom,
     onSuccess: () => {
@@ -439,6 +455,7 @@ function GamesScreen() {
           <label className="field-label">Players<select value={roomPlayers} onChange={(event) => setRoomPlayers(Number(event.target.value))}><option value={2}>2 players</option><option value={3}>3 players</option><option value={4}>4 players</option></select></label>
           <div className="room-create-actions"><button className="button button--primary" type="submit" disabled={createRoom.isPending || !roomGameId}>{createRoom.isPending ? 'Creating…' : 'Create room'}</button><button className="button button--secondary" type="button" onClick={() => setShowCreateRoom(false)}>Cancel</button></div>
         </form>}
+        {playGame.error && <p className="form-error" role="alert">{playGame.error.message}</p>}
         <div className="games-layout">
           <section className="games-panel">
             <div className="card-title">
@@ -447,7 +464,7 @@ function GamesScreen() {
             </div>
             <div className="game-grid">
               {(gamesQuery.data ?? []).map((game) => (
-                <GameTile game={{ ...game, color: game.color }} key={game.id} />
+                <GameTile game={{ ...game, color: game.color }} key={game.id} onPlay={() => playGame.mutate(game)} />
               ))}
             </div>
             <PaginationControls
