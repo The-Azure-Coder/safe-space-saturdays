@@ -1,0 +1,12 @@
+.env
+graphify-out/
+web/node_modules/
+web/.output/
+web/.tanstack/
+web/dist/
+api/.venv/
+api/.pytest_cache/
+api/.mypy_cache/
+api/.ruff_cache/
+__pycache__/
+*.py[cod]
