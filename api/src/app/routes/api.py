@@ -112,7 +112,7 @@ async def set_session(
         token,
         httponly=True,
         secure=get_settings().cookie_secure,
-        samesite="lax",
+        samesite="none" if get_settings().cookie_secure else "lax",
         max_age=60 * 60 * 24 * (get_settings().session_ttl_days if remember_me else 1),
     )
 
