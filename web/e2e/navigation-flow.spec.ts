@@ -38,6 +38,19 @@ test('check-in sliders update their values', async ({ page }) => {
   await expect(page.locator('output[for="range-energy-level"]')).toHaveText('5 / 5')
 })
 
+test('homepage welcome carousel can be navigated without hiding its controls', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' })
+  const carousel = page.locator('[aria-label="A little encouragement"]')
+  await expect(carousel).toBeVisible({ timeout: 110_000 })
+  const title = carousel.locator('h2')
+  const initialTitle = await title.textContent()
+  await carousel.getByRole('button', { name: 'Next encouragement' }).click()
+  await expect(title).not.toHaveText(initialTitle ?? '')
+  await expect(carousel.getByRole('button', { name: 'Previous encouragement' })).toBeVisible()
+  await expect(carousel.getByRole('button', { name: 'Next encouragement' })).toBeVisible()
+  await expect(carousel.getByRole('button', { name: 'Show encouragement 1' })).toBeVisible()
+})
+
 test('mobile navigation opens and closes around route changes', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 })
   await page.goto('/', { waitUntil: 'networkidle' })

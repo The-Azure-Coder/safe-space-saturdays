@@ -286,7 +286,7 @@ body::before {
 
 .home-hero {
   position: relative;
-  grid-template-columns: minmax(180px, .72fr) minmax(280px, 1fr) minmax(440px, 1.45fr);
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
   gap: clamp(28px, 4vw, 72px);
   padding-bottom: 30px;
 }
@@ -303,25 +303,28 @@ body::before {
 .home-hero__art { transform: translateY(16px) rotate(-2deg); }
 .home-hero__art img { border-radius: 48% 48% 44% 44%; box-shadow: 16px 18px 0 rgb(193 205 174 / 48%); }
 .home-hero__copy .section-heading h1 { font-size: clamp(43px, 5.4vw, 78px); }
-.welcome-carousel { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 220px; align-items: center; min-height: 230px; margin-top: 30px; overflow: hidden; border-radius: 24px 24px 8px 24px; background: #eef1e2; box-shadow: 0 15px 34px rgb(77 93 68 / 7%); }
+.welcome-carousel { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 220px; align-items: center; min-height: 230px; margin-top: 30px; overflow: hidden; border-radius: 24px 24px 8px 24px; background: #eef1e2; box-shadow: 0 15px 34px rgb(77 93 68 / 7%); transition: background-color .45s ease; }
 .welcome-carousel--peach { background: #f9e9df; }
 .welcome-carousel--lilac { background: #eeeaf5; }
-.welcome-carousel__copy { position: relative; z-index: 1; max-width: 610px; padding: 30px 30px 38px 36px; }
+.welcome-carousel__copy { position: relative; z-index: 1; max-width: 610px; padding: 30px 30px 78px 36px; }
+.welcome-carousel__copy, .welcome-carousel__art { animation: carousel-slide-in .45s cubic-bezier(.2, .8, .2, 1) both; }
 .welcome-carousel__eyebrow { display: block; margin-bottom: 8px; color: var(--sage-dark); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .welcome-carousel--peach .welcome-carousel__eyebrow { color: #b45d3d; }
 .welcome-carousel--lilac .welcome-carousel__eyebrow { color: #756b9d; }
 .welcome-carousel h2 { max-width: 16ch; margin: 0; color: var(--ink); font-family: 'Playfair Display', serif; font-size: clamp(25px, 3vw, 39px); line-height: 1.08; }
 .welcome-carousel p { max-width: 48ch; margin: 12px 0 17px; color: #4f5d53; line-height: 1.5; }
 .welcome-carousel__art { position: relative; align-self: stretch; min-height: 230px; }
+.welcome-carousel__image { position: absolute; right: 5px; bottom: 0; width: 240px; height: 220px; object-fit: cover; object-position: center 58%; mix-blend-mode: multiply; }
 .welcome-carousel__sun { position: absolute; top: 30px; right: 45px; width: 145px; height: 145px; border-radius: 50%; background: rgb(255 253 248 / 48%); }
 .welcome-carousel__icon { position: absolute; top: 82px; right: 90px; display: grid; width: 58px; height: 58px; place-items: center; border: 2px solid rgb(255 253 248 / 72%); border-radius: 50%; background: var(--sage-dark); color: white; box-shadow: 0 8px 20px rgb(77 105 81 / 20%); }
+@keyframes carousel-slide-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
 .welcome-carousel--peach .welcome-carousel__icon { background: var(--orange); }
 .welcome-carousel--lilac .welcome-carousel__icon { background: var(--lilac); }
 .welcome-carousel__flower { position: absolute; color: rgb(86 105 70 / 45%); font-size: 34px; }
 .welcome-carousel__flower--one { top: 38px; right: 24px; transform: rotate(15deg); }
 .welcome-carousel__flower--two { right: 34px; bottom: 36px; font-size: 46px; transform: rotate(-15deg); }
-.welcome-carousel__controls { position: absolute; bottom: 15px; left: 30px; display: flex; align-items: center; gap: 10px; }
-.welcome-carousel__controls > button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgb(86 105 70 / 22%); border-radius: 50%; background: rgb(255 253 248 / 58%); color: var(--sage-dark); }
+.welcome-carousel__controls { position: absolute; z-index: 3; right: 30px; bottom: 15px; display: flex; align-items: center; gap: 10px; padding: 4px; border-radius: 999px; background: rgb(255 253 248 / 72%); box-shadow: 0 5px 14px rgb(77 93 68 / 10%); }
+.welcome-carousel__controls > button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgb(86 105 70 / 22%); border-radius: 50%; background: rgb(255 253 248 / 90%); color: var(--sage-dark); }
 .welcome-carousel__controls > button:hover { background: #fffdf8; transform: translateY(-1px); }
 .welcome-carousel__dots { display: flex; align-items: center; gap: 6px; }
 .welcome-carousel__dot { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 99px; background: rgb(86 105 70 / 32%); }
@@ -392,14 +395,15 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
   .dashboard-grid { margin-top: 26px; }
   .game-strip { margin-top: 28px; padding: 12px 0; }
   .welcome-carousel { grid-template-columns: 1fr; min-height: 320px; margin-top: 25px; }
-  .welcome-carousel__copy { padding: 26px 24px 18px; }
+  .welcome-carousel__copy { padding: 26px 24px 82px; }
   .welcome-carousel__art { position: absolute; right: 0; bottom: 0; width: 155px; min-height: 150px; opacity: .8; }
+  .welcome-carousel__image { right: 0; width: 155px; height: 150px; }
   .welcome-carousel__sun { top: 20px; right: 18px; width: 110px; height: 110px; }
   .welcome-carousel__icon { top: 52px; right: 49px; width: 48px; height: 48px; }
-  .welcome-carousel__controls { bottom: 15px; left: 24px; }
+  .welcome-carousel__controls { right: 20px; bottom: 15px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .page-content > *, .auth-panel, .auth-intro { animation: none; }
+  .page-content > *, .auth-panel, .auth-intro, .welcome-carousel__copy, .welcome-carousel__art { animation: none; }
   .home-hero__art, .stat-card:nth-child(2) { transform: none; }
 }
 @media (max-width: 760px) { .profile-layout { grid-template-columns: 1fr; }.profile-card--identity { grid-column: auto; }.profile-stats { justify-content: space-between; gap: 10px; }.privacy-row { align-items: flex-start; flex-direction: column; } }

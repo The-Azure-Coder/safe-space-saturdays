@@ -223,12 +223,12 @@ function HomeScreen() {
   return <>
     <PageHeader screen="home" />
     <main className="page-content home-page">
-      <section className="home-hero">
-        <div className="home-hero__art"><img src="/assets/community-circle.png" alt="A supportive group gathered together" /></div>
-        <div className="home-hero__copy"><SectionHeading title="Welcome back to your safe space" description="Here, we talk. We listen. We support. We heal. We grow. You are not alone." /></div>
-        <div className="stats-grid"><StatCard icon={Flame} label="Login Streak" value={data ? String(data.user.streak) : '—'} detail="days" /><StatCard icon={Star} label="Total XP" value={data ? data.user.xp.toLocaleString() : '—'} detail="XP" tone="peach" progress={data?.level_progress} /><StatCard icon={Leaf} label="Level" value={data ? String(data.user.level) : '—'} detail="Rooted" tone="sage" /></div>
-      </section>
       <WelcomeCarousel />
+      <section className="stats-grid">
+        <StatCard icon={Flame} label="Login Streak" value={data ? String(data.user.streak) : '—'} detail="days" />
+        <StatCard icon={Star} label="Total XP" value={data ? data.user.xp.toLocaleString() : '—'} detail="XP" tone="peach" progress={data?.level_progress} />
+        <StatCard icon={Leaf} label="Level" value={data ? String(data.user.level) : '—'} detail="Rooted" tone="sage" />
+      </section>
       <section className="dashboard-grid">
         <article className="quote-card"><div className="card-title"><Quotes size={22} weight="fill" /> <span>Daily Quote</span></div><blockquote>“{data?.featured_quote?.text ?? 'Take a moment for yourself today.'}”</blockquote><cite>— {data?.featured_quote?.author ?? 'Safe Space Saturdays'}</cite></article>
         <article className="check-card"><div className="card-title"><Smiley size={22} weight="fill" /> <span>How are you feeling today?</span></div><p>Your check-in helps us support you better.</p><div className="mood-row">{moods.map((mood) => <button key={mood.label} type="button"><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div><Link className="button button--primary" to="/check-in">Check In</Link></article>
@@ -241,7 +241,7 @@ function HomeScreen() {
 }
 
 const welcomeSlides = [
-  { eyebrow: 'A gentle reminder', title: 'You belong in this space.', body: 'Take what you need today: a quiet moment, a kind word, or someone to listen.', cta: 'Start a check-in', to: '/check-in', tone: 'sage', icon: Heart },
+  { eyebrow: 'Welcome back', title: 'Welcome back to your safe space.', body: 'Here, we talk. We listen. We support. We heal. We grow. You are not alone.', cta: 'Start a check-in', to: '/check-in', tone: 'sage', icon: Heart },
   { eyebrow: 'Small steps count', title: 'Progress can be soft.', body: 'Celebrate the tiny wins too. They are how a steadier, kinder rhythm begins.', cta: 'Visit the community', to: '/community', tone: 'peach', icon: Sparkle },
   { eyebrow: 'Make room to breathe', title: 'You do not have to rush healing.', body: 'Find a quote, settle your shoulders, and give yourself permission to move gently.', cta: 'Find a little calm', to: '/quotes', tone: 'lilac', icon: Leaf },
 ] as const
@@ -257,7 +257,7 @@ function WelcomeCarousel() {
   const slide = welcomeSlides[activeSlide]
   const SlideIcon = slide.icon
   const move = (direction: -1 | 1) => setActiveSlide((current) => (current + direction + welcomeSlides.length) % welcomeSlides.length)
-  return <section className={`welcome-carousel welcome-carousel--${slide.tone}`} aria-roledescription="carousel" aria-label="A little encouragement" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)} onFocus={() => setIsPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsPaused(false) }}><div className="welcome-carousel__copy" aria-live="polite"><span className="welcome-carousel__eyebrow">{slide.eyebrow}</span><h2>{slide.title}</h2><p>{slide.body}</p><Link className="button button--primary button--small" to={slide.to}>{slide.cta} <ArrowRight size={16} /></Link></div><div className="welcome-carousel__art" aria-hidden="true"><span className="welcome-carousel__sun" /><span className="welcome-carousel__flower welcome-carousel__flower--one">✦</span><span className="welcome-carousel__flower welcome-carousel__flower--two">✿</span><span className="welcome-carousel__icon"><SlideIcon size={36} weight="fill" /></span></div><div className="welcome-carousel__controls"><button type="button" aria-label="Previous encouragement" onClick={() => move(-1)}><CaretLeft size={20} /></button><div className="welcome-carousel__dots">{welcomeSlides.map((item, index) => <button type="button" key={item.title} className={index === activeSlide ? 'welcome-carousel__dot welcome-carousel__dot--active' : 'welcome-carousel__dot'} aria-label={`Show encouragement ${index + 1}`} aria-current={index === activeSlide ? 'true' : undefined} onClick={() => setActiveSlide(index)} />)}</div><button type="button" aria-label="Next encouragement" onClick={() => move(1)}><CaretRight size={20} /></button></div></section>
+  return <section className={`welcome-carousel welcome-carousel--${slide.tone}`} aria-roledescription="carousel" aria-label="A little encouragement" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)} onFocus={() => setIsPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsPaused(false) }}><div key={`copy-${activeSlide}`} className="welcome-carousel__copy" aria-live="polite"><span className="welcome-carousel__eyebrow">{slide.eyebrow}</span><h2>{slide.title}</h2><p>{slide.body}</p><Link className="button button--primary button--small" to={slide.to}>{slide.cta} <ArrowRight size={16} /></Link></div><div key={`art-${activeSlide}`} className="welcome-carousel__art"><img className="welcome-carousel__image" src="/assets/community-circle.png" alt="Friends supporting one another in a safe space" /><span className="welcome-carousel__sun" aria-hidden="true" /><span className="welcome-carousel__flower welcome-carousel__flower--one" aria-hidden="true">✦</span><span className="welcome-carousel__flower welcome-carousel__flower--two" aria-hidden="true">✿</span><span className="welcome-carousel__icon" aria-hidden="true"><SlideIcon size={36} weight="fill" /></span></div><div className="welcome-carousel__controls"><button type="button" aria-label="Previous encouragement" onClick={() => move(-1)}><CaretLeft size={20} /></button><div className="welcome-carousel__dots">{welcomeSlides.map((item, index) => <button type="button" key={item.title} className={index === activeSlide ? 'welcome-carousel__dot welcome-carousel__dot--active' : 'welcome-carousel__dot'} aria-label={`Show encouragement ${index + 1}`} aria-current={index === activeSlide ? 'true' : undefined} onClick={() => setActiveSlide(index)} />)}</div><button type="button" aria-label="Next encouragement" onClick={() => move(1)}><CaretRight size={20} /></button></div></section>
 }
 
 function GameStrip() {
