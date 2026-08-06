@@ -18,6 +18,7 @@ import { Route as GamesRouteImport } from './routes/games'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CheckInRouteImport } from './routes/check-in'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GamesPlayMatchIdRouteImport } from './routes/games.play.$matchId'
 
 const RegistrationRoute = RegistrationRouteImport.update({
   id: '/registration',
@@ -64,40 +65,48 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GamesPlayMatchIdRoute = GamesPlayMatchIdRouteImport.update({
+  id: '/play/$matchId',
+  path: '/play/$matchId',
+  getParentRoute: () => GamesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
-  '/games': typeof GamesRoute
+  '/games': typeof GamesRouteWithChildren
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/quotes': typeof QuotesRoute
   '/registration': typeof RegistrationRoute
+  '/games/play/$matchId': typeof GamesPlayMatchIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
-  '/games': typeof GamesRoute
+  '/games': typeof GamesRouteWithChildren
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/quotes': typeof QuotesRoute
   '/registration': typeof RegistrationRoute
+  '/games/play/$matchId': typeof GamesPlayMatchIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
-  '/games': typeof GamesRoute
+  '/games': typeof GamesRouteWithChildren
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/quotes': typeof QuotesRoute
   '/registration': typeof RegistrationRoute
+  '/games/play/$matchId': typeof GamesPlayMatchIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +120,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/quotes'
     | '/registration'
+    | '/games/play/$matchId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +132,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/quotes'
     | '/registration'
+    | '/games/play/$matchId'
   id:
     | '__root__'
     | '/'
@@ -133,13 +144,14 @@ export interface FileRouteTypes {
     | '/profile'
     | '/quotes'
     | '/registration'
+    | '/games/play/$matchId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CheckInRoute: typeof CheckInRoute
   CommunityRoute: typeof CommunityRoute
-  GamesRoute: typeof GamesRoute
+  GamesRoute: typeof GamesRouteWithChildren
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
@@ -212,14 +224,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/games/play/$matchId': {
+      id: '/games/play/$matchId'
+      path: '/play/$matchId'
+      fullPath: '/games/play/$matchId'
+      preLoaderRoute: typeof GamesPlayMatchIdRouteImport
+      parentRoute: typeof GamesRoute
+    }
   }
 }
+
+interface GamesRouteChildren {
+  GamesPlayMatchIdRoute: typeof GamesPlayMatchIdRoute
+}
+
+const GamesRouteChildren: GamesRouteChildren = {
+  GamesPlayMatchIdRoute: GamesPlayMatchIdRoute,
+}
+
+const GamesRouteWithChildren = GamesRoute._addFileChildren(GamesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CheckInRoute: CheckInRoute,
   CommunityRoute: CommunityRoute,
-  GamesRoute: GamesRoute,
+  GamesRoute: GamesRouteWithChildren,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,

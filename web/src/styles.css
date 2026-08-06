@@ -212,6 +212,25 @@ html[data-theme='high-contrast'] .app-header, html[data-theme='high-contrast'] .
 .mood-row button:hover, .mood-option:hover, .choice-chip:hover, .filter-chip:hover, .game-tile:hover { transform: translateY(-2px); box-shadow: 0 7px 16px rgb(57 62 37 / 9%); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
 
+.game-play-page { max-width: 920px; margin-inline: auto; }
+.game-play-back { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 24px; }
+.game-play-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.game-play-header h1 { margin: 7px 0 8px; }
+.game-play-header p { margin: 0; color: var(--muted); }
+.game-play-badge { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); color: var(--sage-dark); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.connect-four-card { max-width: 620px; margin: 0 auto; padding: clamp(18px, 4vw, 34px); border: 1px solid var(--line); border-radius: 26px; background: var(--paper); box-shadow: var(--shadow); }
+.connect-four-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 28px; margin-bottom: 18px; color: var(--sage-dark); font-weight: 750; text-align: center; }
+.connect-four-columns { display: grid; grid-template-columns: repeat(7, 1fr); gap: 7px; margin-bottom: 8px; }
+.connect-four-column { border: 0; border-radius: 10px; background: var(--sage-pale); color: var(--sage-dark); padding: 8px 0; font-weight: 800; cursor: pointer; }
+.connect-four-column:hover:not(:disabled), .connect-four-column:focus-visible { background: var(--sage); color: white; }
+.connect-four-column:disabled { cursor: not-allowed; opacity: .48; }
+.connect-four-board { display: grid; grid-template-columns: repeat(7, 1fr); gap: clamp(6px, 1.5vw, 10px); padding: clamp(10px, 2vw, 18px); border: 1px solid rgb(25 53 43 / 12%); border-radius: 22px; background: linear-gradient(145deg, #587d69, #3c6051); box-shadow: inset 0 5px 0 rgb(255 255 255 / 13%), 0 16px 28px rgb(50 72 56 / 18%); }
+.connect-four-cell { display: block; aspect-ratio: 1; border-radius: 50%; background: #edf1e7; box-shadow: inset 0 3px 6px rgb(25 53 43 / 15%); }
+.connect-four-cell--1 { background: #f29b73; box-shadow: inset 0 3px 5px rgb(117 57 37 / 24%); }
+.connect-four-cell--2 { background: #f5d26c; box-shadow: inset 0 3px 5px rgb(115 82 23 / 24%); }
+.game-play-help { margin: 18px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+@media (max-width: 680px) { .game-play-header { display: grid; } .game-play-badge { justify-self: start; } .connect-four-card { border-radius: 20px; } }
+
 /* Navigation polish: keep the reference logo visible while making route changes feel intentional. */
 .app-header { animation: header-enter .45s ease both; }
 .page-content, .auth-page { animation: page-enter .4s ease both; }

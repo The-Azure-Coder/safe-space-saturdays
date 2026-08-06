@@ -131,6 +131,27 @@ class RoomCreateRequest(BaseModel):
     max_players: int = Field(default=4, ge=2, le=8)
 
 
+class MatchCreateRequest(BaseModel):
+    room_id: int
+    with_bot: bool = True
+    bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
+
+
+class MatchResponse(BaseModel):
+    match_id: str
+    room_id: int
+    game: str
+    board: list[list[int]]
+    current_player: Literal[1, 2]
+    winner: Literal[1, 2] | None
+    draw: bool
+    move_count: int
+
+
+class MoveRequest(BaseModel):
+    column: int = Field(ge=0, le=6)
+
+
 class LeaderboardEntry(BaseModel):
     rank: int
     user: UserResponse

@@ -52,3 +52,20 @@ uv run uvicorn app.main:app --app-dir src --reload
 ```
 
 The initial migration seeds the supplied quote and game data. Production deployments should set a strong database password, `COOKIE_SECURE=true`, and a narrow `API_CORS_ORIGINS` value.
+# Games
+
+The games foundation provides an authoritative Connect Four match with a friendly or thoughtful bot. The room must be joined before starting a match.
+
+```text
+POST /api/games/matches
+{ "room_id": 12, "with_bot": true, "bot_difficulty": "friendly" }
+
+GET  /api/games/matches/{match_id}
+POST /api/games/matches/{match_id}/moves
+{ "column": 3 }
+
+WS   /api/games/matches/{match_id}/ws
+{ "type": "move", "column": 3 }
+```
+
+The server owns the board, turn, legal move validation, bot move, winner, and XP reward. A human win grants 50 XP once; clients cannot submit board state, scores, or rewards. Connect Four follows the classic 7-column, 6-row, four-in-a-row rules. The other catalog games remain discoverable but return a clear `409` until their rules engine is shipped.

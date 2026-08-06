@@ -13,13 +13,17 @@ from fastapi import (
     Request,
     Response,
     UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
     status,
 )
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.db import get_session
+from app.db import get_session, session_factory
+from app.games.connect_four import IllegalMove
+from app.games.manager import LiveMatch, match_manager
 from app.models import (
     CheckIn,
     Comment,
@@ -44,6 +48,9 @@ from app.schemas import (
     GameResponse,
     LeaderboardEntry,
     LoginRequest,
+    MatchCreateRequest,
+    MatchResponse,
+    MoveRequest,
     PostCreateRequest,
     PostResponse,
     ProfileUpdateRequest,
@@ -65,6 +72,10 @@ from app.security import (
 router = APIRouter(prefix="/api", tags=["application"])
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def match_response(match: LiveMatch) -> MatchResponse:
+    return MatchResponse.model_validate(match.snapshot())
 
 
 def user_response(user: User) -> UserResponse:
@@ -563,6 +574,116 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
         db.add(RoomParticipant(room_id=room_id, user_id=user.id))
         await db.commit()
     return await room_out(room, user.id, db)
+
+
+@router.post("/games/matches", response_model=MatchResponse, status_code=status.HTTP_201_CREATED)
+async def create_match(
+    payload: MatchCreateRequest, user: CurrentUser, db: DbSession
+) -> MatchResponse:
+    room = await db.get(GameRoom, payload.room_id)
+    if room is None or room.status != "open":
+        raise HTTPException(status_code=404, detail="Room not available")
+    joined = await db.scalar(
+        select(RoomParticipant.id).where(
+            RoomParticipant.room_id == room.id, RoomParticipant.user_id == user.id
+        )
+    )
+    if joined is None:
+        raise HTTPException(status_code=403, detail="Join the room before starting a match")
+    game = await db.get(Game, room.game_id)
+    if game is None or game.name != "Connect Four":
+        raise HTTPException(status_code=409, detail="This game is not playable yet")
+    existing_id = match_manager.room_matches.get(room.id)
+    existing_match = match_manager.get(existing_id) if existing_id else None
+    if existing_match:
+        return match_response(existing_match)
+    match = match_manager.create(
+        room.id, user.id, payload.with_bot, payload.bot_difficulty
+    )
+    room.status = "active"
+    await db.commit()
+    return match_response(match)
+
+
+@router.get("/games/matches/{match_id}", response_model=MatchResponse)
+async def get_match(match_id: str, user: CurrentUser) -> MatchResponse:
+    match = match_manager.get(match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Match not found")
+    if user.id not in match.player_ids:
+        raise HTTPException(status_code=403, detail="You are not a player in this match")
+    return match_response(match)
+
+
+@router.post("/games/matches/{match_id}/moves", response_model=MatchResponse)
+async def play_move(
+    match_id: str, payload: MoveRequest, user: CurrentUser, db: DbSession
+) -> MatchResponse:
+    match = match_manager.get(match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Match not found")
+    try:
+        await match_manager.move(match, user.id, payload.column)
+    except IllegalMove as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if match.state.winner == 1 and not match.reward_granted:
+        user.xp += 50
+        user.level = max(1, user.xp // 250 + 1)
+        match.reward_granted = True
+        await db.commit()
+    return match_response(match)
+
+
+async def websocket_user(websocket: WebSocket) -> User | None:
+    token = websocket.cookies.get(get_settings().session_cookie_name)
+    if not token:
+        return None
+    import hashlib
+    from datetime import UTC, datetime
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    async with session_factory() as db:
+        result = await db.execute(
+            select(User)
+            .join(Session, Session.user_id == User.id)
+            .where(Session.token_hash == token_hash, Session.expires_at > datetime.now(UTC))
+        )
+        return result.scalar_one_or_none()
+
+
+@router.websocket("/games/matches/{match_id}/ws")
+async def match_socket(websocket: WebSocket, match_id: str) -> None:
+    match = match_manager.get(match_id)
+    user = await websocket_user(websocket)
+    if match is None or user is None or user.id not in match.player_ids:
+        await websocket.close(code=1008)
+        return
+    await websocket.accept()
+    match.sockets.add(websocket)
+    await websocket.send_json({"type": "state", "state": match.snapshot()})
+    try:
+        while True:
+            message = await websocket.receive_json()
+            if message.get("type") != "move" or not isinstance(message.get("column"), int):
+                await websocket.send_json(
+                    {"type": "error", "detail": "Send a move with a numeric column"}
+                )
+                continue
+            try:
+                await match_manager.move(match, user.id, message["column"])
+            except IllegalMove as error:
+                await websocket.send_json({"type": "error", "detail": str(error)})
+                continue
+            if match.state.winner == 1 and not match.reward_granted:
+                async with session_factory() as db:
+                    rewarded_user = await db.get(User, user.id)
+                    if rewarded_user is not None:
+                        rewarded_user.xp += 50
+                        rewarded_user.level = max(1, rewarded_user.xp // 250 + 1)
+                        await db.commit()
+                        match.reward_granted = True
+    except WebSocketDisconnect:
+        match.sockets.discard(websocket)
 
 
 @router.get("/games/winners", response_model=list[dict[str, object]])

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, ComponentType, FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
   BookmarkSimple,
@@ -366,6 +366,7 @@ function PromoCard({
 }
 
 function GamesScreen() {
+  const navigate = useNavigate()
   const [gamesPage, setGamesPage] = useState(1)
   const [roomsPage, setRoomsPage] = useState(1)
   const gamesQuery = useQuery({
@@ -380,6 +381,10 @@ function GamesScreen() {
   const join = useMutation({
     mutationFn: api.joinRoom,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+  })
+  const createMatch = useMutation({
+    mutationFn: api.createMatch,
+    onSuccess: (match) => navigate({ to: '/games/play/$matchId', params: { matchId: match.match_id } }),
   })
   return (
     <>
@@ -455,6 +460,16 @@ function GamesScreen() {
                 >
                   {room.joined ? 'Joined' : 'Join'}
                 </button>
+                {room.game === 'Connect Four' && room.joined && (
+                  <button
+                    className="button button--small button--secondary"
+                    type="button"
+                    disabled={createMatch.isPending}
+                    onClick={() => createMatch.mutate({ room_id: room.id, with_bot: true, bot_difficulty: 'friendly' })}
+                  >
+                    {createMatch.isPending ? 'Opening…' : 'Play bot'}
+                  </button>
+                )}
               </div>
             ))}
             <PaginationControls
