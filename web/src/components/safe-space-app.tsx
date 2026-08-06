@@ -369,6 +369,10 @@ function GamesScreen() {
   const navigate = useNavigate()
   const [gamesPage, setGamesPage] = useState(1)
   const [roomsPage, setRoomsPage] = useState(1)
+  const [showCreateRoom, setShowCreateRoom] = useState(false)
+  const [roomName, setRoomName] = useState('A gentle game night')
+  const [roomGameId, setRoomGameId] = useState<number | null>(null)
+  const [roomPlayers, setRoomPlayers] = useState(4)
   const gamesQuery = useQuery({
     queryKey: ['games', gamesPage],
     queryFn: () => api.games(gamesPage, 4),
@@ -386,6 +390,19 @@ function GamesScreen() {
     mutationFn: api.createMatch,
     onSuccess: (match) => navigate({ to: '/games/play/$matchId', params: { matchId: match.match_id } }),
   })
+  const createGameSession = useMutation({
+    mutationFn: api.createGameSession,
+    onSuccess: (match) => navigate({ to: '/games/session/$matchId', params: { matchId: match.match_id } }),
+  })
+  const createRoom = useMutation({
+    mutationFn: api.createRoom,
+    onSuccess: () => {
+      setShowCreateRoom(false)
+      setRoomName('A gentle game night')
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+    },
+  })
+  const firstGameId = gamesQuery.data?.[0]?.id ?? null
   return (
     <>
       <PageHeader screen="games" />
@@ -408,13 +425,20 @@ function GamesScreen() {
             </h2>
             <p>Join friends for fun, connection, and friendly competition.</p>
           </div>
-          <button className="button button--orange" type="button">
+          <button className="button button--orange" type="button" onClick={() => document.getElementById('live-rooms')?.scrollIntoView({ behavior: 'smooth' })}>
             Join Game Night
           </button>
-          <button className="button button--ghost" type="button">
+          <button className="button button--ghost" type="button" onClick={() => { setRoomGameId((current) => current ?? firstGameId); setShowCreateRoom(true) }}>
             Create Room
           </button>
         </section>
+        {showCreateRoom && <form className="room-create-card" onSubmit={(event) => { event.preventDefault(); if (roomGameId && roomName.trim()) createRoom.mutate({ game_id: roomGameId, name: roomName.trim(), max_players: roomPlayers }) }}>
+          <div><span className="eyebrow">Make space for play</span><h2>Create a room</h2><p>Choose a game, invite friends, and keep it friendly.</p></div>
+          <label className="field-label">Room name<input value={roomName} onChange={(event) => setRoomName(event.target.value)} maxLength={100} required /></label>
+          <label className="field-label">Game<select value={roomGameId ?? ''} onChange={(event) => setRoomGameId(Number(event.target.value))} required>{(gamesQuery.data ?? []).map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}</select></label>
+          <label className="field-label">Players<select value={roomPlayers} onChange={(event) => setRoomPlayers(Number(event.target.value))}><option value={2}>2 players</option><option value={3}>3 players</option><option value={4}>4 players</option></select></label>
+          <div className="room-create-actions"><button className="button button--primary" type="submit" disabled={createRoom.isPending || !roomGameId}>{createRoom.isPending ? 'Creating…' : 'Create room'}</button><button className="button button--secondary" type="button" onClick={() => setShowCreateRoom(false)}>Cancel</button></div>
+        </form>}
         <div className="games-layout">
           <section className="games-panel">
             <div className="card-title">
@@ -434,7 +458,7 @@ function GamesScreen() {
               label="Games"
             />
           </section>
-          <section className="rooms-panel">
+          <section className="rooms-panel" id="live-rooms">
             <div className="section-row">
               <div className="card-title">
                 <UsersThree size={24} weight="fill" />
@@ -468,6 +492,11 @@ function GamesScreen() {
                     onClick={() => createMatch.mutate({ room_id: room.id, with_bot: true, bot_difficulty: 'friendly' })}
                   >
                     {createMatch.isPending ? 'Opening…' : 'Play bot'}
+                  </button>
+                )}
+                {room.game !== 'Connect Four' && room.joined && (
+                  <button className="button button--small button--secondary" type="button" disabled={createGameSession.isPending} onClick={() => createGameSession.mutate(room.id)}>
+                    {createGameSession.isPending ? 'Opening…' : 'Play'}
                   </button>
                 )}
               </div>

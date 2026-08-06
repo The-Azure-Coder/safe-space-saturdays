@@ -47,6 +47,7 @@ export type Post = { id: number; author: string; initials: string; text: string;
 export type Game = { id: number; name: string; players: string; icon: string; color: string; is_featured: boolean }
 export type Room = { id: number; name: string; game: string; players: number; max_players: number; status: string; joined: boolean }
 export type Match = { match_id: string; room_id: number; game: string; board: Array<Array<number>>; current_player: 1 | 2; winner: 1 | 2 | null; draw: boolean; move_count: number }
+export type GameSession = { match_id: string; room_id: number; game: string; state: Record<string, any> }
 export type LeaderboardEntry = { rank: number; user: User }
 
 export const api = {
@@ -82,5 +83,8 @@ export const api = {
   createMatch: (body: { room_id: number; with_bot: boolean; bot_difficulty: 'friendly' | 'thoughtful' }) => apiFetch<Match>('/api/games/matches', { method: 'POST', body: JSON.stringify(body) }),
   match: (id: string) => apiFetch<Match>(`/api/games/matches/${id}`),
   move: (id: string, column: number) => apiFetch<Match>(`/api/games/matches/${id}/moves`, { method: 'POST', body: JSON.stringify({ column }) }),
+  createGameSession: (room_id: number) => apiFetch<GameSession>('/api/games/sessions', { method: 'POST', body: JSON.stringify({ room_id }) }),
+  gameSession: (id: string) => apiFetch<GameSession>(`/api/games/sessions/${id}`),
+  gameAction: (id: string, action: Record<string, any>) => apiFetch<GameSession>(`/api/games/sessions/${id}/actions`, { method: 'POST', body: JSON.stringify({ action }) }),
   leaderboard: (period: string, page = 1, limit = 10) => apiFetch<Array<LeaderboardEntry>>(`/api/leaderboard?period=${period}&page=${page}&limit=${limit}`),
 }

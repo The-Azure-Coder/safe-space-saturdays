@@ -24,6 +24,8 @@ from app.config import get_settings
 from app.db import get_session, session_factory
 from app.games.connect_four import IllegalMove
 from app.games.manager import LiveMatch, match_manager
+from app.games.multi import GAME_TYPES
+from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
     CheckIn,
     Comment,
@@ -45,7 +47,10 @@ from app.schemas import (
     CommentCreateRequest,
     CommentResponse,
     DashboardResponse,
+    GameActionRequest,
     GameResponse,
+    GameSessionCreateRequest,
+    GameSessionResponse,
     LeaderboardEntry,
     LoginRequest,
     MatchCreateRequest,
@@ -76,6 +81,23 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 def match_response(match: LiveMatch) -> MatchResponse:
     return MatchResponse.model_validate(match.snapshot())
+
+
+def universal_response(match: UniversalMatch) -> GameSessionResponse:
+    return GameSessionResponse.model_validate(match.snapshot())
+
+
+def game_type_for_name(name: str) -> str | None:
+    normalized = name.casefold()
+    if normalized == "ludo":
+        return "ludo"
+    if normalized in {"dominoes", "block dominoes"}:
+        return "dominoes"
+    if normalized == "bingo":
+        return "bingo"
+    if normalized in {"trivia", "trivia battle"}:
+        return "trivia"
+    return None
 
 
 def user_response(user: User) -> UserResponse:
@@ -675,6 +697,94 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                 await websocket.send_json({"type": "error", "detail": str(error)})
                 continue
             if match.state.winner == 1 and not match.reward_granted:
+                async with session_factory() as db:
+                    rewarded_user = await db.get(User, user.id)
+                    if rewarded_user is not None:
+                        rewarded_user.xp += 50
+                        rewarded_user.level = max(1, rewarded_user.xp // 250 + 1)
+                        await db.commit()
+                        match.reward_granted = True
+    except WebSocketDisconnect:
+        match.sockets.discard(websocket)
+
+
+@router.post(
+    "/games/sessions", response_model=GameSessionResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_game_session(
+    payload: GameSessionCreateRequest, user: CurrentUser, db: DbSession
+) -> GameSessionResponse:
+    room = await db.get(GameRoom, payload.room_id)
+    if room is None or room.status != "open":
+        raise HTTPException(status_code=404, detail="Room not available")
+    joined = await db.scalar(
+        select(RoomParticipant.id).where(
+            RoomParticipant.room_id == room.id, RoomParticipant.user_id == user.id
+        )
+    )
+    if joined is None:
+        raise HTTPException(status_code=403, detail="Join the room before starting a match")
+    game = await db.get(Game, room.game_id)
+    game_type = game_type_for_name(game.name if game else "")
+    if game_type not in GAME_TYPES:
+        raise HTTPException(status_code=409, detail="This game is not playable yet")
+    match = universal_matches.create(room.id, user.id, game_type)
+    room.status = "active"
+    await db.commit()
+    return universal_response(match)
+
+
+@router.get("/games/sessions/{match_id}", response_model=GameSessionResponse)
+async def get_game_session(match_id: str, user: CurrentUser) -> GameSessionResponse:
+    match = universal_matches.get(match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Game session not found")
+    if user.id not in match.player_ids:
+        raise HTTPException(status_code=403, detail="You are not a player in this match")
+    return universal_response(match)
+
+
+@router.post("/games/sessions/{match_id}/actions", response_model=GameSessionResponse)
+async def game_session_action(
+    match_id: str, payload: GameActionRequest, user: CurrentUser, db: DbSession
+) -> GameSessionResponse:
+    match = universal_matches.get(match_id)
+    if match is None:
+        raise HTTPException(status_code=404, detail="Game session not found")
+    try:
+        await universal_matches.action(match, user.id, payload.action)
+    except IllegalMove as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if match.state.get("winner") == 0 and not match.reward_granted:
+        user.xp += 50
+        user.level = max(1, user.xp // 250 + 1)
+        match.reward_granted = True
+        await db.commit()
+    return universal_response(match)
+
+
+@router.websocket("/games/sessions/{match_id}/ws")
+async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
+    match = universal_matches.get(match_id)
+    user = await websocket_user(websocket)
+    if match is None or user is None or user.id not in match.player_ids:
+        await websocket.close(code=1008)
+        return
+    await websocket.accept()
+    match.sockets.add(websocket)
+    await websocket.send_json({"type": "state", "match": match.snapshot()})
+    try:
+        while True:
+            message = await websocket.receive_json()
+            if message.get("type") != "action" or not isinstance(message.get("action"), dict):
+                await websocket.send_json({"type": "error", "detail": "Send an action object"})
+                continue
+            try:
+                await universal_matches.action(match, user.id, message["action"])
+            except IllegalMove as error:
+                await websocket.send_json({"type": "error", "detail": str(error)})
+                continue
+            if match.state.get("winner") == 0 and not match.reward_granted:
                 async with session_factory() as db:
                     rewarded_user = await db.get(User, user.id)
                     if rewarded_user is not None:

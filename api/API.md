@@ -68,4 +68,19 @@ WS   /api/games/matches/{match_id}/ws
 { "type": "move", "column": 3 }
 ```
 
-The server owns the board, turn, legal move validation, bot move, winner, and XP reward. A human win grants 50 XP once; clients cannot submit board state, scores, or rewards. Connect Four follows the classic 7-column, 6-row, four-in-a-row rules. The other catalog games remain discoverable but return a clear `409` until their rules engine is shipped.
+The server owns the board, turn, legal move validation, bot move, winner, and XP reward. A human win grants 50 XP once; clients cannot submit board state, scores, or rewards. Connect Four follows the classic 7-column, 6-row, four-in-a-row rules.
+
+The remaining session games use the same authenticated REST/WS transport:
+
+```text
+POST /api/games/sessions
+{ "room_id": 12 }
+
+POST /api/games/sessions/{match_id}/actions
+{ "action": { "token": 0 } }                    # Ludo
+{ "action": { "tile_index": 2, "side": "right" } } # Dominoes
+{ "action": { "action": "draw" } }             # Bingo
+{ "action": { "answer": 1 } }                  # Trivia
+```
+
+Ludo uses exact-home movement and six-to-leave-base rules; Dominoes uses a double-six block line with pass/block resolution; Bingo uses a server-drawn 75-ball card with a free centre and line claim; Trivia uses five multiple-choice questions with server-side scoring. The current match manager is intentionally single-process for local Docker development; production horizontal scaling requires moving live sessions to a shared store/pub-sub layer before running multiple API replicas.

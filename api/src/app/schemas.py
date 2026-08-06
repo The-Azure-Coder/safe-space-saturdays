@@ -152,6 +152,21 @@ class MoveRequest(BaseModel):
     column: int = Field(ge=0, le=6)
 
 
+class GameSessionCreateRequest(BaseModel):
+    room_id: int
+
+
+class GameActionRequest(BaseModel):
+    action: dict[str, object] = Field(default_factory=dict)
+
+
+class GameSessionResponse(BaseModel):
+    match_id: str
+    room_id: int
+    game: str
+    state: dict[str, object]
+
+
 class LeaderboardEntry(BaseModel):
     rank: int
     user: UserResponse
