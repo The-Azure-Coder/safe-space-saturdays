@@ -1,17 +1,14 @@
-from app.games.connect_four import IllegalMove
 from app.games.multi import apply_action, new_state
 
 
-def test_ludo_requires_a_six_to_leave_base() -> None:
+def test_ludo_passes_turn_when_token_cannot_move() -> None:
     state = new_state("ludo")
-    # A random roll is server-owned; either the token moves or the action is rejected.
-    try:
-        updated = apply_action(state, 0, {"token": 0})
-    except IllegalMove as error:
-        assert "six" in str(error)
+    updated = apply_action(state, 0, {"token": 0})
+    if updated["roll"] != 6:
+        assert updated["positions"][0][0] == -1
+        assert updated["current_player"] == 1
     else:
         assert updated["positions"][0][0] == 0
-        assert updated["roll"] == 6
 
 
 def test_dominoes_start_with_valid_hands_and_turn() -> None:

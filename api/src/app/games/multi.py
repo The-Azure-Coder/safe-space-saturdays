@@ -81,10 +81,14 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
         roll = _RNG.randint(1, 6)
         position = state["positions"][player][token]
         if position == -1 and roll != 6:
-            raise IllegalMove("A token needs a six to leave base")
+            state["roll"] = roll
+            _next_player(state)
+            return state
         new_position = 0 if position == -1 else position + roll
         if new_position > 56:
-            raise IllegalMove("That token needs an exact roll to reach home")
+            state["roll"] = roll
+            _next_player(state)
+            return state
         state["positions"][player][token] = new_position
         state["roll"] = roll
         if all(value == 56 for value in state["positions"][player]):
