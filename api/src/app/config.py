@@ -2,6 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
@@ -19,6 +20,12 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     upload_dir: Path = DEFAULT_UPLOAD_DIR
     max_upload_bytes: int = 5_000_000
+
+    @model_validator(mode="after")
+    def require_secure_production_cookies(self) -> "Settings":
+        if self.app_env == "production" and not self.cookie_secure:
+            raise ValueError("COOKIE_SECURE must be true when APP_ENV=production")
+        return self
 
 
 @lru_cache
