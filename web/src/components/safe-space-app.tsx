@@ -83,8 +83,19 @@ function PageHeader({ screen }: { screen: Screen }) {
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
   const logout = useMutation({ mutationFn: api.logout, onSuccess: () => { queryClient.clear(); window.location.href = '/login' } })
   const displayName = currentUser.data?.name
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
+  }, [menuOpen])
   return (
     <header className="app-header">
       <Logo compact />
@@ -99,7 +110,7 @@ function PageHeader({ screen }: { screen: Screen }) {
       <button className="mobile-nav-toggle" type="button" aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen} aria-controls="main-navigation" onClick={() => setMobileNavOpen((open) => !open)}>
         {mobileNavOpen ? <X size={22} aria-hidden="true" /> : <List size={22} aria-hidden="true" />}
       </button>
-      {displayName ? <div className="profile-menu-wrap">
+      {displayName ? <div className="profile-menu-wrap" ref={profileMenuRef}>
         <button className="profile-menu" type="button" aria-label={`Open ${displayName} profile menu`} aria-expanded={menuOpen} aria-haspopup="menu" onClick={() => setMenuOpen((open) => !open)}>
           <span className="avatar avatar--gold">{currentUser.data?.avatar_url ? <img src={`${API_URL}${currentUser.data.avatar_url}`} alt="" /> : displayName[0].toUpperCase()}</span>
           <span className="profile-menu__name">{displayName}</span>
