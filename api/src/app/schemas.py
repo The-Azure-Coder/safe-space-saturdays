@@ -39,6 +39,53 @@ class AuthResponse(BaseModel):
     user: UserResponse
 
 
+class BugReportCreateRequest(BaseModel):
+    title: str = Field(min_length=3, max_length=160)
+    description: str = Field(min_length=10, max_length=5000)
+    severity: Literal["low", "normal", "high", "critical"] = "normal"
+    page_url: str | None = Field(default=None, max_length=500)
+
+
+class BugReportUpdateRequest(BaseModel):
+    status: Literal["open", "in_progress", "resolved", "closed"]
+    admin_note: str | None = Field(default=None, max_length=5000)
+
+
+class BugReportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    user_id: int | None
+    reporter_name: str
+    reporter_email: EmailStr
+    title: str
+    description: str
+    severity: str
+    status: str
+    page_url: str | None
+    admin_note: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminUserUpdateRequest(BaseModel):
+    role: Literal["member", "admin"]
+
+
+class AdminPasswordResetRequest(BaseModel):
+    password: str = Field(min_length=10, max_length=128)
+
+
+class AdminQuoteCreateRequest(BaseModel):
+    text: str = Field(min_length=3, max_length=2000)
+    author: str = Field(default="Safe Space Saturdays", min_length=2, max_length=120)
+    category: Literal["Encouragement", "Rest", "Growth", "Connection"]
+    is_featured: bool = False
+
+
+class AdminQuoteUpdateRequest(AdminQuoteCreateRequest):
+    pass
+
+
 class ProfileUpdateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=120)
 

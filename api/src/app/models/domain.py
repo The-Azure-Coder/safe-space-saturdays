@@ -31,6 +31,23 @@ class User(TimestampMixin, Base):
     level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
+class BugReport(TimestampMixin, Base):
+    __tablename__ = "bug_reports"
+    __table_args__ = (Index("ix_bug_reports_status_created", "status", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str] = mapped_column(Text)
+    severity: Mapped[str] = mapped_column(String(20), default="normal", server_default="normal")
+    status: Mapped[str] = mapped_column(String(20), default="open", server_default="open")
+    page_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class Session(Base):
     __tablename__ = "sessions"
 

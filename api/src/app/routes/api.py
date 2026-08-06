@@ -15,12 +15,13 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_session
 from app.models import (
+    BugReport,
     CheckIn,
     Comment,
     Game,
@@ -35,7 +36,14 @@ from app.models import (
     User,
 )
 from app.schemas import (
+    AdminPasswordResetRequest,
+    AdminQuoteCreateRequest,
+    AdminQuoteUpdateRequest,
+    AdminUserUpdateRequest,
     AuthResponse,
+    BugReportCreateRequest,
+    BugReportResponse,
+    BugReportUpdateRequest,
     CheckInRequest,
     CheckInResponse,
     CommentCreateRequest,
@@ -55,6 +63,7 @@ from app.schemas import (
     UserResponse,
 )
 from app.security import (
+    get_current_admin,
     get_current_user,
     hash_password,
     new_session_token,
@@ -65,10 +74,28 @@ from app.security import (
 router = APIRouter(prefix="/api", tags=["application"])
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 
 
 def user_response(user: User) -> UserResponse:
     return UserResponse.model_validate(user)
+
+
+def bug_report_response(report: BugReport, reporter: User) -> BugReportResponse:
+    return BugReportResponse(
+        id=report.id,
+        user_id=report.user_id,
+        reporter_name=reporter.name,
+        reporter_email=reporter.email,
+        title=report.title,
+        description=report.description,
+        severity=report.severity,
+        status=report.status,
+        page_url=report.page_url,
+        admin_note=report.admin_note,
+        created_at=report.created_at,
+        updated_at=report.updated_at,
+    )
 
 
 async def set_session(
@@ -130,6 +157,24 @@ async def logout(request: Request, response: Response, db: DbSession) -> None:
 @router.get("/auth/me", response_model=UserResponse)
 async def me(user: CurrentUser) -> UserResponse:
     return user_response(user)
+
+
+@router.post("/bug-reports", response_model=BugReportResponse, status_code=status.HTTP_201_CREATED)
+async def create_bug_report(
+    payload: BugReportCreateRequest, request: Request, user: CurrentUser, db: DbSession
+) -> BugReportResponse:
+    report = BugReport(
+        user_id=user.id,
+        title=payload.title.strip(),
+        description=payload.description.strip(),
+        severity=payload.severity,
+        page_url=payload.page_url,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(report)
+    await db.commit()
+    await db.refresh(report)
+    return bug_report_response(report, user)
 
 
 @router.patch("/auth/me", response_model=UserResponse)
@@ -624,3 +669,165 @@ async def leaderboard(
         LeaderboardEntry(rank=(page - 1) * limit + index, user=user_response(member))
         for index, member in enumerate(users, start=1)
     ]
+
+
+@router.get("/admin/bug-reports", response_model=list[BugReportResponse])
+async def admin_bug_reports(
+    admin: CurrentAdmin,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    report_status: str | None = None,
+) -> list[BugReportResponse]:
+    del admin
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = (
+        select(BugReport, User)
+        .join(User, User.id == BugReport.user_id)
+        .order_by(BugReport.created_at.desc())
+    )
+    if report_status:
+        if report_status not in {"open", "in_progress", "resolved", "closed"}:
+            raise HTTPException(status_code=422, detail="Invalid bug report status")
+        query = query.where(BugReport.status == report_status)
+    rows = (await db.execute(query.offset((page - 1) * limit).limit(limit))).all()
+    return [bug_report_response(report, reporter) for report, reporter in rows]
+
+
+@router.patch("/admin/bug-reports/{report_id}", response_model=BugReportResponse)
+async def update_bug_report(
+    report_id: int,
+    payload: BugReportUpdateRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> BugReportResponse:
+    report = await db.get(BugReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Bug report not found")
+    reporter = await db.get(User, report.user_id) if report.user_id else None
+    if reporter is None:
+        raise HTTPException(status_code=404, detail="Report owner not found")
+    report.status = payload.status
+    report.admin_note = payload.admin_note.strip() if payload.admin_note else None
+    await db.commit()
+    await db.refresh(report)
+    return bug_report_response(report, reporter)
+
+
+@router.get("/admin/users", response_model=list[UserResponse])
+async def admin_users(
+    admin: CurrentAdmin,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    search: str | None = None,
+) -> list[UserResponse]:
+    del admin
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = select(User).order_by(User.created_at.desc())
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.where((User.name.ilike(term)) | (User.email.ilike(term)))
+    users = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
+    return [user_response(member) for member in users]
+
+
+@router.patch("/admin/users/{user_id}", response_model=UserResponse)
+async def update_admin_user(
+    user_id: int,
+    payload: AdminUserUpdateRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> UserResponse:
+    member = await db.get(User, user_id)
+    if member is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if member.id == admin.id and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="You cannot remove your own admin access")
+    member.role = payload.role
+    await db.commit()
+    await db.refresh(member)
+    return user_response(member)
+
+
+@router.post("/admin/users/{user_id}/password-reset", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_user_password(
+    user_id: int,
+    payload: AdminPasswordResetRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> None:
+    del admin
+    member = await db.get(User, user_id)
+    if member is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    member.password_hash = hash_password(payload.password)
+    await db.execute(delete(Session).where(Session.user_id == user_id))
+    await db.commit()
+
+
+@router.get("/admin/quotes", response_model=list[QuoteResponse])
+async def admin_quotes(
+    admin: CurrentAdmin,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    category: str | None = None,
+) -> list[QuoteResponse]:
+    del admin
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = select(Quote).order_by(Quote.created_at.desc())
+    if category:
+        query = query.where(Quote.category == category)
+    quotes = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
+    return [QuoteResponse.model_validate(quote) for quote in quotes]
+
+
+@router.post("/admin/quotes", response_model=QuoteResponse, status_code=status.HTTP_201_CREATED)
+async def admin_create_quote(
+    payload: AdminQuoteCreateRequest, admin: CurrentAdmin, db: DbSession
+) -> QuoteResponse:
+    if payload.is_featured:
+        await db.execute(update(Quote).values(is_featured=False))
+    quote = Quote(**payload.model_dump())
+    db.add(quote)
+    await db.commit()
+    await db.refresh(quote)
+    return QuoteResponse.model_validate(quote)
+
+
+@router.patch("/admin/quotes/{quote_id}", response_model=QuoteResponse)
+async def admin_update_quote(
+    quote_id: int,
+    payload: AdminQuoteUpdateRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> QuoteResponse:
+    quote = await db.get(Quote, quote_id)
+    if quote is None:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    if payload.is_featured:
+        await db.execute(update(Quote).where(Quote.id != quote_id).values(is_featured=False))
+    for key, value in payload.model_dump().items():
+        setattr(quote, key, value)
+    await db.commit()
+    await db.refresh(quote)
+    return QuoteResponse.model_validate(quote)
+
+
+@router.delete("/admin/quotes/{quote_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_quote(quote_id: int, admin: CurrentAdmin, db: DbSession) -> None:
+    del admin
+    quote = await db.get(Quote, quote_id)
+    if quote is None:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    if quote.is_featured:
+        raise HTTPException(
+            status_code=409,
+            detail="Choose another featured quote before deleting this one",
+        )
+    await db.delete(quote)
+    await db.commit()

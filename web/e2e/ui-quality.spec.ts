@@ -4,6 +4,7 @@ const routes = [
   ['Home', '/'], ['Login', '/login'], ['Registration', '/registration'],
   ['Daily Check-In', '/check-in'], ['Quotes', '/quotes'], ['Community', '/community'],
   ['Games', '/games'], ['Leaderboard', '/leaderboard'], ['Profile', '/profile'],
+  ['Admin', '/admin'],
 ] as const
 
 for (const [name, route] of routes) {

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
+  Bug,
   BookmarkSimple,
   CaretLeft,
   CaretRight,
@@ -49,6 +50,7 @@ type Screen =
   | 'login'
   | 'registration'
   | 'profile'
+  | 'admin'
 
 type Icon = ComponentType<{ size?: number; weight?: 'regular' | 'fill' | 'duotone'; color?: string }>
 
@@ -116,7 +118,7 @@ function PageHeader({ screen }: { screen: Screen }) {
           <span className="profile-menu__name">{displayName}</span>
           <CaretDown size={16} aria-hidden="true" />
         </button>
-        {menuOpen && <div className="profile-dropdown" role="menu"><Link to="/profile" role="menuitem" onClick={() => setMenuOpen(false)}>Profile & settings</Link><button type="button" role="menuitem" onClick={() => logout.mutate()} disabled={logout.isPending}>{logout.isPending ? 'Signing out…' : 'Log out'}</button></div>}
+        {menuOpen && <div className="profile-dropdown" role="menu"><Link to="/profile" role="menuitem" onClick={() => setMenuOpen(false)}>Profile & settings</Link>{currentUser.data?.role === 'admin' && <Link to="/admin" role="menuitem" onClick={() => setMenuOpen(false)}>Admin portal</Link>}<button type="button" role="menuitem" onClick={() => logout.mutate()} disabled={logout.isPending}>{logout.isPending ? 'Signing out…' : 'Log out'}</button></div>}
       </div> : <div className="auth-actions" aria-label="Account actions"><Link className="auth-actions__login" to="/login">Log in</Link><Link className="button button--primary button--small" to="/registration">Sign up</Link></div>}
     </header>
   )
@@ -381,6 +383,61 @@ function PromoCard({
 
 function GamesScreen() {
   return <ComingSoonScreen />
+}
+
+function BugReportWidget() {
+  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [severity, setSeverity] = useState('normal')
+  const report = useMutation({
+    mutationFn: api.createBugReport,
+    onSuccess: () => {
+      setTitle('')
+      setDescription('')
+      setSeverity('normal')
+    },
+  })
+  if (currentUser.isError || !currentUser.data) return null
+  return <div className="bug-report-widget">
+    {open && <section className="bug-report-popover" aria-labelledby="bug-report-title">
+      <div className="bug-report-popover__header"><div><span className="eyebrow">Help us improve</span><h2 id="bug-report-title">Report a bug</h2></div><button className="icon-button" type="button" aria-label="Close bug report form" onClick={() => setOpen(false)}><X size={18} /></button></div>
+      <p>Tell us what went wrong and where you noticed it. Please do not include private journal details.</p>
+      {report.isSuccess ? <div className="form-success" role="status">Thanks — your report is with the team.</div> : <form onSubmit={(event) => { event.preventDefault(); report.mutate({ title: title.trim(), description: description.trim(), severity, page_url: window.location.pathname }) }}>
+        <label>Short title<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={3} maxLength={160} required placeholder="What went wrong?" /></label>
+        <label>Details<textarea value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={5000} required placeholder="What did you expect, and what happened instead?" /></label>
+        <label>Severity<select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+        {report.isError && <p className="form-error" role="alert">{report.error.message}</p>}
+        <button className="button button--primary button--wide" type="submit" disabled={report.isPending}>{report.isPending ? 'Sending…' : 'Send bug report'}</button>
+      </form>}
+    </section>}
+    <button className="bug-report-launcher" type="button" aria-label={open ? 'Close bug report form' : 'Report a bug'} aria-expanded={open} onClick={() => { setOpen((value) => !value); report.reset() }}><Bug size={23} weight="duotone" /><span>{open ? 'Close' : 'Report a bug'}</span></button>
+  </div>
+}
+
+function AdminScreen() {
+  const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const [tab, setTab] = useState<'reports' | 'users' | 'quotes'>('reports')
+  const [reportStatus, setReportStatus] = useState('')
+  const [search, setSearch] = useState('')
+  const [quoteText, setQuoteText] = useState('')
+  const [quoteAuthor, setQuoteAuthor] = useState('Safe Space Saturdays')
+  const [quoteCategory, setQuoteCategory] = useState('Encouragement')
+  const reports = useQuery({ queryKey: ['admin-reports', reportStatus], queryFn: () => api.adminBugReports(1, 50, reportStatus || undefined), enabled: profile.data?.role === 'admin' })
+  const users = useQuery({ queryKey: ['admin-users', search], queryFn: () => api.adminUsers(1, 50, search), enabled: profile.data?.role === 'admin' })
+  const quotes = useQuery({ queryKey: ['admin-quotes'], queryFn: () => api.adminQuotes(1, 100), enabled: profile.data?.role === 'admin' })
+  const reportUpdate = useMutation({ mutationFn: ({ id, status, admin_note }: { id: number; status: string; admin_note?: string }) => api.updateBugReport(id, { status, admin_note }), onSuccess: () => reports.refetch() })
+  const roleUpdate = useMutation({ mutationFn: ({ id, role }: { id: number; role: 'member' | 'admin' }) => api.updateAdminUser(id, role), onSuccess: () => users.refetch() })
+  const reset = useMutation({ mutationFn: ({ id, password }: { id: number; password: string }) => api.resetUserPassword(id, password) })
+  const createQuote = useMutation({ mutationFn: api.createAdminQuote, onSuccess: () => { setQuoteText(''); quotes.refetch() } })
+  if (profile.isLoading) return <><PageHeader screen="admin" /><main className="page-content"><ApiLoader label="Loading admin workspace…" /></main></>
+  if (profile.isError || profile.data?.role !== 'admin') return <><PageHeader screen="admin" /><main className="page-content"><section className="empty-state-card"><ShieldCheck size={34} /><h1>Admin access required</h1><p>This workspace is restricted to approved administrators.</p><Link className="button button--secondary" to="/">Return home</Link></section></main><PageFooter /></>
+  return <><PageHeader screen="admin" /><main className="page-content admin-page"><SectionHeading eyebrow="Steward workspace" title="Admin portal" description="Review member feedback, protect accounts, and keep the community content thoughtful." /><div className="admin-tabs" role="tablist" aria-label="Admin sections"><button className={tab === 'reports' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'reports'} onClick={() => setTab('reports')} type="button"><Bug size={18} /> Bug reports</button><button className={tab === 'users' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'users'} onClick={() => setTab('users')} type="button"><UsersThree size={18} /> Users</button><button className={tab === 'quotes' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'quotes'} onClick={() => setTab('quotes')} type="button"><Quotes size={18} /> Quotes</button></div>
+    {tab === 'reports' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>Bug reports</h2><p>Keep a clear trail from report to resolution.</p></div><select aria-label="Filter bug reports" value={reportStatus} onChange={(event) => setReportStatus(event.target.value)}><option value="">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>{reports.isLoading && <ContentSkeleton rows={4} />}{reports.data?.length ? <div className="admin-list">{reports.data.map((report) => <article className="admin-list-item" key={report.id}><div className="admin-list-item__top"><div><span className={`severity-badge severity-badge--${report.severity}`}>{report.severity}</span><h3>{report.title}</h3><small>{report.reporter_name} · {report.reporter_email} · {new Date(report.created_at).toLocaleString()}</small></div><select aria-label={`Update status for ${report.title}`} value={report.status} onChange={(event) => reportUpdate.mutate({ id: report.id, status: event.target.value, admin_note: report.admin_note ?? undefined })}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div><p>{report.description}</p><small className="admin-list-item__meta">Reported from {report.page_url || 'unknown page'}</small><button className="text-link" type="button" onClick={() => { const note = window.prompt('Add an internal note', report.admin_note ?? '') ; if (note !== null) reportUpdate.mutate({ id: report.id, status: report.status, admin_note: note }) }}>Add internal note</button>{report.admin_note && <p className="admin-note">Internal note: {report.admin_note}</p>}</article>)}</div> : !reports.isLoading && <div className="admin-empty"><Bug size={28} /><p>No bug reports in this view.</p></div>}</section>}
+    {tab === 'users' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>User management</h2><p>Manage roles and issue a secure password reset.</p></div><input aria-label="Search users" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email" /></div>{users.data?.length ? <div className="admin-list">{users.data.map((member) => <article className="admin-list-item admin-user-row" key={member.id}><div><h3>{member.name}</h3><small>{member.email} · {member.role}</small></div><div className="admin-user-actions"><select aria-label={`Role for ${member.email}`} value={member.role} onChange={(event) => roleUpdate.mutate({ id: member.id, role: event.target.value as 'member' | 'admin' })}><option value="member">Member</option><option value="admin">Admin</option></select><button className="button button--secondary button--small" type="button" onClick={() => { const password = window.prompt(`New password for ${member.email} (10+ characters)`); if (password) reset.mutate({ id: member.id, password }) }}>Reset password</button></div></article>)}</div> : <div className="admin-empty"><UsersThree size={28} /><p>No users match this search.</p></div>}</section>}
+    {tab === 'quotes' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>Quote library</h2><p>Add and curate the words members see across the app.</p></div></div><form className="admin-quote-form" onSubmit={(event) => { event.preventDefault(); createQuote.mutate({ text: quoteText.trim(), author: quoteAuthor.trim(), category: quoteCategory, is_featured: false }) }}><label>Quote<textarea value={quoteText} onChange={(event) => setQuoteText(event.target.value)} minLength={3} maxLength={2000} required placeholder="Write something encouraging…" /></label><label>Author<input value={quoteAuthor} onChange={(event) => setQuoteAuthor(event.target.value)} maxLength={120} required /></label><label>Category<select value={quoteCategory} onChange={(event) => setQuoteCategory(event.target.value)}><option>Encouragement</option><option>Rest</option><option>Growth</option><option>Connection</option></select></label><button className="button button--primary" type="submit" disabled={createQuote.isPending}>{createQuote.isPending ? 'Adding…' : 'Add quote'}</button></form><div className="admin-list">{quotes.data?.map((quote) => <article className="admin-list-item" key={quote.id}><div><h3>{quote.text}</h3><small>— {quote.author} · {quote.category}{quote.is_featured ? ' · Featured' : ''}</small></div>{!quote.is_featured && <button className="text-link admin-delete-link" type="button" onClick={() => { if (window.confirm('Delete this quote?')) api.deleteAdminQuote(quote.id).then(() => quotes.refetch()) }}>Delete</button>}</article>)}</div></section>}
+  </main><PageFooter /></>
 }
 
 function ComingSoonScreen() {
@@ -1155,11 +1212,6 @@ function ProfileScreen() {
 
 export function SafeSpaceApp({ screen }: { screen: Screen }) {
   if (screen === 'login' || screen === 'registration') return <AuthLayout mode={screen} />
-  if (screen === 'profile') return <ProfileScreen />
-  if (screen === 'check-in') return <CheckInScreen />
-  if (screen === 'quotes') return <QuotesScreen />
-  if (screen === 'community') return <CommunityScreen />
-  if (screen === 'games') return <GamesScreen />
-  if (screen === 'leaderboard') return <LeaderboardScreen />
-  return <HomeScreen />
+  const content = screen === 'admin' ? <AdminScreen /> : screen === 'profile' ? <ProfileScreen /> : screen === 'check-in' ? <CheckInScreen /> : screen === 'quotes' ? <QuotesScreen /> : screen === 'community' ? <CommunityScreen /> : screen === 'games' ? <GamesScreen /> : screen === 'leaderboard' ? <LeaderboardScreen /> : <HomeScreen />
+  return <>{content}<BugReportWidget /></>
 }

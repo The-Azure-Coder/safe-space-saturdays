@@ -47,6 +47,7 @@ export type Post = { id: number; author: string; initials: string; text: string;
 export type Game = { id: number; name: string; players: string; icon: string; color: string; is_featured: boolean }
 export type Room = { id: number; name: string; game: string; players: number; max_players: number; status: string; joined: boolean }
 export type LeaderboardEntry = { rank: number; user: User }
+export type BugReport = { id: number; user_id: number | null; reporter_name: string; reporter_email: string; title: string; description: string; severity: string; status: string; page_url: string | null; admin_note: string | null; created_at: string; updated_at: string }
 
 export const api = {
   register: (body: { name: string; email: string; password: string; confirm_password: string }) => apiFetch<{ user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
@@ -80,4 +81,14 @@ export const api = {
   createRoom: (body: { game_id: number; name: string; max_players: number }) => apiFetch<Room>('/api/games/rooms', { method: 'POST', body: JSON.stringify(body) }),
   joinRoom: (id: number) => apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
   leaderboard: (period: string, page = 1, limit = 10) => apiFetch<Array<LeaderboardEntry>>(`/api/leaderboard?period=${period}&page=${page}&limit=${limit}`),
+  createBugReport: (body: { title: string; description: string; severity: string; page_url?: string }) => apiFetch<BugReport>('/api/bug-reports', { method: 'POST', body: JSON.stringify(body) }),
+  adminBugReports: (page = 1, limit = 20, status?: string) => apiFetch<Array<BugReport>>(`/api/admin/bug-reports?page=${page}&limit=${limit}${status ? `&report_status=${encodeURIComponent(status)}` : ''}`),
+  updateBugReport: (id: number, body: { status: string; admin_note?: string }) => apiFetch<BugReport>(`/api/admin/bug-reports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  adminUsers: (page = 1, limit = 20, search = '') => apiFetch<Array<User>>(`/api/admin/users?page=${page}&limit=${limit}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+  updateAdminUser: (id: number, role: 'member' | 'admin') => apiFetch<User>(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  resetUserPassword: (id: number, password: string) => apiFetch<void>(`/api/admin/users/${id}/password-reset`, { method: 'POST', body: JSON.stringify({ password }) }),
+  adminQuotes: (page = 1, limit = 20, category = '') => apiFetch<Array<Quote>>(`/api/admin/quotes?page=${page}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`),
+  createAdminQuote: (body: { text: string; author: string; category: string; is_featured: boolean }) => apiFetch<Quote>('/api/admin/quotes', { method: 'POST', body: JSON.stringify(body) }),
+  updateAdminQuote: (id: number, body: { text: string; author: string; category: string; is_featured: boolean }) => apiFetch<Quote>(`/api/admin/quotes/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteAdminQuote: (id: number) => apiFetch<void>(`/api/admin/quotes/${id}`, { method: 'DELETE' }),
 }
