@@ -1,9 +1,12 @@
 import asyncio
+import io
 from collections import Counter
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
+import cloudinary
+import cloudinary.uploader
 from fastapi import (
     APIRouter,
     Depends,
@@ -371,6 +374,37 @@ async def save_post_image(image: UploadFile) -> str:
         image_format[0] == "webp" and content[8:12] != b"WEBP"
     ):
         raise HTTPException(status_code=415, detail="The uploaded file is not a valid image")
+    if settings.use_cloudinary:
+        if not all(
+            (
+                settings.cloudinary_cloud_name,
+                settings.cloudinary_api_key,
+                settings.cloudinary_api_secret,
+            )
+        ):
+            raise HTTPException(status_code=503, detail="Image storage is not configured")
+        try:
+            cloudinary.config(
+                cloud_name=settings.cloudinary_cloud_name,
+                api_key=settings.cloudinary_api_key,
+                api_secret=settings.cloudinary_api_secret,
+                secure=True,
+            )
+            result = await asyncio.to_thread(
+                cloudinary.uploader.upload,
+                io.BytesIO(content),
+                folder="safe-space-saturdays",
+                resource_type="image",
+                format=image_format[0],
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail="Image storage is temporarily unavailable"
+            ) from exc
+        secure_url = result.get("secure_url")
+        if not isinstance(secure_url, str) or not secure_url.startswith("https://"):
+            raise HTTPException(status_code=502, detail="Image storage returned an invalid URL")
+        return secure_url
     filename = f"{uuid4().hex}.{image_format[0]}"
     destination: Path = settings.upload_dir / filename
     await asyncio.to_thread(destination.write_bytes, content)

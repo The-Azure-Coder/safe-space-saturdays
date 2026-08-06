@@ -1,5 +1,9 @@
 export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
+export function assetUrl(value: string): string {
+  return value.startsWith('http://') || value.startsWith('https://') ? value : `${API_URL}${value}`
+}
+
 export class ApiError extends Error {
   status: number
 

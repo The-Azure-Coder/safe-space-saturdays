@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     upload_dir: Path = DEFAULT_UPLOAD_DIR
     max_upload_bytes: int = 5_000_000
+    use_cloudinary: bool = False
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: str | None = None
 
     @model_validator(mode="after")
     def require_secure_production_cookies(self) -> "Settings":
