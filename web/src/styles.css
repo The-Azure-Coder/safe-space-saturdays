@@ -582,3 +582,49 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
   .app-nav .app-nav__link span { display: inline; }
   .app-nav .app-nav__link--active { background: var(--sage-pale); color: var(--sage-dark); }
 }
+
+/* Night Garden contrast pass: these rules intentionally come last so the theme wins over editorial light-mode accents. */
+html[data-theme='night'] .section-heading p,
+html[data-theme='night'] .promo-card p,
+html[data-theme='night'] .community-card > p,
+html[data-theme='night'] .check-card > p,
+html[data-theme='night'] .support-card p,
+html[data-theme='night'] .announcement-item p { color: var(--muted); }
+html[data-theme='night'] .support-card { border-color: var(--line); background: #332f40; color: var(--ink); }
+html[data-theme='night'] .announcement-item a,
+html[data-theme='night'] .view-replies-button,
+html[data-theme='night'] .text-link,
+html[data-theme='night'] .section-row > a,
+html[data-theme='night'] .conversation-link,
+html[data-theme='night'] .auth-actions__login { color: #b9d8b5; }
+html[data-theme='night'] .announcement-item a:hover,
+html[data-theme='night'] .view-replies-button:hover,
+html[data-theme='night'] .text-link:hover,
+html[data-theme='night'] .auth-actions__login:hover { color: #f2b39a; }
+html[data-theme='night'] .welcome-carousel__eyebrow { color: #b9d8b5; }
+html[data-theme='night'] .welcome-carousel--peach .welcome-carousel__eyebrow { color: #f2b39a; }
+html[data-theme='night'] .welcome-carousel--lilac .welcome-carousel__eyebrow { color: #d0c7ee; }
+html[data-theme='night'] .post-composer textarea::placeholder,
+html[data-theme='night'] .auth-panel input::placeholder,
+html[data-theme='night'] .form-card textarea::placeholder { color: #91a99a; opacity: 1; }
+html[data-theme='night'] .api-loader { border-color: var(--line); background: #263a31; color: #b9d8b5; }
+html[data-theme='night'] .content-skeleton__row { border: 1px solid var(--line); background: #263a31; }
+html[data-theme='night'] .content-skeleton__avatar { background: #385542; }
+html[data-theme='night'] .content-skeleton__copy i { background: #385542; }
+html[data-theme='night'] .quote-card { background: #3d2e29; color: var(--ink); }
+html[data-theme='night'] .check-card { background: #263d30; color: var(--ink); }
+html[data-theme='night'] .community-card { background: #332f40; color: var(--ink); }
+html[data-theme='night'] .game-strip { background: #21342a; color: var(--ink); }
+html[data-theme='night'] .progress-card { border-color: var(--line); background: #263a31; color: var(--ink); }
+html[data-theme='night'] .leaderboard-table__head,
+html[data-theme='night'] .leaderboard-row:hover { background: #30483b; color: var(--ink); }
+html[data-theme='night'] .auth-panel input:focus,
+html[data-theme='night'] .auth-panel textarea:focus,
+html[data-theme='night'] .input-wrap:focus-within { background: #263a31; }
+html[data-theme='night'] .mood-row button { border-color: var(--line); background: #263a31; color: var(--ink); }
+html[data-theme='night'] .mood-row button small { color: var(--ink); }
+html[data-theme='night'] .coming-soon-banner .eyebrow { color: #b9d8b5; }
+@media (max-width: 760px) {
+  .leaderboard-hero > .progress-card { order: 2; }
+  .leaderboard-hero > .podium { order: 3; }
+}
