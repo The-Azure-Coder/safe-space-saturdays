@@ -70,7 +70,7 @@ export const api = {
     }
     return apiFetch<Post>('/api/community/posts', { method: 'POST', body: JSON.stringify({ text }) })
   },
-  react: (id: number, kind: 'like' | 'dislike' | 'love') => apiFetch<Post>(`/api/community/posts/${id}/reactions`, { method: 'POST', body: JSON.stringify({ kind }) }),
+  react: (id: number, kind: 'like' | 'dislike') => apiFetch<Post>(`/api/community/posts/${id}/reactions`, { method: 'POST', body: JSON.stringify({ kind }) }),
   reply: (id: number, text: string) => apiFetch<Comment>(`/api/community/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
   likedPosts: (page = 1, limit = 5) => apiFetch<Array<Post>>(`/api/community/activity/liked?page=${page}&limit=${limit}`),
   repliedPosts: (page = 1, limit = 5) => apiFetch<Array<Post>>(`/api/community/activity/replied?page=${page}&limit=${limit}`),
