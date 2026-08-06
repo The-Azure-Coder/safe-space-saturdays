@@ -39,6 +39,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { api, assetUrl } from '../lib/api'
+import type { CheckIn } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -303,17 +304,30 @@ function CheckInScreen() {
     window.localStorage.setItem('safe-space-checkin-draft', JSON.stringify({ selectedMood, needs, energy, stress, thoughts, gratitude }))
     setDraftSaved(true)
   }
+  if (complete) return <><PageHeader screen="check-in" /><main className="page-content checkin-complete-page"><section className="checkin-complete-card" aria-labelledby="checkin-complete-title"><div className="checkin-complete-card__icon"><CheckCircle size={34} weight="fill" /></div><span className="eyebrow">A moment kept for you</span><h1 id="checkin-complete-title">Your check-in is complete.</h1><p className="checkin-complete-card__intro">You made space to notice what is happening inside you. That is meaningful progress.</p><div className="checkin-complete-summary"><div><small>Today you felt</small><strong>{selectedMood}</strong></div><div><small>Energy</small><strong>{energy} / 5</strong></div><div><small>Stress</small><strong>{stress} / 5</strong></div><div><small>Current streak</small><strong>{currentUser.data?.streak ?? '—'} days</strong></div></div>{needs.length > 0 && <p className="checkin-complete-note"><Leaf size={18} weight="fill" /> You asked for <strong>{needs.join(', ')}</strong>.</p>}{gratitude && <blockquote className="checkin-complete-reflection">“{gratitude}”</blockquote>}<div className="checkin-complete-actions"><Link className="button button--primary" to="/profile">Review your reflections</Link><Link className="button button--secondary" to="/">Return home</Link></div></section></main><PageFooter /></>
   return <><PageHeader screen="check-in" /><main className="page-content checkin-page"><div className="checkin-main"><SectionHeading title="Daily Check-In" description="Take a moment to check in with yourself. Your responses help us support you better." />
     <section className="form-card"><h2><Smiley size={24} weight="fill" /> 1. How are you feeling today?</h2><div className="mood-row mood-row--large">{moods.map((mood) => <button className={selectedMood === mood.label ? 'mood-option mood-option--selected' : 'mood-option'} key={mood.label} type="button" onClick={() => setSelectedMood(mood.label)}><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div></section>
     <div className="two-column"><section className="form-card"><h2><Leaf size={24} weight="fill" /> 2. What do you need today?</h2><div className="choice-list">{['Rest', 'Encouragement', 'Space', 'Someone to Talk To', 'Motivation', 'Fun', 'Prayer / Positive Words'].map((choice) => <button type="button" key={choice} className={needs.includes(choice) ? 'choice-chip choice-chip--selected' : 'choice-chip'} onClick={() => setNeeds((current) => current.includes(choice) ? current.filter((item) => item !== choice) : [...current, choice])}><span aria-hidden="true">{choice === 'Rest' ? '🛏️' : choice === 'Encouragement' ? '🧡' : choice === 'Space' ? '☁️' : choice === 'Motivation' ? '⭐' : '🌿'}</span>{choice}</button>)}</div></section><section className="form-card"><h2><Sparkle size={24} weight="fill" /> 3. Energy & Stress Check</h2><RangeRow label="Energy Level" left="Low" right="High" value={energy} onChange={setEnergy} /><RangeRow label="Stress Level" left="Calm" right="Overwhelmed" value={stress} onChange={setStress} accent /></section></div>
     <div className="two-column"><section className="form-card"><h2><PencilSimple size={24} /> 4. What’s on your mind?</h2><label className="field-label" htmlFor="checkin-thoughts">Your thoughts<textarea id="checkin-thoughts" placeholder="Write a few thoughts about your day..." value={thoughts} onChange={(event) => setThoughts(event.target.value)} /></label></section><section className="form-card"><h2><Heart size={24} weight="fill" /> 5. What are you grateful for today?</h2><label className="field-label" htmlFor="checkin-gratitude">A small gratitude<textarea id="checkin-gratitude" placeholder="Write about something you are grateful for..." value={gratitude} onChange={(event) => setGratitude(event.target.value)} /></label></section></div>
-    <div className="privacy-note"><ShieldCheck size={24} weight="fill" /><span><strong>Your privacy matters.</strong><small>Your check-in is private and only you can see your responses.</small></span></div>{mutation.isError && <div className="form-error" role="alert">{mutation.error.message}</div>}{draftSaved && <div className="form-success" role="status">Your check-in draft is saved on this device.</div>}<div className="checkin-actions"><button className="button button--primary button--wide" type="button" onClick={submit} disabled={mutation.isPending || !selectedMood}><CheckSquare size={22} /> {complete ? 'Check-In Complete' : mutation.isPending ? 'Saving…' : 'Complete Check-In'}</button><button className="button button--secondary button--wide" type="button" onClick={saveDraft}><BookmarkSimple size={22} /> {draftSaved ? 'Saved for Later' : 'Save for Later'}</button></div>
+    <div className="privacy-note"><ShieldCheck size={24} weight="fill" /><span><strong>Your privacy matters.</strong><small>Your check-in is private and only you can see your responses.</small></span></div>{mutation.isError && <div className="form-error" role="alert">{mutation.error.message}</div>}{draftSaved && <div className="form-success" role="status">Your check-in draft is saved on this device.</div>}<div className="checkin-actions"><button className="button button--primary button--wide" type="button" onClick={submit} disabled={mutation.isPending || !selectedMood}><CheckSquare size={22} /> {mutation.isPending ? 'Saving…' : 'Complete Check-In'}</button><button className="button button--secondary button--wide" type="button" onClick={saveDraft}><BookmarkSimple size={22} /> {draftSaved ? 'Saved for Later' : 'Save for Later'}</button></div>
   </div><aside className="checkin-sidebar"><StatCard icon={Flame} label="Current Streak" value={currentUser.data ? String(currentUser.data.streak) : '—'} detail="days" /><article className="quote-card"><div className="card-title"><Quotes size={22} weight="fill" /> <span>Quote of the Day</span></div><blockquote>“You don’t have to have it all figured out to move forward.”</blockquote><cite>— Unknown</cite></article><article className="support-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Need Extra Support?</span></div><p>You are not alone. Reach out to a trusted club leader or join the <em>Wellness Circle.</em></p><Link className="button button--lilac" to="/community">Join Wellness Circle</Link></article></aside></main><PageFooter /></>
 }
 
 function RangeRow({ label, left, right, accent = false, value, onChange }: { label: string; left: string; right: string; accent?: boolean; value?: number; onChange?: (value: number) => void }) {
   const inputId = `range-${label.toLowerCase().replaceAll(' ', '-')}`
   return <div className={`range-row ${accent ? 'range-row--accent' : ''}`}><div className="range-row__heading"><label htmlFor={inputId}>{label}</label><output htmlFor={inputId}>{value ?? 3} / 5</output></div><input id={inputId} aria-label={label} type="range" min="1" max="5" value={value ?? 3} onInput={(event) => onChange?.(Number(event.currentTarget.value))} onChange={(event) => onChange?.(Number(event.currentTarget.value))} /><div className="range-labels"><span>{left}</span><span>{right}</span></div></div>
+}
+
+function CheckInReflection({ checkIn }: { checkIn: CheckIn }) {
+  const date = new Date(checkIn.created_at)
+  const moodMessage: Record<string, string> = {
+    Great: 'You had some brightness to hold onto.',
+    Good: 'There was some steadiness available to you.',
+    Okay: 'You gave yourself permission to be honest.',
+    'Not Great': 'You noticed a harder moment instead of hiding it.',
+    Struggling: 'You reached for support while things felt heavy.',
+  }
+  return <article className="checkin-reflection"><div className="checkin-reflection__header"><div><span className="eyebrow">{date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span><h3>{checkIn.mood}</h3><p>{moodMessage[checkIn.mood] ?? 'You made time to check in with yourself.'}</p></div><span className="checkin-reflection__badge"><CheckCircle size={18} weight="fill" /> Complete</span></div><div className="checkin-reflection__metrics"><span><small>Energy</small><strong>{checkIn.energy} / 5</strong></span><span><small>Stress</small><strong>{checkIn.stress} / 5</strong></span><span><small>Needed</small><strong>{checkIn.needs.length || '—'}</strong></span></div><div className="checkin-reflection__body"><div><small>What you needed</small><p>{checkIn.needs.length ? checkIn.needs.join(' · ') : 'You did not name a specific need.'}</p></div><div><small>Your reflection</small><p>{checkIn.thoughts || 'You kept this reflection private.'}</p></div><div><small>Gratitude</small><p>{checkIn.gratitude || 'Nothing added this time.'}</p></div></div></article>
 }
 
 function QuotesScreen() {
@@ -1112,13 +1126,7 @@ function ProfileScreen() {
                   <span>Check-in history</span>
                 </div>
                 {(checkIns.data ?? []).length > 0 ? (
-                  (checkIns.data ?? []).map((checkIn) => (
-                    <article className="activity-post" key={checkIn.id}>
-                      <strong>{checkIn.mood}</strong>
-                      <p>{checkIn.gratitude || checkIn.thoughts || 'You made space to check in with yourself.'}</p>
-                      <small>{new Date(checkIn.created_at).toLocaleDateString()} · Energy {checkIn.energy}/5 · Stress {checkIn.stress}/5</small>
-                    </article>
-                  ))
+                  (checkIns.data ?? []).map((checkIn) => <CheckInReflection checkIn={checkIn} key={checkIn.id} />)
                 ) : (
                   <div className="profile-empty-state">
                     <p>Your private check-in reflections will appear here.</p>
