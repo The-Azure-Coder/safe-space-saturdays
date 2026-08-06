@@ -411,8 +411,8 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .auth-intro img { filter: saturate(.9); }
 .auth-panel { border: 0; border-radius: 28px 28px 8px 28px; box-shadow: 0 24px 60px rgb(77 93 68 / 11%); }
 .auth-panel h2 { text-wrap: balance; }
-.auth-panel input, .input-wrap { border-color: #ddd4c5; background: #fffefa; transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease; }
-.auth-panel input:focus, .input-wrap:focus-within { border-color: var(--sage); background: white; box-shadow: 0 0 0 4px rgb(120 144 109 / 12%); }
+.auth-panel input, .input-wrap { border-color: var(--line); background: var(--paper); transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease; }
+.auth-panel input:focus, .input-wrap:focus-within { border-color: var(--sage); background: var(--paper); box-shadow: 0 0 0 4px rgb(120 144 109 / 12%); }
 
 .checkin-page, .community-layout, .games-layout, .profile-layout { gap: 24px; }
 .form-card, .conversation-card, .guidelines-card, .games-panel, .rooms-panel, .winner-panel, .profile-card { border: 0; box-shadow: 0 14px 34px rgb(77 93 68 / 7%); }
@@ -517,6 +517,12 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
   box-shadow: 0 0 0 4px rgb(120 144 109 / 14%);
 }
 .input-wrap { overflow: hidden; }
+.auth-panel .input-wrap > input,
+.auth-panel .input-wrap > input:focus {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
 .text-link {
   display: inline-flex;
   align-items: center;
@@ -623,6 +629,31 @@ html[data-theme='night'] .leaderboard-row:hover { background: #30483b; color: va
 html[data-theme='night'] .auth-panel input:focus,
 html[data-theme='night'] .auth-panel textarea:focus,
 html[data-theme='night'] .input-wrap:focus-within { background: #263a31; }
+html[data-theme='night'] .auth-page { color: var(--ink); }
+html[data-theme='night'] .auth-intro h1 { color: var(--ink); }
+html[data-theme='night'] .auth-intro > p { color: var(--muted); }
+html[data-theme='night'] .auth-panel { border: 1px solid var(--line); background: #21342a; color: var(--ink); box-shadow: var(--shadow); }
+html[data-theme='night'] .auth-panel__leaf { color: #b9d8b5; }
+html[data-theme='night'] .auth-panel__intro,
+html[data-theme='night'] .auth-panel .auth-switch { color: var(--muted); }
+html[data-theme='night'] .auth-panel label { color: var(--ink); }
+html[data-theme='night'] .auth-panel input,
+html[data-theme='night'] .auth-panel textarea,
+html[data-theme='night'] .auth-panel .input-wrap { border-color: var(--line); background: #1d3026; color: var(--ink); }
+html[data-theme='night'] .auth-panel input:focus,
+html[data-theme='night'] .auth-panel textarea:focus,
+html[data-theme='night'] .auth-panel .input-wrap:focus-within { border-color: #9fc69b; background: #263a31; box-shadow: 0 0 0 4px rgb(159 198 155 / 18%); }
+html[data-theme='night'] .auth-panel .input-wrap > input,
+html[data-theme='night'] .auth-panel .input-wrap > input:focus { border: 0; background: transparent; box-shadow: none; }
+html[data-theme='night'] .auth-panel .input-action { color: #b8c7bd; }
+html[data-theme='night'] .auth-panel .input-valid { color: #b9d8b5; }
+html[data-theme='night'] .auth-panel .checkbox-label { color: var(--muted) !important; }
+html[data-theme='night'] .auth-panel .form-success { background: #30483b; color: #e5f1df; }
+html[data-theme='night'] .auth-panel .form-error { border-color: #a86556; background: #4b332b; color: #ffd9ce; }
+html[data-theme='night'] .auth-panel .button--primary { background: #769b70; color: #122018; }
+html[data-theme='night'] .auth-panel .button--primary:hover { background: #8eaf88; }
+html[data-theme='night'] .auth-panel .auth-switch a { color: #f2b39a; }
+html[data-theme='night'] .auth-panel .auth-switch a:hover { color: #ffd1c2; }
 html[data-theme='night'] .mood-row button { border-color: var(--line); background: #263a31; color: var(--ink); }
 html[data-theme='night'] .mood-row button small { color: var(--ink); }
 html[data-theme='night'] .coming-soon-banner .eyebrow { color: #b9d8b5; }
