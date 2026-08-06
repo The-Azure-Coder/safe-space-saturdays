@@ -157,6 +157,7 @@ function StatCard({ icon: StatIcon, label, value, detail, tone = 'sage', progres
 
 function PaginationControls({ page, itemCount, pageSize, onPageChange, label = 'Results' }: { page: number; itemCount: number; pageSize: number; onPageChange: (page: number) => void; label?: string }) {
   const hasNext = itemCount === pageSize
+  if (page === 1 && !hasNext) return null
   return <nav className="pagination-controls" aria-label={`${label} pagination`}><button className="button button--secondary button--small" type="button" disabled={page === 1} onClick={() => onPageChange(page - 1)}>Previous</button><span aria-live="polite">Page {page}</span><button className="button button--secondary button--small" type="button" disabled={!hasNext} onClick={() => onPageChange(page + 1)}>Next</button></nav>
 }
 
