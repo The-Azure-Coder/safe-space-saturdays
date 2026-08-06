@@ -51,6 +51,15 @@ test('homepage welcome carousel can be navigated without hiding its controls', a
   await expect(carousel.getByRole('button', { name: 'Show encouragement 1' })).toBeVisible()
 })
 
+test('homepage welcome carousel auto-advances', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' })
+  const carousel = page.locator('[aria-label="A little encouragement"]')
+  const title = carousel.locator('h2')
+  const initialTitle = await title.textContent()
+  await page.waitForTimeout(7_000)
+  await expect(title).not.toHaveText(initialTitle ?? '')
+})
+
 test('mobile navigation opens and closes around route changes', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 })
   await page.goto('/', { waitUntil: 'networkidle' })
