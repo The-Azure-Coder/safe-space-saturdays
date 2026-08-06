@@ -629,6 +629,18 @@ html[data-theme='night'] .coming-soon-banner .eyebrow { color: #b9d8b5; }
   .leaderboard-hero > .podium { order: 3; }
 }
 
+/* Final mobile layout pass: stack community content and left-align the menu. */
+@media (max-width: 760px) {
+  .community-layout { grid-template-columns: minmax(0, 1fr); }
+  .community-sidebar { grid-template-columns: minmax(0, 1fr); }
+  .conversation-card > .section-row { align-items: flex-start; flex-direction: column; }
+  .conversation-card > .section-row > .button { align-self: flex-start; }
+  .post-row { padding-inline: 14px; }
+  .post-row__meta { flex-wrap: wrap; }
+  .app-nav.app-nav--mobile-open { display: grid; align-items: stretch; justify-items: start; justify-content: start; }
+  .app-nav.app-nav--mobile-open .app-nav__link { align-items: center; justify-content: flex-start; justify-self: stretch; text-align: left; }
+}
+
 /* Feedback and admin workflows */
 .bug-report-widget { position: fixed; z-index: 60; right: 24px; bottom: 24px; display: grid; justify-items: end; gap: 12px; }
 .bug-report-launcher { display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 17px; border: 0; border-radius: 999px; background: var(--sage-dark); color: #fff; box-shadow: 0 12px 30px rgb(37 61 45 / 25%); font: inherit; font-weight: 700; cursor: pointer; }
