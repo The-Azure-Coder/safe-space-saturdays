@@ -50,3 +50,10 @@ test('mobile navigation opens and closes around route changes', async ({ page })
   await expect(page).toHaveURL(/\/community$/)
   await expect(page.getByRole('button', { name: 'Open navigation menu' })).toBeVisible()
 })
+
+test('generated game artwork renders without broken images', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'networkidle' })
+  const bingo = page.locator('img[src="/assets/game-bingo.png"]')
+  await expect(bingo).toBeVisible({ timeout: 110_000 })
+  await expect.poll(() => bingo.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+})

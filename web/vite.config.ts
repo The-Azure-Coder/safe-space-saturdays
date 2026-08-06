@@ -4,4 +4,11 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [tanstackStart({ client: { entry: 'client.tsx' } }), viteReact()],
+  server: {
+    headers: { 'Cache-Control': 'no-store' },
+    watch: {
+      usePolling: true,
+      interval: 250,
+    },
+  },
 })
