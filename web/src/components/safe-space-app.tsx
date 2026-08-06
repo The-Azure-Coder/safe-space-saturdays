@@ -20,6 +20,7 @@ import {
   House,
   Leaf,
   LockKey,
+  List,
   PencilSimple,
   Quotes,
   ShieldCheck,
@@ -28,6 +29,7 @@ import {
   Star,
   Trophy,
   UsersThree,
+  X,
 } from '@phosphor-icons/react'
 
 import { api } from '../lib/api'
@@ -62,11 +64,13 @@ const moods = [
   { label: 'Struggling', icon: '😔' },
 ]
 
-const games = [
-  { name: 'Ludo', players: '2–4 players', icon: '🎲', color: 'sage' },
-  { name: 'Dominoes', players: '2–4 players', icon: '🁣', color: 'peach' },
-  { name: 'Trivia Battle', players: '2+ players', icon: '❔', color: 'lilac' },
-  { name: 'Connect Four', players: '2 players', icon: '🔴', color: 'blue' },
+type GameDefinition = { name: string; players: string; icon: Icon | string; color: string }
+
+const games: Array<GameDefinition> = [
+  { name: 'Ludo', players: '2–4 players', icon: '/assets/game-ludo.png', color: 'sage' },
+  { name: 'Dominoes', players: '2–4 players', icon: '/assets/game-dominoes.png', color: 'peach' },
+  { name: 'Trivia Battle', players: '2+ players', icon: '/assets/game-trivia.png', color: 'lilac' },
+  { name: 'Connect Four', players: '2 players', icon: '/assets/game-connect-four.png', color: 'blue' },
 ]
 
 function Logo({ compact = false }: { compact?: boolean }) {
@@ -81,19 +85,23 @@ function PageHeader({ screen }: { screen: Screen }) {
   const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const logout = useMutation({ mutationFn: api.logout, onSuccess: () => { queryClient.clear(); window.location.href = '/login' } })
   const displayName = currentUser.data?.name
   return (
     <header className="app-header">
       <Logo compact />
-      <nav className="app-nav" aria-label="Main navigation">
+      <nav id="main-navigation" className={mobileNavOpen ? 'app-nav app-nav--mobile-open' : 'app-nav'} aria-label="Main navigation">
         {navItems.map(({ href, label, icon: NavIcon }) => (
-          <Link className={isActive(screen, href) ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to={href} key={href}>
+          <Link onClick={() => setMobileNavOpen(false)} className={isActive(screen, href) ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to={href} key={href}>
             <NavIcon size={22} weight={isActive(screen, href) ? 'fill' : 'regular'} aria-hidden="true" />
             <span>{label}</span>
           </Link>
         ))}
       </nav>
+      <button className="mobile-nav-toggle" type="button" aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen} aria-controls="main-navigation" onClick={() => setMobileNavOpen((open) => !open)}>
+        {mobileNavOpen ? <X size={22} aria-hidden="true" /> : <List size={22} aria-hidden="true" />}
+      </button>
       {displayName ? <div className="profile-menu-wrap">
         <button className="profile-menu" type="button" aria-label={`Open ${displayName} profile menu`} aria-expanded={menuOpen} aria-haspopup="menu" onClick={() => setMenuOpen((open) => !open)}>
           <span className="avatar avatar--gold">{displayName[0].toUpperCase()}</span>
@@ -225,8 +233,16 @@ function GameStrip() {
   return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '🎯', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
 }
 
-function GameTile({ game, compact = false }: { game: (typeof games)[number]; compact?: boolean }) {
-  return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__emoji" aria-hidden="true">{game.icon}</span><h3>{game.name}</h3><Link className="button button--small button--primary" to="/games">Play</Link>{!compact && <small>{game.players}</small>}</article>
+function GameTile({ game, compact = false }: { game: GameDefinition; compact?: boolean }) {
+  const GameIcon = typeof game.icon === 'string' ? null : game.icon
+  const generatedIcon = typeof game.icon === 'string' && game.icon.startsWith('/') ? game.icon : ({
+    Ludo: '/assets/game-ludo.png',
+    Dominoes: '/assets/game-dominoes.png',
+    'Trivia Battle': '/assets/game-trivia.png',
+    'Connect Four': '/assets/game-connect-four.png',
+    Bingo: '/assets/game-ludo.png',
+  }[game.name] ?? null)
+  return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__icon" aria-hidden="true">{generatedIcon ? <img src={generatedIcon} alt="" /> : GameIcon ? <GameIcon size={compact ? 34 : 48} weight="duotone" /> : null}</span><h3>{game.name}</h3><Link className="button button--small button--primary" to="/games">Play</Link>{!compact && <small>{game.players}</small>}</article>
 }
 
 function CheckInScreen() {
@@ -245,7 +261,7 @@ function CheckInScreen() {
   return <><PageHeader screen="check-in" /><main className="page-content checkin-page"><div className="checkin-main"><SectionHeading title="Daily Check-In" description="Take a moment to check in with yourself. Your responses help us support you better." />
     <section className="form-card"><h2><Smiley size={24} weight="fill" /> 1. How are you feeling today?</h2><div className="mood-row mood-row--large">{moods.map((mood) => <button className={selectedMood === mood.label ? 'mood-option mood-option--selected' : 'mood-option'} key={mood.label} type="button" onClick={() => setSelectedMood(mood.label)}><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div></section>
     <div className="two-column"><section className="form-card"><h2><Leaf size={24} weight="fill" /> 2. What do you need today?</h2><div className="choice-list">{['Rest', 'Encouragement', 'Space', 'Someone to Talk To', 'Motivation', 'Fun', 'Prayer / Positive Words'].map((choice) => <button type="button" key={choice} className={needs.includes(choice) ? 'choice-chip choice-chip--selected' : 'choice-chip'} onClick={() => setNeeds((current) => current.includes(choice) ? current.filter((item) => item !== choice) : [...current, choice])}><span aria-hidden="true">{choice === 'Rest' ? '🛏️' : choice === 'Encouragement' ? '🧡' : choice === 'Space' ? '☁️' : choice === 'Motivation' ? '⭐' : '🌿'}</span>{choice}</button>)}</div></section><section className="form-card"><h2><Sparkle size={24} weight="fill" /> 3. Energy & Stress Check</h2><RangeRow label="Energy Level" left="Low" right="High" value={energy} onChange={setEnergy} /><RangeRow label="Stress Level" left="Calm" right="Overwhelmed" value={stress} onChange={setStress} accent /></section></div>
-    <div className="two-column"><section className="form-card"><h2><PencilSimple size={24} /> 4. What’s on your mind?</h2><label className="field-label" htmlFor="checkin-thoughts">Your thoughts<textarea id="checkin-thoughts" placeholder="Write a few thoughts about your day..." value={thoughts} onChange={(event) => setThoughts(event.target.value)} /></label></section><section className="form-card"><h2><Heart size={24} weight="fill" /> 5. What are you grateful for today?</h2><label className="field-label" htmlFor="checkin-gratitude">A small gratitude<input id="checkin-gratitude" placeholder="I am grateful for..." value={gratitude} onChange={(event) => setGratitude(event.target.value)} /></label></section></div>
+    <div className="two-column"><section className="form-card"><h2><PencilSimple size={24} /> 4. What’s on your mind?</h2><label className="field-label" htmlFor="checkin-thoughts">Your thoughts<textarea id="checkin-thoughts" placeholder="Write a few thoughts about your day..." value={thoughts} onChange={(event) => setThoughts(event.target.value)} /></label></section><section className="form-card"><h2><Heart size={24} weight="fill" /> 5. What are you grateful for today?</h2><label className="field-label" htmlFor="checkin-gratitude">A small gratitude<textarea id="checkin-gratitude" placeholder="Write about something you are grateful for..." value={gratitude} onChange={(event) => setGratitude(event.target.value)} /></label></section></div>
     <div className="privacy-note"><ShieldCheck size={24} weight="fill" /><span><strong>Your privacy matters.</strong><small>Your check-in is private and only you can see your responses.</small></span></div>{mutation.isError && <div className="form-error" role="alert">{mutation.error.message}</div>}<div className="checkin-actions"><button className="button button--primary button--wide" type="button" onClick={submit} disabled={mutation.isPending || !selectedMood}><CheckSquare size={22} /> {complete ? 'Check-In Complete' : mutation.isPending ? 'Saving…' : 'Complete Check-In'}</button><button className="button button--secondary button--wide" type="button"><BookmarkSimple size={22} /> Save for Later</button></div>
   </div><aside className="checkin-sidebar"><StatCard icon={Flame} label="Current Streak" value="12" detail="days" /><article className="quote-card"><div className="card-title"><Quotes size={22} weight="fill" /> <span>Quote of the Day</span></div><blockquote>“You don’t have to have it all figured out to move forward.”</blockquote><cite>— Unknown</cite></article><article className="support-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Need Extra Support?</span></div><p>You are not alone. Reach out to a trusted club leader or join the <em>Wellness Circle.</em></p><Link className="button button--lilac" to="/community">Join Wellness Circle</Link></article></aside></main><PageFooter /></>
 }

@@ -37,3 +37,16 @@ test('check-in sliders update their values', async ({ page }) => {
   await slider.fill('5')
   await expect(page.locator('output[for="range-energy-level"]')).toHaveText('5 / 5')
 })
+
+test('mobile navigation opens and closes around route changes', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 })
+  await page.goto('/', { waitUntil: 'networkidle' })
+
+  const toggle = page.getByRole('button', { name: 'Open navigation menu' })
+  await expect(toggle).toBeVisible({ timeout: 110_000 })
+  await toggle.click()
+  await expect(page.getByRole('button', { name: 'Close navigation menu' })).toBeVisible()
+  await page.getByRole('link', { name: 'Community', exact: true }).click()
+  await expect(page).toHaveURL(/\/community$/)
+  await expect(page.getByRole('button', { name: 'Open navigation menu' })).toBeVisible()
+})
