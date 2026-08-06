@@ -27,6 +27,7 @@ services:
       - "${API_PORT:-8000}:8000"
     volumes:
       - ./api:/app
+      - api-uploads:/app/uploads
       - api-venv:/app/.venv
     depends_on:
       db:
@@ -62,3 +63,4 @@ volumes:
   postgres-data:
   api-venv:
   web-node-modules:
+  api-uploads:

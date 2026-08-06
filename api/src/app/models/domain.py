@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -79,12 +80,16 @@ class Post(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     text: Mapped[str] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 class PostReaction(Base):
     __tablename__ = "post_reactions"
-    __table_args__ = (UniqueConstraint("post_id", "user_id", "kind", name="uq_post_reaction"),)
+    __table_args__ = (
+        UniqueConstraint("post_id", "user_id", "kind", name="uq_post_reaction"),
+        CheckConstraint("kind IN ('like', 'dislike', 'love')", name="ck_post_reaction_kind"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     post_id: Mapped[int] = mapped_column(ForeignKey("posts.id", ondelete="CASCADE"), index=True)

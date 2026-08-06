@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, ComponentType, FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
   BookmarkSimple,
+  CaretLeft,
+  CaretRight,
   CaretDown,
   Check,
   CheckCircle,
   CheckSquare,
-  ChatCircle,
   ChatCircleDots,
   EnvelopeSimple,
   Eye,
@@ -29,12 +30,14 @@ import {
   Sparkle,
   Star,
   Trophy,
+  ThumbsDown,
+  ThumbsUp,
   UserCircle,
   UsersThree,
   X,
 } from '@phosphor-icons/react'
 
-import { api } from '../lib/api'
+import { API_URL, api } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -220,6 +223,7 @@ function HomeScreen() {
         <div className="home-hero__copy"><SectionHeading title="Welcome back to your safe space" description="Here, we talk. We listen. We support. We heal. We grow. You are not alone." /></div>
         <div className="stats-grid"><StatCard icon={Flame} label="Login Streak" value={data ? String(data.user.streak) : '—'} detail="days" /><StatCard icon={Star} label="Total XP" value={data ? data.user.xp.toLocaleString() : '—'} detail="XP" tone="peach" progress={data?.level_progress} /><StatCard icon={Leaf} label="Level" value={data ? String(data.user.level) : '—'} detail="Rooted" tone="sage" /></div>
       </section>
+      <WelcomeCarousel />
       <section className="dashboard-grid">
         <article className="quote-card"><div className="card-title"><Quotes size={22} weight="fill" /> <span>Daily Quote</span></div><blockquote>“{data?.featured_quote?.text ?? 'Take a moment for yourself today.'}”</blockquote><cite>— {data?.featured_quote?.author ?? 'Safe Space Saturdays'}</cite></article>
         <article className="check-card"><div className="card-title"><Smiley size={22} weight="fill" /> <span>How are you feeling today?</span></div><p>Your check-in helps us support you better.</p><div className="mood-row">{moods.map((mood) => <button key={mood.label} type="button"><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div><Link className="button button--primary" to="/check-in">Check In</Link></article>
@@ -229,6 +233,26 @@ function HomeScreen() {
     </main>
     <PageFooter />
   </>
+}
+
+const welcomeSlides = [
+  { eyebrow: 'A gentle reminder', title: 'You belong in this space.', body: 'Take what you need today: a quiet moment, a kind word, or someone to listen.', cta: 'Start a check-in', to: '/check-in', tone: 'sage', icon: Heart },
+  { eyebrow: 'Small steps count', title: 'Progress can be soft.', body: 'Celebrate the tiny wins too. They are how a steadier, kinder rhythm begins.', cta: 'Visit the community', to: '/community', tone: 'peach', icon: Sparkle },
+  { eyebrow: 'Make room to breathe', title: 'You do not have to rush healing.', body: 'Find a quote, settle your shoulders, and give yourself permission to move gently.', cta: 'Find a little calm', to: '/quotes', tone: 'lilac', icon: Leaf },
+] as const
+
+function WelcomeCarousel() {
+  const [activeSlide, setActiveSlide] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
+  useEffect(() => {
+    if (isPaused) return
+    const timer = window.setInterval(() => setActiveSlide((slide) => (slide + 1) % welcomeSlides.length), 6500)
+    return () => window.clearInterval(timer)
+  }, [isPaused])
+  const slide = welcomeSlides[activeSlide]
+  const SlideIcon = slide.icon
+  const move = (direction: -1 | 1) => setActiveSlide((current) => (current + direction + welcomeSlides.length) % welcomeSlides.length)
+  return <section className={`welcome-carousel welcome-carousel--${slide.tone}`} aria-roledescription="carousel" aria-label="A little encouragement" onMouseEnter={() => setIsPaused(true)} onMouseLeave={() => setIsPaused(false)} onFocus={() => setIsPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsPaused(false) }}><div className="welcome-carousel__copy" aria-live="polite"><span className="welcome-carousel__eyebrow">{slide.eyebrow}</span><h2>{slide.title}</h2><p>{slide.body}</p><Link className="button button--primary button--small" to={slide.to}>{slide.cta} <ArrowRight size={16} /></Link></div><div className="welcome-carousel__art" aria-hidden="true"><span className="welcome-carousel__sun" /><span className="welcome-carousel__flower welcome-carousel__flower--one">✦</span><span className="welcome-carousel__flower welcome-carousel__flower--two">✿</span><span className="welcome-carousel__icon"><SlideIcon size={36} weight="fill" /></span></div><div className="welcome-carousel__controls"><button type="button" aria-label="Previous encouragement" onClick={() => move(-1)}><CaretLeft size={20} /></button><div className="welcome-carousel__dots">{welcomeSlides.map((item, index) => <button type="button" key={item.title} className={index === activeSlide ? 'welcome-carousel__dot welcome-carousel__dot--active' : 'welcome-carousel__dot'} aria-label={`Show encouragement ${index + 1}`} aria-current={index === activeSlide ? 'true' : undefined} onClick={() => setActiveSlide(index)} />)}</div><button type="button" aria-label="Next encouragement" onClick={() => move(1)}><CaretRight size={20} /></button></div></section>
 }
 
 function GameStrip() {
@@ -284,11 +308,26 @@ function QuotesScreen() {
 
 function CommunityScreen() {
   const [draft, setDraft] = useState('')
+  const [imageFile, setImageFile] = useState<File | undefined>()
+  const [imageError, setImageError] = useState('')
+  const imageInput = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const postsQuery = useQuery({ queryKey: ['posts'], queryFn: api.posts })
-  const create = useMutation({ mutationFn: api.createPost, onSuccess: () => { setDraft(''); queryClient.invalidateQueries({ queryKey: ['posts'] }) } })
-  const react = useMutation({ mutationFn: ({ id, kind }: { id: number; kind: 'like' | 'support' | 'love' }) => api.react(id, kind), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['posts'] }) })
-  return <><PageHeader screen="community" /><main className="page-content community-page"><section className="community-hero"><img src="/assets/community-circle.png" alt="A group of friends supporting each other" /><SectionHeading title="Community" description="A place to talk, listen, and feel less alone." /></section><div className="community-promos"><PromoCard title="Wellness Circle" body="Open talks and guided conversations in a judgement-free space." cta="Join Circle" tone="sage" icon="🌿" /><PromoCard title="Game Night" body="Play fun games, connect, and unwind with friends." cta="See Upcoming" tone="peach" icon="🎮" /><PromoCard title="Small Wins" body="Celebrate progress, share wins, and uplift each other." cta="Share a Win" tone="lilac" icon="🪴" /></div><div className="community-layout"><section className="conversation-card"><div className="section-row"><div className="card-title"><ChatCircleDots size={24} weight="fill" /><span>Community Conversations</span><small>Share, support, and grow together.</small></div><button className="button button--primary" type="button" onClick={() => document.getElementById('post-composer')?.focus()}><PencilSimple size={18} /> Start a Post</button></div><div className="post-composer"><label className="sr-only" htmlFor="post-composer">Share something with the community</label><textarea id="post-composer" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a small win or a kind thought…" /><button className="button button--small button--primary" type="button" disabled={!draft.trim() || create.isPending} onClick={() => create.mutate(draft.trim())}>{create.isPending ? 'Posting…' : 'Post'}</button></div>{(postsQuery.data ?? []).map((post) => <article className="post-row" key={post.id}><Avatar initials={post.initials} color="sage" /><div className="post-row__body"><div className="post-row__meta"><strong>{post.author}</strong><span>• {new Date(post.created_at).toLocaleString()}</span></div><p>{post.text}</p><div className="post-row__actions"><button type="button" onClick={() => react.mutate({ id: post.id, kind: 'like' })}>🧡 {post.likes}</button><button type="button" onClick={() => react.mutate({ id: post.id, kind: 'support' })}>🌿 {post.support}</button><button type="button">💜 {post.replies}</button><button type="button"><ChatCircle size={16} /> Reply</button></div></div><button className="more-button" aria-label={`More actions for ${post.author}`} type="button">•••</button></article>)}<button className="conversation-link" type="button">View all conversations <ArrowRight size={16} /></button></section><aside className="guidelines-card"><div className="card-title"><Leaf size={24} weight="fill" /><span>Community guidelines</span></div><p>We care for each other.</p>{[['🧡', 'Be Kind', 'Choose compassion and respect in every interaction.'], ['🔒', 'Respect Privacy', 'What’s shared here stays here. Protect each other’s stories.'], ['🌱', 'Encourage & Uplift', 'Cheer each other on and celebrate every step forward.']].map(([icon, title, text]) => <div className="guideline" key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</aside></div></main><PageFooter /></>
+  const create = useMutation({ mutationFn: () => api.createPost(draft.trim(), imageFile), onSuccess: () => { setDraft(''); setImageFile(undefined); if (imageInput.current) imageInput.current.value = ''; queryClient.invalidateQueries({ queryKey: ['posts'] }) } })
+  const react = useMutation({ mutationFn: ({ id, kind }: { id: number; kind: 'like' | 'dislike' | 'love' }) => api.react(id, kind), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['posts'] }) })
+  const chooseImage = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5_000_000) {
+      setImageError('Choose a JPEG, PNG, or WebP image smaller than 5 MB.')
+      setImageFile(undefined)
+      event.currentTarget.value = ''
+      return
+    }
+    setImageError('')
+    setImageFile(file)
+  }
+  return <><PageHeader screen="community" /><main className="page-content community-page"><section className="community-hero"><img src="/assets/community-circle.png" alt="A group of friends supporting each other" /><SectionHeading title="Community" description="A place to talk, listen, and feel less alone." /></section><div className="community-promos"><PromoCard title="Wellness Circle" body="Open talks and guided conversations in a judgement-free space." cta="Join Circle" tone="sage" icon="🌿" /><PromoCard title="Game Night" body="Play fun games, connect, and unwind with friends." cta="See Upcoming" tone="peach" icon="🎮" /><PromoCard title="Small Wins" body="Celebrate progress, share wins, and uplift each other." cta="Share a Win" tone="lilac" icon="🪴" /></div><div className="community-layout"><section className="conversation-card"><div className="section-row"><div className="card-title"><ChatCircleDots size={24} weight="fill" /><span>Community Conversations</span><small>Share, support, and grow together.</small></div><button className="button button--primary" type="button" onClick={() => document.getElementById('post-composer')?.focus()}><PencilSimple size={18} /> Start a Post</button></div><div className="post-composer"><label className="sr-only" htmlFor="post-composer">Share something with the community</label><textarea id="post-composer" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a small win or a kind thought…" /><div className="post-composer__controls"><label className="button button--secondary button--small post-image-picker"><span>Attach image</span><input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} /></label>{imageFile && <small>{imageFile.name}</small>}{imageError && <p className="form-error" role="alert">{imageError}</p>}<button className="button button--small button--primary" type="button" disabled={!draft.trim() || create.isPending || Boolean(imageError)} onClick={() => create.mutate()}>{create.isPending ? 'Posting…' : 'Post'}</button></div></div>{(postsQuery.data ?? []).map((post) => <article className="post-row" key={post.id}><Avatar initials={post.initials} color="sage" /><div className="post-row__body"><div className="post-row__meta"><strong>{post.author}</strong><span>• {new Date(post.created_at).toLocaleString()}</span></div><p>{post.text}</p>{post.image_url && <img className="post-row__image" src={`${API_URL}${post.image_url}`} alt={`Image shared by ${post.author}`} />}{<div className="post-row__actions"><button className={post.my_reaction === 'like' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Like ${post.author}'s post`} aria-pressed={post.my_reaction === 'like'} onClick={() => react.mutate({ id: post.id, kind: 'like' })}><ThumbsUp size={17} weight="fill" /> <span>Like</span> {post.likes}</button><button className={post.my_reaction === 'dislike' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Dislike ${post.author}'s post`} aria-pressed={post.my_reaction === 'dislike'} onClick={() => react.mutate({ id: post.id, kind: 'dislike' })}><ThumbsDown size={17} weight="fill" /> <span>Dislike</span> {post.dislikes}</button><button className={post.my_reaction === 'love' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Love ${post.author}'s post`} aria-pressed={post.my_reaction === 'love'} onClick={() => react.mutate({ id: post.id, kind: 'love' })}><Heart size={17} weight="fill" /> <span>Love</span> {post.loves}</button></div>}</div><button className="more-button" aria-label={`More actions for ${post.author}`} type="button">•••</button></article>)}<button className="conversation-link" type="button">View all conversations <ArrowRight size={16} /></button></section><aside className="guidelines-card"><div className="card-title"><Leaf size={24} weight="fill" /><span>Community guidelines</span></div><p>We care for each other.</p>{[['🧡', 'Be Kind', 'Choose compassion and respect in every interaction.'], ['🔒', 'Respect Privacy', 'What’s shared here stays here. Protect each other’s stories.'], ['🌱', 'Encourage & Uplift', 'Cheer each other on and celebrate every step forward.']].map(([icon, title, text]) => <div className="guideline" key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</aside></div></main><PageFooter /></>
 }
 
 function PromoCard({ title, body, cta, tone, icon }: { title: string; body: string; cta: string; tone: string; icon: string }) {

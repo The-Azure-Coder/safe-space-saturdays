@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
@@ -72,10 +73,12 @@ class PostResponse(BaseModel):
     author: str
     initials: str
     text: str
+    image_url: str | None
     created_at: datetime
     likes: int
-    support: int
-    replies: int
+    dislikes: int
+    loves: int
+    my_reaction: Literal["like", "dislike", "love"] | None = None
     mine: bool
 
 
@@ -84,7 +87,7 @@ class PostCreateRequest(BaseModel):
 
 
 class ReactionRequest(BaseModel):
-    kind: str = Field(pattern="^(like|support|love)$")
+    kind: Literal["like", "dislike", "love"]
 
 
 class CommentCreateRequest(BaseModel):

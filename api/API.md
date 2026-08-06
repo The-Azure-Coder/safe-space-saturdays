@@ -24,7 +24,8 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 | Quotes | POST | `/api/quotes/{id}/save` | Toggle a saved quote |
 | Community | GET | `/api/community/posts` | List visible posts |
 | Community | POST | `/api/community/posts` | Create a post |
-| Community | POST | `/api/community/posts/{id}/reactions` | Toggle a reaction |
+| Community | POST | `/api/community/posts/with-image` | Create a post with a JPEG, PNG, or WebP image (maximum 5 MB) |
+| Community | POST | `/api/community/posts/{id}/reactions` | Toggle or change a `like`, `dislike`, or `love` reaction |
 | Community | POST | `/api/community/posts/{id}/comments` | Add a comment |
 | Games | GET | `/api/games` | Featured games |
 | Games | GET | `/api/games/rooms` | Open rooms |

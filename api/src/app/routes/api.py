@@ -1,7 +1,20 @@
+import asyncio
 from collections import Counter
+from pathlib import Path
 from typing import Annotated
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -228,19 +241,49 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
     reactions = (
         await db.scalars(select(PostReaction.kind).where(PostReaction.post_id == post.id))
     ).all()
-    replies = await db.scalar(select(func.count(Comment.id)).where(Comment.post_id == post.id)) or 0
+    my_reaction = await db.scalar(
+        select(PostReaction.kind).where(
+            PostReaction.post_id == post.id, PostReaction.user_id == user_id
+        )
+    )
     counts = Counter(reactions)
     return PostResponse(
         id=post.id,
         author=author.name if author else "Member",
         initials=(author.name[0].upper() if author else "M"),
         text=post.text,
+        image_url=post.image_url,
         created_at=post.created_at,
         likes=counts["like"],
-        support=counts["support"],
-        replies=replies,
+        dislikes=counts["dislike"],
+        loves=counts["love"],
+        my_reaction=my_reaction,
         mine=post.user_id == user_id,
     )
+
+
+async def save_post_image(image: UploadFile) -> str:
+    settings = get_settings()
+    allowed_types = {
+        "image/jpeg": ("jpg", b"\xff\xd8\xff"),
+        "image/png": ("png", b"\x89PNG\r\n\x1a\n"),
+        "image/webp": ("webp", b"RIFF"),
+    }
+    image_format = allowed_types.get(image.content_type or "")
+    if image_format is None:
+        raise HTTPException(status_code=415, detail="Only JPEG, PNG, and WebP images are supported")
+    content = await image.read(settings.max_upload_bytes + 1)
+    if len(content) > settings.max_upload_bytes:
+        raise HTTPException(status_code=413, detail="Image must be 5 MB or smaller")
+    signature = image_format[1]
+    if not content.startswith(signature) or (
+        image_format[0] == "webp" and content[8:12] != b"WEBP"
+    ):
+        raise HTTPException(status_code=415, detail="The uploaded file is not a valid image")
+    filename = f"{uuid4().hex}.{image_format[0]}"
+    destination: Path = settings.upload_dir / filename
+    await asyncio.to_thread(destination.write_bytes, content)
+    return f"/uploads/{filename}"
 
 
 @router.get("/community/posts", response_model=list[PostResponse])
@@ -265,6 +308,25 @@ async def create_post(payload: PostCreateRequest, user: CurrentUser, db: DbSessi
     return await post_out(post, user.id, db)
 
 
+@router.post(
+    "/community/posts/with-image",
+    response_model=PostResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_post_with_image(
+    text: Annotated[str, Form(min_length=1, max_length=2000)],
+    user: CurrentUser,
+    db: DbSession,
+    image: Annotated[UploadFile, File(...)],
+) -> PostResponse:
+    image_url = await save_post_image(image)
+    post = Post(user_id=user.id, text=text.strip(), image_url=image_url)
+    db.add(post)
+    await db.commit()
+    await db.refresh(post)
+    return await post_out(post, user.id, db)
+
+
 @router.post("/community/posts/{post_id}/reactions", response_model=PostResponse)
 async def react_to_post(
     post_id: int, payload: ReactionRequest, user: CurrentUser, db: DbSession
@@ -274,13 +336,14 @@ async def react_to_post(
         raise HTTPException(status_code=404, detail="Post not found")
     reaction = await db.scalar(
         select(PostReaction).where(
-            PostReaction.post_id == post_id,
-            PostReaction.user_id == user.id,
-            PostReaction.kind == payload.kind,
+            PostReaction.post_id == post_id, PostReaction.user_id == user.id
         )
     )
     if reaction:
-        await db.delete(reaction)
+        if reaction.kind == payload.kind:
+            await db.delete(reaction)
+        else:
+            reaction.kind = payload.kind
     else:
         db.add(PostReaction(post_id=post_id, user_id=user.id, kind=payload.kind))
     await db.commit()

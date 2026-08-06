@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_FILE = Path(__file__).resolve().parents[3] / ".env"
+DEFAULT_UPLOAD_DIR = Path(__file__).resolve().parents[3] / "uploads"
 
 
 class Settings(BaseSettings):
@@ -16,6 +17,8 @@ class Settings(BaseSettings):
     session_cookie_name: str = "safe_space_session"
     session_ttl_days: int = 30
     cookie_secure: bool = False
+    upload_dir: Path = DEFAULT_UPLOAD_DIR
+    max_upload_bytes: int = 5_000_000
 
 
 @lru_cache
