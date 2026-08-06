@@ -23,6 +23,7 @@ services:
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
       API_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
       COOKIE_SECURE: "false"
+      PORT: "8000"
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -44,6 +45,8 @@ services:
     environment:
       VITE_API_URL: http://localhost:${API_PORT:-8000}
       CHOKIDAR_USEPOLLING: "true"
+      PORT: "3000"
+    command: npm run dev -- --host 0.0.0.0
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:
