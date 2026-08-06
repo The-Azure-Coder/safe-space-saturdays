@@ -282,6 +282,7 @@ body::before {
 .page-content { width: min(88%, 1360px); padding-top: clamp(54px, 7vw, 92px); }
 .home-page { padding-top: clamp(18px, 2.5vw, 34px); }
 .home-page > .welcome-carousel { margin-top: 0; }
+.home-page > .stats-grid { margin-top: clamp(18px, 3vw, 32px); }
 .section-heading h1 { text-wrap: balance; }
 .section-heading p { max-width: 56ch; text-wrap: pretty; }
 .eyebrow { letter-spacing: .18em; }
