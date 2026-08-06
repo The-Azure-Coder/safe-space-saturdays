@@ -109,6 +109,16 @@ function PageHeader({ screen }: { screen: Screen }) {
             <span>{label}</span>
           </Link>
         ))}
+        {displayName && <div className="app-nav__mobile-account">
+          <Link onClick={() => setMobileNavOpen(false)} className={screen === 'profile' ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to="/profile">
+            <UserCircle size={22} weight={screen === 'profile' ? 'fill' : 'regular'} aria-hidden="true" />
+            <span>Profile &amp; settings</span>
+          </Link>
+          {currentUser.data?.role === 'admin' && <Link onClick={() => setMobileNavOpen(false)} className={screen === 'admin' ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to="/admin">
+            <ShieldCheck size={22} weight={screen === 'admin' ? 'fill' : 'regular'} aria-hidden="true" />
+            <span>Admin portal</span>
+          </Link>}
+        </div>}
       </nav>
       <button className="mobile-nav-toggle" type="button" aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen} aria-controls="main-navigation" onClick={() => setMobileNavOpen((open) => !open)}>
         {mobileNavOpen ? <X size={22} aria-hidden="true" /> : <List size={22} aria-hidden="true" />}

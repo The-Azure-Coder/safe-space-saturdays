@@ -225,6 +225,7 @@ html[data-theme='high-contrast'] .app-header, html[data-theme='high-contrast'] .
 .profile-auth-required h2, .profile-auth-required p { margin: 0; }
 .profile-auth-required p { color: var(--muted); }
 .profile-menu-wrap { position: relative; }
+.app-nav__mobile-account { display: none; }
 .leaderboard-row > div > .avatar, .podium-member > .avatar { display: inline-grid; flex: 0 0 auto; align-items: center; justify-content: center; line-height: 1; text-align: center; }
 .auth-actions { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
 .auth-actions__login { color: var(--sage-dark); font-size: 14px; font-weight: 700; transition: color .2s ease; }
@@ -586,6 +587,7 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
   .mobile-nav-toggle:hover { background: var(--sage-pale); }
   .app-nav { position: absolute; z-index: 20; top: calc(100% + 8px); right: 12px; left: 12px; display: none; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); box-shadow: var(--shadow); }
   .app-nav.app-nav--mobile-open { display: grid; justify-items: stretch; gap: 3px; }
+  .app-nav__mobile-account { display: grid; gap: 3px; margin-top: 5px; padding-top: 7px; border-top: 1px solid var(--line); }
   .app-nav .app-nav__link { justify-content: flex-start; justify-self: stretch; width: 100%; min-height: 44px; padding: 9px 12px; border-radius: 10px; text-align: left; }
   .app-nav .app-nav__link span { display: inline; }
   .app-nav .app-nav__link--active { background: var(--sage-pale); color: var(--sage-dark); }
