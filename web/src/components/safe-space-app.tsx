@@ -338,26 +338,278 @@ function CommunityScreen() {
   return <><PageHeader screen="community" /><main className="page-content community-page"><section className="community-hero"><img src="/assets/community-circle.png" alt="A group of friends supporting each other" /><SectionHeading title="Community" description="A place to talk, listen, and feel less alone." /></section><div className="community-promos"><PromoCard title="Wellness Circle" body="Open talks and guided conversations in a judgement-free space." cta="Join Circle" tone="sage" icon="🌿" /><PromoCard title="Game Night" body="Play fun games, connect, and unwind with friends." cta="See Upcoming" tone="peach" icon="🎮" /><PromoCard title="Small Wins" body="Celebrate progress, share wins, and uplift each other." cta="Share a Win" tone="lilac" icon="🪴" /></div><div className="community-layout"><section className="conversation-card"><div className="section-row"><div className="card-title"><ChatCircleDots size={24} weight="fill" /><span>Community Conversations</span><small>Share, support, and grow together.</small></div><button className="button button--primary" type="button" onClick={() => document.getElementById('post-composer')?.focus()}><PencilSimple size={18} /> Start a Post</button></div><div className="post-composer"><label className="sr-only" htmlFor="post-composer">Share something with the community</label><textarea id="post-composer" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a small win or a kind thought…" /><div className="post-composer__controls"><label className="button button--secondary button--small post-image-picker"><span>Attach image</span><input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} /></label>{imageFile && <small>{imageFile.name}</small>}{imageError && <p className="form-error" role="alert">{imageError}</p>}<button className="button button--small button--primary" type="button" disabled={!draft.trim() || create.isPending || Boolean(imageError)} onClick={() => create.mutate()}>{create.isPending ? 'Posting…' : 'Post'}</button></div></div>{(postsQuery.data ?? []).map((post) => <article className="post-row" key={post.id}><Avatar initials={post.initials} color="sage" /><div className="post-row__body"><div className="post-row__meta"><strong>{post.author}</strong><span>• {new Date(post.created_at).toLocaleString()}</span></div><p>{post.text}</p>{post.image_url && <img className="post-row__image" src={`${API_URL}${post.image_url}`} alt={`Image shared by ${post.author}`} />}<div className="post-row__actions"><button className={post.my_reaction === 'like' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Like ${post.author}'s post`} aria-pressed={post.my_reaction === 'like'} onClick={() => react.mutate({ id: post.id, kind: 'like' })}><ThumbsUp size={17} weight="fill" /> <span>Like</span> {post.likes}</button><button className={post.my_reaction === 'dislike' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Dislike ${post.author}'s post`} aria-pressed={post.my_reaction === 'dislike'} onClick={() => react.mutate({ id: post.id, kind: 'dislike' })}><ThumbsDown size={17} weight="fill" /> <span>Dislike</span> {post.dislikes}</button><button className="reaction-button" type="button" aria-expanded={openReplyPostId === post.id} onClick={() => setOpenReplyPostId((current) => current === post.id ? null : post.id)}><ChatCircleDots size={17} /> <span>Reply</span></button></div>{post.comments.length > 0 && <div className="post-replies" aria-label={`Replies to ${post.author}'s post`}>{post.comments.map((comment) => <div className="post-reply" key={comment.id}><Avatar initials={comment.initials} color="lilac" /><div><strong>{comment.author}</strong><p>{comment.text}</p></div></div>)}</div>}{openReplyPostId === post.id && <form className="reply-form" onSubmit={(event) => { event.preventDefault(); const text = (replyDrafts[post.id] ?? '').trim(); if (text) reply.mutate({ id: post.id, text }) }}><label className="sr-only" htmlFor={`reply-${post.id}`}>Reply to {post.author}'s post</label><input id={`reply-${post.id}`} autoFocus value={replyDrafts[post.id] ?? ''} onChange={(event) => setReplyDrafts((drafts) => ({ ...drafts, [post.id]: event.target.value }))} placeholder="Write a thoughtful reply…" maxLength={1000} /><button className="button button--secondary button--small" type="submit" disabled={!(replyDrafts[post.id] ?? '').trim() || reply.isPending}>Reply</button></form>}</div><button className="more-button" aria-label={`More actions for ${post.author}`} type="button">•••</button></article>)}<PaginationControls page={page} itemCount={postsQuery.data?.length ?? 0} pageSize={10} onPageChange={setPage} label="Community posts" /></section><aside className="guidelines-card"><div className="card-title"><Leaf size={24} weight="fill" /><span>Community guidelines</span></div><p>We care for each other.</p>{[['🧡', 'Be Kind', 'Choose compassion and respect in every interaction.'], ['🔒', 'Respect Privacy', 'What’s shared here stays here. Protect each other’s stories.'], ['🌱', 'Encourage & Uplift', 'Cheer each other on and celebrate every step forward.']].map(([icon, title, text]) => <div className="guideline" key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</aside></div></main><PageFooter /></>
 }
 
-function PromoCard({ title, body, cta, tone, icon }: { title: string; body: string; cta: string; tone: string; icon: string }) {
-  return <article className={`promo-card promo-card--${tone}`}><span className="promo-card__icon" aria-hidden="true">{icon}</span><div><h2>{title}</h2><p>{body}</p><button className="button button--small button--primary">{cta}</button></div></article>
+function PromoCard({
+  title,
+  body,
+  cta,
+  tone,
+  icon,
+}: {
+  title: string
+  body: string
+  cta: string
+  tone: string
+  icon: string
+}) {
+  return (
+    <article className={`promo-card promo-card--${tone}`}>
+      <span className="promo-card__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <div>
+        <h2>{title}</h2>
+        <p>{body}</p>
+        <button className="button button--small button--primary">{cta}</button>
+      </div>
+    </article>
+  )
 }
 
 function GamesScreen() {
   const [gamesPage, setGamesPage] = useState(1)
   const [roomsPage, setRoomsPage] = useState(1)
-  const gamesQuery = useQuery({ queryKey: ['games', gamesPage], queryFn: () => api.games(gamesPage, 4) })
-  const roomsQuery = useQuery({ queryKey: ['rooms', roomsPage], queryFn: () => api.rooms(roomsPage, 5) })
+  const gamesQuery = useQuery({
+    queryKey: ['games', gamesPage],
+    queryFn: () => api.games(gamesPage, 4),
+  })
+  const roomsQuery = useQuery({
+    queryKey: ['rooms', roomsPage],
+    queryFn: () => api.rooms(roomsPage, 5),
+  })
   const queryClient = useQueryClient()
-  const join = useMutation({ mutationFn: api.joinRoom, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }) })
-  return <><PageHeader screen="games" /><main className="page-content games-page"><section className="games-hero"><SectionHeading title="Games" description="Play, connect, and unwind with the community. Jump in for fun, friendly competition, and good vibes!" /><img src="/assets/community-circle.png" alt="Friends playing games together" /></section><section className="game-night-banner"><div><h2>Game Night Starts at 6:30 PM! <span className="heart-doodle">♡</span></h2><p>Join friends for fun, connection, and friendly competition.</p></div><button className="button button--orange" type="button">Join Game Night</button><button className="button button--ghost" type="button">Create Room</button></section><div className="games-layout"><section className="games-panel"><div className="card-title"><GameController size={24} weight="fill" /><span>Featured Games</span></div><div className="game-grid">{(gamesQuery.data ?? []).map((game) => <GameTile game={{ ...game, color: game.color }} key={game.id} />)}</div><PaginationControls page={gamesPage} itemCount={gamesQuery.data?.length ?? 0} pageSize={4} onPageChange={setGamesPage} label="Games" /></section><section className="rooms-panel"><div className="section-row"><div className="card-title"><UsersThree size={24} weight="fill" /><span>Live Rooms</span></div></div>{(roomsQuery.data ?? []).map((room) => <div className="room-row" key={room.id}><span className="room-icon" aria-hidden="true">🎲</span><div><strong>{room.name}</strong><small>{room.players} / {room.max_players} players</small></div><button className="button button--small button--primary" type="button" disabled={room.joined || join.isPending} onClick={() => join.mutate(room.id)}>{room.joined ? 'Joined' : 'Join'}</button></div>)}<PaginationControls page={roomsPage} itemCount={roomsQuery.data?.length ?? 0} pageSize={5} onPageChange={setRoomsPage} label="Game rooms" /></section><section className="winner-panel"><div className="section-row"><div className="card-title"><Trophy size={24} weight="fill" /><span>Recent Winners</span></div><button className="text-link" type="button">See all <ArrowRight size={16} /></button></div><div className="winner-row"><Avatar initials="★" color="gold" /><div><strong>Community winners</strong><small>Results will appear after game night.</small></div></div></section></div></main><PageFooter /></>
+  const join = useMutation({
+    mutationFn: api.joinRoom,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+  })
+  return (
+    <>
+      <PageHeader screen="games" />
+      <main className="page-content games-page">
+        <section className="games-hero">
+          <SectionHeading
+            title="Games"
+            description="Play, connect, and unwind with the community. Jump in for fun, friendly competition, and good vibes!"
+          />
+          <img
+            src="/assets/community-circle.png"
+            alt="Friends playing games together"
+          />
+        </section>
+        <section className="game-night-banner">
+          <div>
+            <h2>
+              Game Night Starts at 6:30 PM!{' '}
+              <span className="heart-doodle">♡</span>
+            </h2>
+            <p>Join friends for fun, connection, and friendly competition.</p>
+          </div>
+          <button className="button button--orange" type="button">
+            Join Game Night
+          </button>
+          <button className="button button--ghost" type="button">
+            Create Room
+          </button>
+        </section>
+        <div className="games-layout">
+          <section className="games-panel">
+            <div className="card-title">
+              <GameController size={24} weight="fill" />
+              <span>Featured Games</span>
+            </div>
+            <div className="game-grid">
+              {(gamesQuery.data ?? []).map((game) => (
+                <GameTile game={{ ...game, color: game.color }} key={game.id} />
+              ))}
+            </div>
+            <PaginationControls
+              page={gamesPage}
+              itemCount={gamesQuery.data?.length ?? 0}
+              pageSize={4}
+              onPageChange={setGamesPage}
+              label="Games"
+            />
+          </section>
+          <section className="rooms-panel">
+            <div className="section-row">
+              <div className="card-title">
+                <UsersThree size={24} weight="fill" />
+                <span>Live Rooms</span>
+              </div>
+            </div>
+            {(roomsQuery.data ?? []).map((room) => (
+              <div className="room-row" key={room.id}>
+                <span className="room-icon" aria-hidden="true">
+                  🎲
+                </span>
+                <div>
+                  <strong>{room.name}</strong>
+                  <small>
+                    {room.players} / {room.max_players} players
+                  </small>
+                </div>
+                <button
+                  className="button button--small button--primary"
+                  type="button"
+                  disabled={room.joined || join.isPending}
+                  onClick={() => join.mutate(room.id)}
+                >
+                  {room.joined ? 'Joined' : 'Join'}
+                </button>
+              </div>
+            ))}
+            <PaginationControls
+              page={roomsPage}
+              itemCount={roomsQuery.data?.length ?? 0}
+              pageSize={5}
+              onPageChange={setRoomsPage}
+              label="Game rooms"
+            />
+          </section>
+          <section className="winner-panel">
+            <div className="section-row">
+              <div className="card-title">
+                <Trophy size={24} weight="fill" />
+                <span>Recent Winners</span>
+              </div>
+              <button className="text-link" type="button">
+                See all <ArrowRight size={16} />
+              </button>
+            </div>
+            <div className="winner-row">
+              <Avatar initials="★" color="gold" />
+              <div>
+                <strong>Community winners</strong>
+                <small>Results will appear after game night.</small>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+      <PageFooter />
+    </>
+  )
 }
 
 function LeaderboardScreen() {
   const [period, setPeriod] = useState('week')
   const [page, setPage] = useState(1)
-  const leaderboard = useQuery({ queryKey: ['leaderboard', period, page], queryFn: () => api.leaderboard(period, page, 10) })
+  const leaderboard = useQuery({
+    queryKey: ['leaderboard', period, page],
+    queryFn: () => api.leaderboard(period, page, 10),
+  })
   const entries = leaderboard.data ?? []
-  return <><PageHeader screen="leaderboard" /><main className="page-content leaderboard-page"><section className="leaderboard-hero"><div><SectionHeading title="Community Leaderboard" description="Celebrate progress. Inspire each other. Together, we grow stronger." /></div><div className="podium">{page === 1 && entries.slice(0, 3).map((entry, index) => <div className={`podium-member podium-member--${index + 1}`} key={entry.user.id}><span className="podium-rank">{index + 1}</span><Avatar initials={entry.user.name[0]} color="sage" /><strong>{entry.user.name}</strong><span>{entry.user.xp.toLocaleString()} XP</span><div className="podium-block" /></div>)}</div><aside className="progress-card"><div className="card-title"><Leaf size={22} weight="fill" /><span>Your progress</span></div><div className="progress-card__stats"><span>Rank<strong>#{entries.find((entry) => entry.user.name === 'Jasmine')?.rank ?? '—'}</strong></span><span>Total XP<strong>{entries.find((entry) => entry.user.name === 'Jasmine')?.user.xp.toLocaleString() ?? '—'} <small>XP</small></strong></span></div><p>Keep it going!</p></aside></section><div className="leaderboard-filter">{[['week', 'This Week'], ['month', 'This Month'], ['all', 'All Time']].map(([value, label]) => <button className={period === value ? 'filter-chip filter-chip--active' : 'filter-chip'} type="button" onClick={() => { setPeriod(value); setPage(1) }} key={value}>{label}</button>)}</div><section className="leaderboard-table"><div className="leaderboard-table__head"><span>Rank</span><span>Member</span><span>Total XP</span><span>Current Streak</span></div>{entries.map((entry) => <div className="leaderboard-row" key={entry.user.id}><strong>{entry.rank}</strong><div><Avatar initials={entry.user.name[0]} color="sage" /><span>{entry.user.name} <Leaf size={16} weight="fill" /></span></div><span className="xp xp--sage">{entry.user.xp.toLocaleString()} <small>XP</small></span><span>{entry.user.streak} <small>days</small></span></div>)}</section><PaginationControls page={page} itemCount={entries.length} pageSize={10} onPageChange={setPage} label="Leaderboard" /></main><PageFooter /></>
+  return (
+    <>
+      <PageHeader screen="leaderboard" />
+      <main className="page-content leaderboard-page">
+        <section className="leaderboard-hero">
+          <div>
+            <SectionHeading
+              title="Community Leaderboard"
+              description="Celebrate progress. Inspire each other. Together, we grow stronger."
+            />
+          </div>
+          <div className="podium">
+            {page === 1 &&
+              entries.slice(0, 3).map((entry, index) => (
+                <div
+                  className={`podium-member podium-member--${index + 1}`}
+                  key={entry.user.id}
+                >
+                  <span className="podium-rank">{index + 1}</span>
+                  <Avatar initials={entry.user.name[0]} color="sage" />
+                  <strong>{entry.user.name}</strong>
+                  <span>{entry.user.xp.toLocaleString()} XP</span>
+                  <div className="podium-block" />
+                </div>
+              ))}
+          </div>
+          <aside className="progress-card">
+            <div className="card-title">
+              <Leaf size={22} weight="fill" />
+              <span>Your progress</span>
+            </div>
+            <div className="progress-card__stats">
+              <span>
+                Rank
+                <strong>
+                  #
+                  {entries.find((entry) => entry.user.name === 'Jasmine')
+                    ?.rank ?? '—'}
+                </strong>
+              </span>
+              <span>
+                Total XP
+                <strong>
+                  {entries
+                    .find((entry) => entry.user.name === 'Jasmine')
+                    ?.user.xp.toLocaleString() ?? '—'}{' '}
+                  <small>XP</small>
+                </strong>
+              </span>
+            </div>
+            <p>Keep it going!</p>
+          </aside>
+        </section>
+        <div className="leaderboard-filter">
+          {[
+            ['week', 'This Week'],
+            ['month', 'This Month'],
+            ['all', 'All Time'],
+          ].map(([value, label]) => (
+            <button
+              className={
+                period === value
+                  ? 'filter-chip filter-chip--active'
+                  : 'filter-chip'
+              }
+              type="button"
+              onClick={() => {
+                setPeriod(value)
+                setPage(1)
+              }}
+              key={value}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <section className="leaderboard-table">
+          <div className="leaderboard-table__head">
+            <span>Rank</span>
+            <span>Member</span>
+            <span>Total XP</span>
+            <span>Current Streak</span>
+          </div>
+          {entries.map((entry) => (
+            <div className="leaderboard-row" key={entry.user.id}>
+              <strong>{entry.rank}</strong>
+              <div>
+                <Avatar initials={entry.user.name[0]} color="sage" />
+                <span>
+                  {entry.user.name} <Leaf size={16} weight="fill" />
+                </span>
+              </div>
+              <span className="xp xp--sage">
+                {entry.user.xp.toLocaleString()} <small>XP</small>
+              </span>
+              <span>
+                {entry.user.streak} <small>days</small>
+              </span>
+            </div>
+          ))}
+        </section>
+        <PaginationControls
+          page={page}
+          itemCount={entries.length}
+          pageSize={10}
+          onPageChange={setPage}
+          label="Leaderboard"
+        />
+      </main>
+      <PageFooter />
+    </>
+  )
 }
 
 function ProfileScreen() {
@@ -365,7 +617,9 @@ function ProfileScreen() {
   const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
   const [name, setName] = useState('')
   const [saved, setSaved] = useState(false)
-  const [activeTab, setActiveTab] = useState<'profile' | 'activity' | 'appearance' | 'privacy'>('profile')
+  const [activeTab, setActiveTab] = useState<
+    'profile' | 'activity' | 'appearance' | 'privacy'
+  >('profile')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [likedPage, setLikedPage] = useState(1)
@@ -373,27 +627,76 @@ function ProfileScreen() {
   const [avatarError, setAvatarError] = useState('')
   const [theme, setTheme] = useState<'sage' | 'night' | 'high-contrast'>(() => {
     if (typeof window === 'undefined') return 'sage'
-    return (window.localStorage.getItem('safe-space-theme') as 'sage' | 'night' | 'high-contrast' | null) ?? 'sage'
+    return (
+      (window.localStorage.getItem('safe-space-theme') as
+        'sage' | 'night' | 'high-contrast' | null) ?? 'sage'
+    )
   })
   const update = useMutation({
     mutationFn: api.updateProfile,
     onSuccess: (user) => {
       queryClient.setQueryData(['me'], user)
-      queryClient.setQueryData(['dashboard'], (current: { user: typeof user } | undefined) => current ? { ...current, user } : current)
+      queryClient.setQueryData(
+        ['dashboard'],
+        (current: { user: typeof user } | undefined) =>
+          current ? { ...current, user } : current,
+      )
       setName(user.name)
       setSaved(true)
     },
   })
-  const logout = useMutation({ mutationFn: api.logout, onSuccess: () => { queryClient.clear(); window.location.href = '/login' } })
-  const likedPosts = useQuery({ queryKey: ['liked-posts', likedPage], queryFn: () => api.likedPosts(likedPage), enabled: activeTab === 'activity' })
-  const repliedPosts = useQuery({ queryKey: ['replied-posts', repliedPage], queryFn: () => api.repliedPosts(repliedPage), enabled: activeTab === 'activity' })
-  const saveAvatar = useMutation({ mutationFn: api.updateAvatar, onSuccess: (user) => { queryClient.setQueryData(['me'], user); setAvatarPreview(null); setAvatarFile(undefined) } })
+  const logout = useMutation({
+    mutationFn: api.logout,
+    onSuccess: () => {
+      queryClient.clear()
+      window.location.href = '/login'
+    },
+  })
+  const likedPosts = useQuery({
+    queryKey: ['liked-posts', likedPage],
+    queryFn: () => api.likedPosts(likedPage),
+    enabled: activeTab === 'activity',
+  })
+  const repliedPosts = useQuery({
+    queryKey: ['replied-posts', repliedPage],
+    queryFn: () => api.repliedPosts(repliedPage),
+    enabled: activeTab === 'activity',
+  })
+  const saveAvatar = useMutation({
+    mutationFn: api.updateAvatar,
+    onSuccess: (user) => {
+      queryClient.setQueryData(['me'], user)
+      setAvatarPreview(null)
+      setAvatarFile(undefined)
+    },
+  })
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem('safe-space-theme', theme)
   }, [theme])
   const user = profile.data
-  if (profile.isError) return <><PageHeader screen="profile" /><main className="page-content profile-page"><SectionHeading eyebrow="Your space" title="Profile & settings" description="Sign in to manage your profile, privacy, and progress." /><section className="profile-card profile-auth-required"><ShieldCheck size={32} weight="fill" /><h2>Your profile is private</h2><p>Log in to view and update your account details.</p><Link className="button button--primary" to="/login">Log in</Link></section></main><PageFooter /></>
+  if (profile.isError)
+    return (
+      <>
+        <PageHeader screen="profile" />
+        <main className="page-content profile-page">
+          <SectionHeading
+            eyebrow="Your space"
+            title="Profile & settings"
+            description="Sign in to manage your profile, privacy, and progress."
+          />
+          <section className="profile-card profile-auth-required">
+            <ShieldCheck size={32} weight="fill" />
+            <h2>Your profile is private</h2>
+            <p>Log in to view and update your account details.</p>
+            <Link className="button button--primary" to="/login">
+              Log in
+            </Link>
+          </section>
+        </main>
+        <PageFooter />
+      </>
+    )
   const displayName = name || user?.name || ''
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -414,12 +717,356 @@ function ProfileScreen() {
     { id: 'appearance' as const, label: 'Appearance', icon: Palette },
     { id: 'privacy' as const, label: 'Privacy', icon: ShieldCheck },
   ]
-  return <><PageHeader screen="profile" /><main className="page-content profile-page"><SectionHeading eyebrow="Your space" title="Profile & settings" description="Keep your details close, your boundaries clear, and your progress in view." /><section className="profile-card profile-card--identity"><div className="profile-identity"><span className="avatar avatar--gold avatar--large">{avatarPreview ? <img className="profile-avatar-image" src={avatarPreview} alt="Your selected profile picture" /> : user?.avatar_url ? <img className="profile-avatar-image" src={`${API_URL}${user.avatar_url}`} alt="Your profile picture" /> : (displayName[0] || 'J').toUpperCase()}</span><div><h2>{displayName || 'Loading your profile…'}</h2><p>{user?.email || 'Your private account details'}</p></div></div><div className="profile-stats"><span><strong>{user?.xp ?? '—'}</strong><small>Total XP</small></span><span><strong>{user?.streak ?? '—'}</strong><small>Day streak</small></span><span><strong>{user?.level ?? '—'}</strong><small>Level</small></span></div></section><div className="profile-tabs" role="tablist" aria-label="Profile settings sections">{tabs.map(({ id, label, icon: TabIcon }) => <button id={`profile-tab-${id}`} className={activeTab === id ? 'profile-tab profile-tab--active' : 'profile-tab'} type="button" role="tab" aria-selected={activeTab === id} aria-controls={`profile-panel-${id}`} onClick={() => setActiveTab(id)} key={id}><TabIcon size={19} weight={activeTab === id ? 'fill' : 'regular'} />{label}</button>)}</div><section className="profile-tab-panel" id={`profile-panel-${activeTab}`} role="tabpanel" aria-labelledby={`profile-tab-${activeTab}`}>
-    {activeTab === 'profile' && <div className="profile-settings-grid"><section className="profile-card"><div className="card-title"><PencilSimple size={22} /><span>Personal details</span></div><p className="profile-card__intro">Your display name is visible in community conversations and the leaderboard.</p><form onSubmit={(event) => { event.preventDefault(); setSaved(false); update.mutate({ name: displayName.trim() }) }} noValidate aria-busy={update.isPending}><label htmlFor="profile-name">Display name<input id="profile-name" name="name" minLength={2} maxLength={120} required value={displayName} onChange={(event) => { setName(event.target.value); setSaved(false) }} aria-describedby="profile-name-help" aria-invalid={update.isError || displayName.trim().length < 2} /></label><small id="profile-name-help" className="field-help">Use at least 2 characters. Your email cannot be changed here.</small>{update.isError && <p className="form-error" role="alert">{update.error.message}</p>}{saved && <p className="form-success" role="status">Profile saved successfully.</p>}<button className="button button--primary" type="submit" disabled={update.isPending || displayName.trim().length < 2}>{update.isPending ? 'Saving…' : 'Save changes'}</button></form></section><section className="profile-card profile-photo-card"><div className="card-title"><UserCircle size={22} /><span>Profile picture</span></div><p className="profile-card__intro">Choose a clear picture to make your profile feel like yours.</p><label className="profile-upload"><span className="button button--secondary button--small">Choose image</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarChange} /></label>{avatarError && <p className="form-error" role="alert">{avatarError}</p>}<small className="field-help">JPG, PNG, or WebP. Maximum 2 MB.</small><button className="button button--primary button--small" type="button" disabled={!avatarFile || saveAvatar.isPending} onClick={() => avatarFile && saveAvatar.mutate(avatarFile)}>{saveAvatar.isPending ? 'Saving image…' : 'Save profile picture'}</button>{saveAvatar.isError && <p className="form-error" role="alert">{saveAvatar.error.message}</p>}</section></div>}
-    {activeTab === 'activity' && <div className="profile-activity"><section className="profile-card"><div className="card-title"><Heart size={22} weight="fill" /><span>Liked posts</span></div>{(likedPosts.data ?? []).length > 0 ? (likedPosts.data ?? []).map((post) => <article className="activity-post" key={post.id}><strong>{post.author}</strong><p>{post.text}</p><small>Liked conversation</small></article>) : <div className="profile-empty-state"><p>You have not liked a post yet. Posts you like will collect here.</p><Link className="button button--secondary button--small" to="/community">Explore community</Link></div>}<PaginationControls page={likedPage} itemCount={likedPosts.data?.length ?? 0} pageSize={5} onPageChange={setLikedPage} label="Liked posts" /></section><section className="profile-card"><div className="card-title"><ChatCircleDots size={22} /><span>Posts you replied to</span></div>{(repliedPosts.data ?? []).length > 0 ? (repliedPosts.data ?? []).map((post) => <article className="activity-post" key={post.id}><strong>{post.author}</strong><p>{post.text}</p><small>{post.comments.length} repl{post.comments.length === 1 ? 'y' : 'ies'} in this conversation</small></article>) : <div className="profile-empty-state"><p>Your replies will appear here when you join a conversation.</p><Link className="button button--secondary button--small" to="/community">Join a conversation</Link></div>}<PaginationControls page={repliedPage} itemCount={repliedPosts.data?.length ?? 0} pageSize={5} onPageChange={setRepliedPage} label="Replied posts" /></section></div>}
-    {activeTab === 'appearance' && <div className="profile-card"><div className="card-title"><Palette size={22} /><span>Appearance</span></div><p className="profile-card__intro">Choose a calmer look for your daily check-ins and community time.</p><div className="theme-options" role="radiogroup" aria-label="Theme preference">{[['sage', 'Sage light', 'Soft cream and botanical green'], ['night', 'Night garden', 'Low-light forest surfaces'], ['high-contrast', 'High contrast', 'Sharper text and controls']].map(([value, label, description]) => <button className={theme === value ? 'theme-option theme-option--selected' : 'theme-option'} type="button" role="radio" aria-checked={theme === value} onClick={() => setTheme(value as typeof theme)} key={value}><span className={`theme-swatch theme-swatch--${value}`} /><span><strong>{label}</strong><small>{description}</small></span></button>)}</div></div>}
-    {activeTab === 'privacy' && <div className="profile-card profile-card--privacy"><div className="card-title"><ShieldCheck size={22} weight="fill" /><span>Your privacy</span></div><p>Check-ins are private to your account. Community posts are visible to members and can be reported for moderation.</p><div className="privacy-row"><span><strong>Private check-ins</strong><small>Only you can view your reflections.</small></span><span className="privacy-badge">Protected</span></div><div className="privacy-row"><span><strong>Account session</strong><small>Secure, HTTP-only session cookie.</small></span><button className="button button--secondary button--small" type="button" onClick={() => logout.mutate()} disabled={logout.isPending}>{logout.isPending ? 'Signing out…' : 'Log out'}</button></div></div>}
-  </section></main><PageFooter /></>
+  return (
+    <>
+      <PageHeader screen="profile" />
+      <main className="page-content profile-page">
+        <SectionHeading
+          eyebrow="Your space"
+          title="Profile & settings"
+          description="Keep your details close, your boundaries clear, and your progress in view."
+        />
+        <section className="profile-card profile-card--identity">
+          <div className="profile-identity">
+            <span className="avatar avatar--gold avatar--large">
+              {avatarPreview ? (
+                <img
+                  className="profile-avatar-image"
+                  src={avatarPreview}
+                  alt="Your selected profile picture"
+                />
+              ) : user?.avatar_url ? (
+                <img
+                  className="profile-avatar-image"
+                  src={`${API_URL}${user.avatar_url}`}
+                  alt="Your profile picture"
+                />
+              ) : (
+                (displayName[0] || 'J').toUpperCase()
+              )}
+            </span>
+            <div>
+              <h2>{displayName || 'Loading your profile…'}</h2>
+              <p>{user?.email || 'Your private account details'}</p>
+            </div>
+          </div>
+          <div className="profile-stats">
+            <span>
+              <strong>{user?.xp ?? '—'}</strong>
+              <small>Total XP</small>
+            </span>
+            <span>
+              <strong>{user?.streak ?? '—'}</strong>
+              <small>Day streak</small>
+            </span>
+            <span>
+              <strong>{user?.level ?? '—'}</strong>
+              <small>Level</small>
+            </span>
+          </div>
+        </section>
+        <div
+          className="profile-tabs"
+          role="tablist"
+          aria-label="Profile settings sections"
+        >
+          {tabs.map(({ id, label, icon: TabIcon }) => (
+            <button
+              id={`profile-tab-${id}`}
+              className={
+                activeTab === id
+                  ? 'profile-tab profile-tab--active'
+                  : 'profile-tab'
+              }
+              type="button"
+              role="tab"
+              aria-selected={activeTab === id}
+              aria-controls={`profile-panel-${id}`}
+              onClick={() => setActiveTab(id)}
+              key={id}
+            >
+              <TabIcon
+                size={19}
+                weight={activeTab === id ? 'fill' : 'regular'}
+              />
+              {label}
+            </button>
+          ))}
+        </div>
+        <section
+          className="profile-tab-panel"
+          id={`profile-panel-${activeTab}`}
+          role="tabpanel"
+          aria-labelledby={`profile-tab-${activeTab}`}
+        >
+          {activeTab === 'profile' && (
+            <div className="profile-settings-grid">
+              <section className="profile-card">
+                <div className="card-title">
+                  <PencilSimple size={22} />
+                  <span>Personal details</span>
+                </div>
+                <p className="profile-card__intro">
+                  Your display name is visible in community conversations and
+                  the leaderboard.
+                </p>
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    setSaved(false)
+                    update.mutate({ name: displayName.trim() })
+                  }}
+                  noValidate
+                  aria-busy={update.isPending}
+                >
+                  <label htmlFor="profile-name">
+                    Display name
+                    <input
+                      id="profile-name"
+                      name="name"
+                      minLength={2}
+                      maxLength={120}
+                      required
+                      value={displayName}
+                      onChange={(event) => {
+                        setName(event.target.value)
+                        setSaved(false)
+                      }}
+                      aria-describedby="profile-name-help"
+                      aria-invalid={
+                        update.isError || displayName.trim().length < 2
+                      }
+                    />
+                  </label>
+                  <small id="profile-name-help" className="field-help">
+                    Use at least 2 characters. Your email cannot be changed
+                    here.
+                  </small>
+                  {update.isError && (
+                    <p className="form-error" role="alert">
+                      {update.error.message}
+                    </p>
+                  )}
+                  {saved && (
+                    <p className="form-success" role="status">
+                      Profile saved successfully.
+                    </p>
+                  )}
+                  <button
+                    className="button button--primary"
+                    type="submit"
+                    disabled={update.isPending || displayName.trim().length < 2}
+                  >
+                    {update.isPending ? 'Saving…' : 'Save changes'}
+                  </button>
+                </form>
+              </section>
+              <section className="profile-card profile-photo-card">
+                <div className="card-title">
+                  <UserCircle size={22} />
+                  <span>Profile picture</span>
+                </div>
+                <p className="profile-card__intro">
+                  Choose a clear picture to make your profile feel like yours.
+                </p>
+                <label className="profile-upload">
+                  <span className="button button--secondary button--small">
+                    Choose image
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleAvatarChange}
+                  />
+                </label>
+                {avatarError && (
+                  <p className="form-error" role="alert">
+                    {avatarError}
+                  </p>
+                )}
+                <small className="field-help">
+                  JPG, PNG, or WebP. Maximum 2 MB.
+                </small>
+                <button
+                  className="button button--primary button--small"
+                  type="button"
+                  disabled={!avatarFile || saveAvatar.isPending}
+                  onClick={() => avatarFile && saveAvatar.mutate(avatarFile)}
+                >
+                  {saveAvatar.isPending
+                    ? 'Saving image…'
+                    : 'Save profile picture'}
+                </button>
+                {saveAvatar.isError && (
+                  <p className="form-error" role="alert">
+                    {saveAvatar.error.message}
+                  </p>
+                )}
+              </section>
+            </div>
+          )}
+          {activeTab === 'activity' && (
+            <div className="profile-activity">
+              <section className="profile-card">
+                <div className="card-title">
+                  <Heart size={22} weight="fill" />
+                  <span>Liked posts</span>
+                </div>
+                {(likedPosts.data ?? []).length > 0 ? (
+                  (likedPosts.data ?? []).map((post) => (
+                    <article className="activity-post" key={post.id}>
+                      <strong>{post.author}</strong>
+                      <p>{post.text}</p>
+                      <small>Liked conversation</small>
+                    </article>
+                  ))
+                ) : (
+                  <div className="profile-empty-state">
+                    <p>
+                      You have not liked a post yet. Posts you like will collect
+                      here.
+                    </p>
+                    <Link
+                      className="button button--secondary button--small"
+                      to="/community"
+                    >
+                      Explore community
+                    </Link>
+                  </div>
+                )}
+                <PaginationControls
+                  page={likedPage}
+                  itemCount={likedPosts.data?.length ?? 0}
+                  pageSize={5}
+                  onPageChange={setLikedPage}
+                  label="Liked posts"
+                />
+              </section>
+              <section className="profile-card">
+                <div className="card-title">
+                  <ChatCircleDots size={22} />
+                  <span>Posts you replied to</span>
+                </div>
+                {(repliedPosts.data ?? []).length > 0 ? (
+                  (repliedPosts.data ?? []).map((post) => (
+                    <article className="activity-post" key={post.id}>
+                      <strong>{post.author}</strong>
+                      <p>{post.text}</p>
+                      <small>
+                        {post.comments.length} repl
+                        {post.comments.length === 1 ? 'y' : 'ies'} in this
+                        conversation
+                      </small>
+                    </article>
+                  ))
+                ) : (
+                  <div className="profile-empty-state">
+                    <p>
+                      Your replies will appear here when you join a
+                      conversation.
+                    </p>
+                    <Link
+                      className="button button--secondary button--small"
+                      to="/community"
+                    >
+                      Join a conversation
+                    </Link>
+                  </div>
+                )}
+                <PaginationControls
+                  page={repliedPage}
+                  itemCount={repliedPosts.data?.length ?? 0}
+                  pageSize={5}
+                  onPageChange={setRepliedPage}
+                  label="Replied posts"
+                />
+              </section>
+            </div>
+          )}
+          {activeTab === 'appearance' && (
+            <div className="profile-card">
+              <div className="card-title">
+                <Palette size={22} />
+                <span>Appearance</span>
+              </div>
+              <p className="profile-card__intro">
+                Choose a calmer look for your daily check-ins and community
+                time.
+              </p>
+              <div
+                className="theme-options"
+                role="radiogroup"
+                aria-label="Theme preference"
+              >
+                {[
+                  ['sage', 'Sage light', 'Soft cream and botanical green'],
+                  ['night', 'Night garden', 'Low-light forest surfaces'],
+                  [
+                    'high-contrast',
+                    'High contrast',
+                    'Sharper text and controls',
+                  ],
+                ].map(([value, label, description]) => (
+                  <button
+                    className={
+                      theme === value
+                        ? 'theme-option theme-option--selected'
+                        : 'theme-option'
+                    }
+                    type="button"
+                    role="radio"
+                    aria-checked={theme === value}
+                    onClick={() => setTheme(value as typeof theme)}
+                    key={value}
+                  >
+                    <span className={`theme-swatch theme-swatch--${value}`} />
+                    <span>
+                      <strong>{label}</strong>
+                      <small>{description}</small>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {activeTab === 'privacy' && (
+            <div className="profile-card profile-card--privacy">
+              <div className="card-title">
+                <ShieldCheck size={22} weight="fill" />
+                <span>Your privacy</span>
+              </div>
+              <p>
+                Check-ins are private to your account. Community posts are
+                visible to members and can be reported for moderation.
+              </p>
+              <div className="privacy-row">
+                <span>
+                  <strong>Private check-ins</strong>
+                  <small>Only you can view your reflections.</small>
+                </span>
+                <span className="privacy-badge">Protected</span>
+              </div>
+              <div className="privacy-row">
+                <span>
+                  <strong>Account session</strong>
+                  <small>Secure, HTTP-only session cookie.</small>
+                </span>
+                <button
+                  className="button button--secondary button--small"
+                  type="button"
+                  onClick={() => logout.mutate()}
+                  disabled={logout.isPending}
+                >
+                  {logout.isPending ? 'Signing out…' : 'Log out'}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
+      <PageFooter />
+    </>
+  )
 }
 
 export function SafeSpaceApp({ screen }: { screen: Screen }) {
