@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { ComponentType, FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+import type { ChangeEvent, ComponentType, FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
@@ -22,12 +22,14 @@ import {
   LockKey,
   List,
   PencilSimple,
+  Palette,
   Quotes,
   ShieldCheck,
   Smiley,
   Sparkle,
   Star,
   Trophy,
+  UserCircle,
   UsersThree,
   X,
 } from '@phosphor-icons/react'
@@ -313,6 +315,13 @@ function ProfileScreen() {
   const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
   const [name, setName] = useState('')
   const [saved, setSaved] = useState(false)
+  const [activeTab, setActiveTab] = useState<'profile' | 'activity' | 'appearance' | 'privacy'>('profile')
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [avatarError, setAvatarError] = useState('')
+  const [theme, setTheme] = useState<'sage' | 'night' | 'high-contrast'>(() => {
+    if (typeof window === 'undefined') return 'sage'
+    return (window.localStorage.getItem('safe-space-theme') as 'sage' | 'night' | 'high-contrast' | null) ?? 'sage'
+  })
   const update = useMutation({
     mutationFn: api.updateProfile,
     onSuccess: (user) => {
@@ -323,10 +332,37 @@ function ProfileScreen() {
     },
   })
   const logout = useMutation({ mutationFn: api.logout, onSuccess: () => { queryClient.clear(); window.location.href = '/login' } })
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('safe-space-theme', theme)
+  }, [theme])
   const user = profile.data
   if (profile.isError) return <><PageHeader screen="profile" /><main className="page-content profile-page"><SectionHeading eyebrow="Your space" title="Profile & settings" description="Sign in to manage your profile, privacy, and progress." /><section className="profile-card profile-auth-required"><ShieldCheck size={32} weight="fill" /><h2>Your profile is private</h2><p>Log in to view and update your account details.</p><Link className="button button--primary" to="/login">Log in</Link></section></main><PageFooter /></>
   const displayName = name || user?.name || ''
-  return <><PageHeader screen="profile" /><main className="page-content profile-page"><SectionHeading eyebrow="Your space" title="Profile & settings" description="Keep your details close, your boundaries clear, and your progress in view." /><div className="profile-layout"><section className="profile-card profile-card--identity"><div className="profile-identity"><span className="avatar avatar--gold avatar--large">{(displayName[0] || 'J').toUpperCase()}</span><div><h2>{displayName || 'Loading your profile…'}</h2><p>{user?.email || 'Your private account details'}</p></div></div><div className="profile-stats"><span><strong>{user?.xp ?? '—'}</strong><small>Total XP</small></span><span><strong>{user?.streak ?? '—'}</strong><small>Day streak</small></span><span><strong>{user?.level ?? '—'}</strong><small>Level</small></span></div></section><section className="profile-card"><div className="card-title"><PencilSimple size={22} /><span>Personal details</span></div><p className="profile-card__intro">Your display name is visible in community conversations and the leaderboard.</p><form onSubmit={(event) => { event.preventDefault(); setSaved(false); update.mutate({ name: displayName.trim() }) }} noValidate aria-busy={update.isPending}><label htmlFor="profile-name">Display name<input id="profile-name" name="name" minLength={2} maxLength={120} required value={displayName} onChange={(event) => { setName(event.target.value); setSaved(false) }} aria-describedby="profile-name-help" aria-invalid={update.isError || displayName.trim().length < 2} /></label><small id="profile-name-help" className="field-help">Use at least 2 characters. Your email cannot be changed here.</small>{update.isError && <p className="form-error" role="alert">{update.error.message}</p>}{saved && <p className="form-success" role="status">Profile saved successfully.</p>}<button className="button button--primary" type="submit" disabled={update.isPending || displayName.trim().length < 2}>{update.isPending ? 'Saving…' : 'Save changes'}</button></form></section><section className="profile-card profile-card--privacy"><div className="card-title"><ShieldCheck size={22} weight="fill" /><span>Your privacy</span></div><p>Check-ins are private to your account. Community posts are visible to members and can be reported for moderation.</p><div className="privacy-row"><span><strong>Private check-ins</strong><small>Only you can view your reflections.</small></span><span className="privacy-badge">Protected</span></div><div className="privacy-row"><span><strong>Account session</strong><small>Secure, HTTP-only session cookie.</small></span><button className="button button--secondary button--small" type="button" onClick={() => logout.mutate()} disabled={logout.isPending}>{logout.isPending ? 'Signing out…' : 'Log out'}</button></div></section></div></main><PageFooter /></>
+  const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/') || file.size > 2_000_000) {
+      setAvatarError('Choose an image smaller than 2 MB.')
+      return
+    }
+    setAvatarError('')
+    const reader = new FileReader()
+    reader.onload = () => setAvatarPreview(String(reader.result))
+    reader.readAsDataURL(file)
+  }
+  const tabs = [
+    { id: 'profile' as const, label: 'Profile', icon: UserCircle },
+    { id: 'activity' as const, label: 'Activity', icon: Heart },
+    { id: 'appearance' as const, label: 'Appearance', icon: Palette },
+    { id: 'privacy' as const, label: 'Privacy', icon: ShieldCheck },
+  ]
+  return <><PageHeader screen="profile" /><main className="page-content profile-page"><SectionHeading eyebrow="Your space" title="Profile & settings" description="Keep your details close, your boundaries clear, and your progress in view." /><section className="profile-card profile-card--identity"><div className="profile-identity"><span className="avatar avatar--gold avatar--large">{avatarPreview ? <img className="profile-avatar-image" src={avatarPreview} alt="Your selected profile picture" /> : (displayName[0] || 'J').toUpperCase()}</span><div><h2>{displayName || 'Loading your profile…'}</h2><p>{user?.email || 'Your private account details'}</p></div></div><div className="profile-stats"><span><strong>{user?.xp ?? '—'}</strong><small>Total XP</small></span><span><strong>{user?.streak ?? '—'}</strong><small>Day streak</small></span><span><strong>{user?.level ?? '—'}</strong><small>Level</small></span></div></section><div className="profile-tabs" role="tablist" aria-label="Profile settings sections">{tabs.map(({ id, label, icon: TabIcon }) => <button id={`profile-tab-${id}`} className={activeTab === id ? 'profile-tab profile-tab--active' : 'profile-tab'} type="button" role="tab" aria-selected={activeTab === id} aria-controls={`profile-panel-${id}`} onClick={() => setActiveTab(id)} key={id}><TabIcon size={19} weight={activeTab === id ? 'fill' : 'regular'} />{label}</button>)}</div><section className="profile-tab-panel" id={`profile-panel-${activeTab}`} role="tabpanel" aria-labelledby={`profile-tab-${activeTab}`}>
+    {activeTab === 'profile' && <div className="profile-settings-grid"><section className="profile-card"><div className="card-title"><PencilSimple size={22} /><span>Personal details</span></div><p className="profile-card__intro">Your display name is visible in community conversations and the leaderboard.</p><form onSubmit={(event) => { event.preventDefault(); setSaved(false); update.mutate({ name: displayName.trim() }) }} noValidate aria-busy={update.isPending}><label htmlFor="profile-name">Display name<input id="profile-name" name="name" minLength={2} maxLength={120} required value={displayName} onChange={(event) => { setName(event.target.value); setSaved(false) }} aria-describedby="profile-name-help" aria-invalid={update.isError || displayName.trim().length < 2} /></label><small id="profile-name-help" className="field-help">Use at least 2 characters. Your email cannot be changed here.</small>{update.isError && <p className="form-error" role="alert">{update.error.message}</p>}{saved && <p className="form-success" role="status">Profile saved successfully.</p>}<button className="button button--primary" type="submit" disabled={update.isPending || displayName.trim().length < 2}>{update.isPending ? 'Saving…' : 'Save changes'}</button></form></section><section className="profile-card profile-photo-card"><div className="card-title"><UserCircle size={22} /><span>Profile picture</span></div><p className="profile-card__intro">Choose a clear picture to make your profile feel like yours.</p><label className="profile-upload"><span className="button button--secondary button--small">Choose image</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleAvatarChange} /></label>{avatarError && <p className="form-error" role="alert">{avatarError}</p>}<small className="field-help">JPG, PNG, or WebP. Maximum 2 MB. Preview only until profile media storage is connected.</small></section></div>}
+    {activeTab === 'activity' && <div className="profile-card profile-empty-state"><Heart size={30} weight="fill" /><h2>Liked posts</h2><p>Posts you like will collect here so you can return to encouraging conversations later.</p><Link className="button button--secondary button--small" to="/community">Explore community</Link></div>}
+    {activeTab === 'appearance' && <div className="profile-card"><div className="card-title"><Palette size={22} /><span>Appearance</span></div><p className="profile-card__intro">Choose a calmer look for your daily check-ins and community time.</p><div className="theme-options" role="radiogroup" aria-label="Theme preference">{[['sage', 'Sage light', 'Soft cream and botanical green'], ['night', 'Night garden', 'Low-light forest surfaces'], ['high-contrast', 'High contrast', 'Sharper text and controls']].map(([value, label, description]) => <button className={theme === value ? 'theme-option theme-option--selected' : 'theme-option'} type="button" role="radio" aria-checked={theme === value} onClick={() => setTheme(value as typeof theme)} key={value}><span className={`theme-swatch theme-swatch--${value}`} /><span><strong>{label}</strong><small>{description}</small></span></button>)}</div></div>}
+    {activeTab === 'privacy' && <div className="profile-card profile-card--privacy"><div className="card-title"><ShieldCheck size={22} weight="fill" /><span>Your privacy</span></div><p>Check-ins are private to your account. Community posts are visible to members and can be reported for moderation.</p><div className="privacy-row"><span><strong>Private check-ins</strong><small>Only you can view your reflections.</small></span><span className="privacy-badge">Protected</span></div><div className="privacy-row"><span><strong>Account session</strong><small>Secure, HTTP-only session cookie.</small></span><button className="button button--secondary button--small" type="button" onClick={() => logout.mutate()} disabled={logout.isPending}>{logout.isPending ? 'Signing out…' : 'Log out'}</button></div></div>}
+  </section></main><PageFooter /></>
 }
 
 export function SafeSpaceApp({ screen }: { screen: Screen }) {
