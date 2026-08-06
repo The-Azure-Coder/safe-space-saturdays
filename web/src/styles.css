@@ -17,7 +17,7 @@ main { min-height: 100vh; }
 .brand-mark__script { margin-top: 17px; font-family: 'Sacramento', cursive; font-size: 29px; line-height: 1; white-space: nowrap; }
 .brand-mark__name { margin-top: 2px; font-size: 9px; font-weight: 700; letter-spacing: .28em; text-transform: uppercase; }
 .brand-mark__tagline { margin-top: 5px; color: var(--orange); font-size: 7px; letter-spacing: .15em; text-transform: uppercase; }
-.app-nav { display: flex; flex: 1; align-items: center; justify-content: flex-start; gap: clamp(4px, 1vw, 14px); }
+.app-nav { display: flex; flex: 1; align-items: center; justify-content: center; gap: clamp(4px, 1vw, 14px); }
 .app-nav__link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; border: 1px solid transparent; border-radius: 999px; color: #4f5551; font-size: 15px; white-space: nowrap; transition: color .2s ease, background-color .2s ease, border-color .2s ease, transform .2s ease; }
 .app-nav__link:hover { transform: translateY(-1px); border-color: var(--line); background: #fffaf2; color: var(--sage-dark); }
 .app-nav__link--active { border-color: rgb(122 140 105 / 28%); background: var(--sage-pale); color: var(--sage-dark); }
