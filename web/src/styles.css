@@ -280,6 +280,8 @@ body::before {
 .app-nav__link--active { box-shadow: inset 0 0 0 1px rgb(78 105 81 / 6%); }
 .profile-menu { font-size: 14px; }
 .page-content { width: min(88%, 1360px); padding-top: clamp(54px, 7vw, 92px); }
+.home-page { padding-top: clamp(18px, 2.5vw, 34px); }
+.home-page > .welcome-carousel { margin-top: 0; }
 .section-heading h1 { text-wrap: balance; }
 .section-heading p { max-width: 56ch; text-wrap: pretty; }
 .eyebrow { letter-spacing: .18em; }
@@ -337,6 +339,7 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .stats-grid { gap: 12px; }
 .stat-card { min-height: 144px; padding: 22px; border: 0; border-radius: 18px 18px 18px 4px; box-shadow: 0 12px 28px rgb(77 93 68 / 8%); }
 .stat-card:nth-child(2) { transform: translateY(20px); border-radius: 18px 18px 4px 18px; }
+.home-page .stat-card:nth-child(2) { transform: none; border-radius: 18px 18px 18px 4px; }
 .stat-card__value { font-variant-numeric: tabular-nums; }
 .dashboard-grid { grid-template-columns: 1.08fr 1.25fr .86fr; gap: 14px; margin-top: 42px; }
 .quote-card, .check-card, .community-card { min-height: 248px; border: 0; box-shadow: 0 15px 34px rgb(77 93 68 / 7%); }
@@ -383,6 +386,7 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 @media (max-width: 760px) {
   .app-header { width: calc(100% - 20px); margin-top: 12px; }
   .page-content { width: calc(100% - 28px); padding-top: 48px; }
+  .home-page { padding-top: 18px; }
   .home-hero { display: flex; flex-direction: column-reverse; align-items: stretch; padding-bottom: 0; }
   .home-hero__copy { order: 2; }
   .home-hero__art { order: 1; }
@@ -394,7 +398,7 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
   .stat-card:nth-child(2) { transform: none; }
   .dashboard-grid { margin-top: 26px; }
   .game-strip { margin-top: 28px; padding: 12px 0; }
-  .welcome-carousel { grid-template-columns: 1fr; min-height: 320px; margin-top: 25px; }
+  .welcome-carousel { grid-template-columns: 1fr; min-height: 320px; margin-top: 0; }
   .welcome-carousel__copy { padding: 26px 24px 82px; }
   .welcome-carousel__art { position: absolute; right: 0; bottom: 0; width: 155px; min-height: 150px; opacity: .8; }
   .welcome-carousel__image { right: 0; width: 155px; height: 150px; }
