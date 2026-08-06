@@ -230,7 +230,7 @@ function HomeScreen() {
 }
 
 function GameStrip() {
-  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-ludo.png', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
+  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-bingo.png', color: 'peach' }).map((game) => <GameTile game={game} key={game.name} compact />)}</div></section>
 }
 
 function GameTile({ game, compact = false }: { game: GameDefinition; compact?: boolean }) {
@@ -240,7 +240,7 @@ function GameTile({ game, compact = false }: { game: GameDefinition; compact?: b
     Dominoes: '/assets/game-dominoes.png',
     'Trivia Battle': '/assets/game-trivia.png',
     'Connect Four': '/assets/game-connect-four.png',
-    Bingo: '/assets/game-ludo.png',
+    Bingo: '/assets/game-bingo.png',
   }[game.name] ?? null)
   return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__icon" aria-hidden="true">{generatedIcon ? <img src={generatedIcon} alt="" /> : GameIcon ? <GameIcon size={compact ? 34 : 48} weight="duotone" /> : null}</span><h3>{game.name}</h3><Link className="button button--small button--primary" to="/games">Play</Link>{!compact && <small>{game.players}</small>}</article>
 }
