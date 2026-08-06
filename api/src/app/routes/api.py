@@ -1,6 +1,8 @@
 import asyncio
 import io
 from collections import Counter
+from collections.abc import Iterable
+from datetime import UTC, date, timedelta
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
@@ -99,6 +101,20 @@ def bug_report_response(report: BugReport, reporter: User) -> BugReportResponse:
         created_at=report.created_at,
         updated_at=report.updated_at,
     )
+
+
+def current_checkin_streak(checkin_dates: Iterable[date], today: date) -> int:
+    dates = sorted(set(checkin_dates), reverse=True)
+    if not dates or dates[0] < today - timedelta(days=1):
+        return 0
+    streak = 1
+    expected = dates[0] - timedelta(days=1)
+    for checkin_date in dates[1:]:
+        if checkin_date != expected:
+            break
+        streak += 1
+        expected -= timedelta(days=1)
+    return streak
 
 
 async def set_session(
@@ -229,6 +245,16 @@ async def create_check_in(
 ) -> CheckInResponse:
     checkin = CheckIn(user_id=user.id, **payload.model_dump())
     db.add(checkin)
+    await db.flush()
+    checkin_dates = await db.scalars(
+        select(CheckIn.created_at).where(CheckIn.user_id == user.id, CheckIn.completed.is_(True))
+    )
+    dates = [
+        created_at.astimezone(UTC).date()
+        for created_at in checkin_dates
+        if created_at
+    ]
+    user.streak = current_checkin_streak(dates, date.today())
     user.xp += 25
     user.level = max(1, user.xp // 250 + 1)
     await db.commit()
