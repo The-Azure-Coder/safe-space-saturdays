@@ -592,6 +592,29 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 }
 
 /* Night Garden contrast pass: these rules intentionally come last so the theme wins over editorial light-mode accents. */
+/* Sage theme auth surfaces: keep the card visibly part of the botanical palette. */
+.auth-panel {
+  border-color: #dbe3d1;
+  background: #eef1e7;
+}
+html[data-theme='sage'] .auth-panel {
+  border: 1px solid #dbe3d1;
+  background: #eef1e7;
+  box-shadow: 0 20px 46px rgb(77 93 68 / 12%);
+}
+html[data-theme='sage'] .auth-panel input,
+html[data-theme='sage'] .auth-panel textarea,
+html[data-theme='sage'] .auth-panel .input-wrap {
+  border-color: #d5ddca;
+  background: #f9f8f1;
+}
+html[data-theme='sage'] .auth-panel input:focus,
+html[data-theme='sage'] .auth-panel textarea:focus,
+html[data-theme='sage'] .auth-panel .input-wrap:focus-within {
+  border-color: var(--sage-dark);
+  background: #fffdf8;
+}
+
 html[data-theme='night'] .section-heading p,
 html[data-theme='night'] .promo-card p,
 html[data-theme='night'] .community-card > p,
