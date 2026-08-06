@@ -118,6 +118,10 @@ function PageHeader({ screen }: { screen: Screen }) {
             <ShieldCheck size={22} weight={screen === 'admin' ? 'fill' : 'regular'} aria-hidden="true" />
             <span>Admin portal</span>
           </Link>}
+          <button className="app-nav__link app-nav__link--button" type="button" onClick={() => { setMobileNavOpen(false); logout.mutate() }} disabled={logout.isPending}>
+            <X size={22} aria-hidden="true" />
+            <span>{logout.isPending ? 'Signing out…' : 'Log out'}</span>
+          </button>
         </div>}
       </nav>
       <button className="mobile-nav-toggle" type="button" aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen} aria-controls="main-navigation" onClick={() => setMobileNavOpen((open) => !open)}>

@@ -226,6 +226,7 @@ html[data-theme='high-contrast'] .app-header, html[data-theme='high-contrast'] .
 .profile-auth-required p { color: var(--muted); }
 .profile-menu-wrap { position: relative; }
 .app-nav__mobile-account { display: none; }
+.app-nav__link--button { font: inherit; text-align: left; }
 .leaderboard-row > div > .avatar, .podium-member > .avatar { display: inline-grid; flex: 0 0 auto; align-items: center; justify-content: center; line-height: 1; text-align: center; }
 .auth-actions { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
 .auth-actions__login { color: var(--sage-dark); font-size: 14px; font-weight: 700; transition: color .2s ease; }
