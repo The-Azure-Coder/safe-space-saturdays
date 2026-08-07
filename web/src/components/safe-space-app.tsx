@@ -565,7 +565,10 @@ function GamesScreen() {
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
     },
   })
-  const firstGameId = gamesQuery.data?.[0]?.id ?? null
+  const availableGames: Array<GameDefinition> = gamesQuery.data?.length
+    ? gamesQuery.data.map((game) => ({ ...game, color: game.color }))
+    : games.map((game, index) => ({ ...game, id: index + 1 }))
+  const firstGameId = availableGames[0]?.id ?? null
   return (
     <>
       <PageHeader screen="games" />
@@ -598,7 +601,7 @@ function GamesScreen() {
         {showCreateRoom && <form className="room-create-card" onSubmit={(event) => { event.preventDefault(); if (roomGameId && roomName.trim()) createRoom.mutate({ game_id: roomGameId, name: roomName.trim(), max_players: roomPlayers }) }}>
           <div><span className="eyebrow">Make space for play</span><h2>Create a room</h2><p>Choose a game, invite friends, and keep it friendly.</p></div>
           <label className="field-label">Room name<input value={roomName} onChange={(event) => setRoomName(event.target.value)} maxLength={100} required /></label>
-          <label className="field-label">Game<select value={roomGameId ?? ''} onChange={(event) => setRoomGameId(Number(event.target.value))} required>{(gamesQuery.data ?? []).map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}</select></label>
+          <label className="field-label">Game<select value={roomGameId ?? ''} onChange={(event) => setRoomGameId(Number(event.target.value))} required>{availableGames.map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}</select></label>
           <label className="field-label">Players<select value={roomPlayers} onChange={(event) => setRoomPlayers(Number(event.target.value))}><option value={2}>2 players</option><option value={3}>3 players</option><option value={4}>4 players</option></select></label>
           <div className="room-create-actions"><button className="button button--primary" type="submit" disabled={createRoom.isPending || !roomGameId}>{createRoom.isPending ? 'Creating…' : 'Create room'}</button><button className="button button--secondary" type="button" onClick={() => setShowCreateRoom(false)}>Cancel</button></div>
         </form>}
@@ -610,8 +613,8 @@ function GamesScreen() {
               <span>Featured Games</span>
             </div>
             <div className="game-grid">
-              {(gamesQuery.data ?? []).map((game) => (
-                <GameTile game={{ ...game, color: game.color }} key={game.id} onPlay={() => playGame.mutate(game)} />
+              {availableGames.map((game) => (
+                <GameTile game={game} key={game.id} onPlay={() => playGame.mutate(game)} />
               ))}
             </div>
             <PaginationControls
