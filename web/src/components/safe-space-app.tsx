@@ -660,6 +660,33 @@ function GamesScreen() {
   )
 }
 
+function BugReportWidget() {
+  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [severity, setSeverity] = useState('normal')
+  const report = useMutation({
+    mutationFn: api.createBugReport,
+    onSuccess: () => { setTitle(''); setDescription(''); setSeverity('normal') },
+  })
+  if (currentUser.isError || !currentUser.data) return null
+  return <div className="bug-report-widget">
+    {open && <section className="bug-report-popover" aria-labelledby="bug-report-title">
+      <div className="bug-report-popover__header"><div><span className="eyebrow">Help us improve</span><h2 id="bug-report-title">Report a bug</h2></div><button className="icon-button" type="button" aria-label="Close bug report form" onClick={() => setOpen(false)}><X size={18} /></button></div>
+      <p>Tell us what went wrong and where you noticed it. Please do not include private journal details.</p>
+      {report.isSuccess ? <div className="form-success" role="status">Thanks — your report is with the team.</div> : <form onSubmit={(event) => { event.preventDefault(); report.mutate({ title: title.trim(), description: description.trim(), severity, page_url: window.location.pathname }) }}>
+        <label>Short title<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={3} maxLength={160} required placeholder="What went wrong?" /></label>
+        <label>Details<textarea value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={5000} required placeholder="What did you expect, and what happened instead?" /></label>
+        <label>Severity<select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+        {report.isError && <p className="form-error" role="alert">{report.error.message}</p>}
+        <button className="button button--primary button--wide" type="submit" disabled={report.isPending}>{report.isPending ? 'Sending…' : 'Send bug report'}</button>
+      </form>}
+    </section>}
+    <button className="bug-report-launcher" type="button" aria-label={open ? 'Close bug report form' : 'Report a bug'} aria-expanded={open} onClick={() => { setOpen((value) => !value); report.reset() }}><Bug size={23} weight="duotone" /><span>{open ? 'Close' : 'Report a bug'}</span></button>
+  </div>
+}
+
 function LeaderboardScreen() {
   const [period, setPeriod] = useState('week')
   const [page, setPage] = useState(1)
