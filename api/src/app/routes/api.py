@@ -136,7 +136,7 @@ async def set_session(
 
 @router.post("/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, response: Response, db: DbSession) -> AuthResponse:
-    email = payload.email.lower()
+    email = payload.email.strip().lower()
     existing = await db.scalar(select(User).where(User.email == email))
     if existing:
         raise HTTPException(status_code=409, detail="An account with this email already exists")
@@ -154,7 +154,8 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
 
 @router.post("/auth/login", response_model=AuthResponse)
 async def login(payload: LoginRequest, response: Response, db: DbSession) -> AuthResponse:
-    user = await db.scalar(select(User).where(User.email == payload.email.lower()))
+    email = payload.email.strip().lower()
+    user = await db.scalar(select(User).where(User.email == email))
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await set_session(response, db, user, payload.remember_me)
