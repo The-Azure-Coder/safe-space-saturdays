@@ -376,6 +376,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
                 post_id=comment.post_id,
                 author=comment_author.name if comment_author else "Member",
                 initials=(comment_author.name[0].upper() if comment_author else "M"),
+                avatar_url=comment_author.avatar_url if comment_author else None,
                 text=comment.text,
                 created_at=comment.created_at,
             )
@@ -385,6 +386,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
         id=post.id,
         author=author.name if author else "Member",
         initials=(author.name[0].upper() if author else "M"),
+        avatar_url=author.avatar_url if author else None,
         text=post.text,
         image_url=post.image_url,
         created_at=post.created_at,
@@ -409,7 +411,7 @@ async def save_post_image(image: UploadFile) -> str:
         raise HTTPException(status_code=415, detail="Only JPEG, PNG, and WebP images are supported")
     content = await image.read(settings.max_upload_bytes + 1)
     if len(content) > settings.max_upload_bytes:
-        raise HTTPException(status_code=413, detail="Image must be 5 MB or smaller")
+        raise HTTPException(status_code=413, detail="Image must be 10 MB or smaller")
     signature = image_format[1]
     if not content.startswith(signature) or (
         image_format[0] == "webp" and content[8:12] != b"WEBP"

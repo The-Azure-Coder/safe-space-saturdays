@@ -21,7 +21,7 @@ services:
       - key: UPLOAD_DIR
         value: ./uploads
       - key: MAX_UPLOAD_BYTES
-        value: "5000000"
+        value: "10000000"
       - key: USE_CLOUDINARY
         value: "true"
       - key: CLOUDINARY_CLOUD_NAME

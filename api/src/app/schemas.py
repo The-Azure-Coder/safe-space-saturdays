@@ -120,6 +120,7 @@ class PostResponse(BaseModel):
     id: int
     author: str
     initials: str
+    avatar_url: str | None = None
     text: str
     image_url: str | None
     created_at: datetime
@@ -148,6 +149,7 @@ class CommentResponse(BaseModel):
     post_id: int
     author: str
     initials: str
+    avatar_url: str | None = None
     text: str
     created_at: datetime
 

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     session_ttl_days: int = 30
     cookie_secure: bool = False
     upload_dir: Path = DEFAULT_UPLOAD_DIR
-    max_upload_bytes: int = 5_000_000
+    max_upload_bytes: int = 10_000_000
     use_cloudinary: bool = False
     cloudinary_cloud_name: str | None = None
     cloudinary_api_key: str | None = None
