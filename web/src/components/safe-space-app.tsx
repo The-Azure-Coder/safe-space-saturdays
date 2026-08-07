@@ -286,7 +286,7 @@ function HomeScreen() {
         <article className="check-card"><div className="card-title"><Smiley size={22} weight="fill" /> <span>How are you feeling today?</span></div><p>Your check-in helps us support you better.</p><div className="mood-row">{moods.map((mood) => <Link className="mood-option" key={mood.label} to="/check-in"><span>{mood.icon}</span><small>{mood.label}</small></Link>)}</div><Link className="button button--primary" to="/check-in">Check In</Link></article>
         <article className="community-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Community Corner</span></div><h3>You are not alone.</h3><p>Join a space that listens, encourages, and grows together.</p><Link className="button button--lilac" to="/community">Explore Community <ArrowRight size={16} /></Link></article>
       </section>
-      <ComingSoonBanner />
+      {/* <ComingSoonBanner /> */}
     </main>
     <PageFooter />
   </>
