@@ -703,6 +703,11 @@ html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
   .checkin-cooldown-card__visual { height: 132px; margin-top: -2px; }
   .checkin-cooldown-card .checkin-reflection { margin-inline: 0; }
 }
+
+@media (max-width: 760px) {
+  /* Account actions live in the hamburger menu on mobile. */
+  .app-header .profile-menu-wrap { display: none !important; }
+}
 @media (max-width: 760px) {
   .leaderboard-hero > .progress-card { order: 2; }
   .leaderboard-hero > .podium { order: 3; }
