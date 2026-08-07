@@ -802,6 +802,7 @@ function ProfileScreen() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmNewPassword('')
+      logout.mutate()
     },
   })
   const likedPosts = useQuery({
@@ -1318,8 +1319,8 @@ function ProfileScreen() {
                 {passwordErrors.length > 0 && <div className="form-error form-error--validation" role="alert" aria-live="polite"><strong>Please fix the following:</strong><ul>{passwordErrors.map((error) => <li key={error}>{error}</li>)}</ul></div>}
                 {changePassword.isError && <p className="form-error" role="alert">{changePassword.error.message}</p>}
                 {changePassword.isSuccess && <p className="form-success" role="status">Password changed successfully.</p>}
-                <button className="button button--primary" type="submit" disabled={changePassword.isPending || currentPassword.length === 0 || newPassword.length < 10 || newPassword !== confirmNewPassword}>
-                  {changePassword.isPending ? 'Changing password…' : 'Change password'}
+                <button className="button button--primary" type="submit" disabled={changePassword.isPending || logout.isPending || currentPassword.length === 0 || newPassword.length < 10 || newPassword !== confirmNewPassword}>
+                  {logout.isPending ? 'Signing you out…' : changePassword.isPending ? 'Changing password…' : 'Change password'}
                 </button>
               </form>
             </section>
