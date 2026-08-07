@@ -1,9 +1,14 @@
 import asyncio
+import io
 from collections import Counter
+from collections.abc import Iterable
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
 
+import cloudinary
+import cloudinary.uploader
 from fastapi import (
     APIRouter,
     Depends,
@@ -17,7 +22,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -29,6 +34,7 @@ from app.games.persistence import create_persisted_match, record_state
 from app.games.realtime import realtime_bus
 from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
+    BugReport,
     CheckIn,
     Comment,
     Game,
@@ -45,7 +51,14 @@ from app.models import (
     User,
 )
 from app.schemas import (
+    AdminPasswordResetRequest,
+    AdminQuoteCreateRequest,
+    AdminQuoteUpdateRequest,
+    AdminUserUpdateRequest,
     AuthResponse,
+    BugReportCreateRequest,
+    BugReportResponse,
+    BugReportUpdateRequest,
     CheckInRequest,
     CheckInResponse,
     CommentCreateRequest,
@@ -71,6 +84,7 @@ from app.schemas import (
     UserResponse,
 )
 from app.security import (
+    get_current_admin,
     get_current_user,
     hash_password,
     new_session_token,
@@ -81,6 +95,7 @@ from app.security import (
 router = APIRouter(prefix="/api", tags=["application"])
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 
 
 def match_response(match: LiveMatch) -> MatchResponse:
@@ -185,6 +200,37 @@ def user_response(user: User) -> UserResponse:
     return UserResponse.model_validate(user)
 
 
+def bug_report_response(report: BugReport, reporter: User) -> BugReportResponse:
+    return BugReportResponse(
+        id=report.id,
+        user_id=report.user_id,
+        reporter_name=reporter.name,
+        reporter_email=reporter.email,
+        title=report.title,
+        description=report.description,
+        severity=report.severity,
+        status=report.status,
+        page_url=report.page_url,
+        admin_note=report.admin_note,
+        created_at=report.created_at,
+        updated_at=report.updated_at,
+    )
+
+
+def current_checkin_streak(checkin_dates: Iterable[date], today: date) -> int:
+    dates = sorted(set(checkin_dates), reverse=True)
+    if not dates or dates[0] < today - timedelta(days=1):
+        return 0
+    streak = 1
+    expected = dates[0] - timedelta(days=1)
+    for checkin_date in dates[1:]:
+        if checkin_date != expected:
+            break
+        streak += 1
+        expected -= timedelta(days=1)
+    return streak
+
+
 async def set_session(
     response: Response, db: AsyncSession, user: User, remember_me: bool = True
 ) -> None:
@@ -196,7 +242,7 @@ async def set_session(
         token,
         httponly=True,
         secure=get_settings().cookie_secure,
-        samesite="lax",
+        samesite="none" if get_settings().cookie_secure else "lax",
         max_age=60 * 60 * 24 * (get_settings().session_ttl_days if remember_me else 1),
     )
 
@@ -246,6 +292,24 @@ async def me(user: CurrentUser) -> UserResponse:
     return user_response(user)
 
 
+@router.post("/bug-reports", response_model=BugReportResponse, status_code=status.HTTP_201_CREATED)
+async def create_bug_report(
+    payload: BugReportCreateRequest, request: Request, user: CurrentUser, db: DbSession
+) -> BugReportResponse:
+    report = BugReport(
+        user_id=user.id,
+        title=payload.title.strip(),
+        description=payload.description.strip(),
+        severity=payload.severity,
+        page_url=payload.page_url,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(report)
+    await db.commit()
+    await db.refresh(report)
+    return bug_report_response(report, user)
+
+
 @router.patch("/auth/me", response_model=UserResponse)
 async def update_me(
     payload: ProfileUpdateRequest, user: CurrentUser, db: DbSession
@@ -293,8 +357,33 @@ async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
 async def create_check_in(
     payload: CheckInRequest, user: CurrentUser, db: DbSession
 ) -> CheckInResponse:
+    latest = await db.scalar(
+        select(CheckIn)
+        .where(CheckIn.user_id == user.id, CheckIn.completed.is_(True))
+        .order_by(CheckIn.created_at.desc())
+        .limit(1)
+    )
+    if latest and latest.created_at:
+        created_at = latest.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        if datetime.now(UTC) - created_at < timedelta(hours=12):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Your next check-in will be available 12 hours after your last one.",
+            )
     checkin = CheckIn(user_id=user.id, **payload.model_dump())
     db.add(checkin)
+    await db.flush()
+    checkin_dates = await db.scalars(
+        select(CheckIn.created_at).where(CheckIn.user_id == user.id, CheckIn.completed.is_(True))
+    )
+    dates = [
+        created_at.astimezone(UTC).date()
+        for created_at in checkin_dates
+        if created_at
+    ]
+    user.streak = current_checkin_streak(dates, date.today())
     user.xp += 25
     user.level = max(1, user.xp // 250 + 1)
     await db.commit()
@@ -333,13 +422,22 @@ def quote_out(quote: Quote, saved_ids: set[int]) -> QuoteResponse:
 
 @router.get("/quotes", response_model=list[QuoteResponse])
 async def list_quotes(
-    user: CurrentUser, db: DbSession, category: str | None = None, page: int = 1, limit: int = 20
+    user: CurrentUser,
+    db: DbSession,
+    category: str | None = None,
+    saved_only: bool = False,
+    page: int = 1,
+    limit: int = 20,
 ) -> list[QuoteResponse]:
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
     query = select(Quote).order_by(Quote.is_featured.desc(), Quote.id)
     if category and category != "All":
         query = query.where(Quote.category == category)
+    if saved_only:
+        query = query.join(SavedQuote, SavedQuote.quote_id == Quote.id).where(
+            SavedQuote.user_id == user.id
+        )
     quotes = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
     saved_ids = set(
         (await db.scalars(select(SavedQuote.quote_id).where(SavedQuote.user_id == user.id))).all()
@@ -392,6 +490,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
                 post_id=comment.post_id,
                 author=comment_author.name if comment_author else "Member",
                 initials=(comment_author.name[0].upper() if comment_author else "M"),
+                avatar_url=comment_author.avatar_url if comment_author else None,
                 text=comment.text,
                 created_at=comment.created_at,
             )
@@ -401,6 +500,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
         id=post.id,
         author=author.name if author else "Member",
         initials=(author.name[0].upper() if author else "M"),
+        avatar_url=author.avatar_url if author else None,
         text=post.text,
         image_url=post.image_url,
         created_at=post.created_at,
@@ -425,12 +525,43 @@ async def save_post_image(image: UploadFile) -> str:
         raise HTTPException(status_code=415, detail="Only JPEG, PNG, and WebP images are supported")
     content = await image.read(settings.max_upload_bytes + 1)
     if len(content) > settings.max_upload_bytes:
-        raise HTTPException(status_code=413, detail="Image must be 5 MB or smaller")
+        raise HTTPException(status_code=413, detail="Image must be 10 MB or smaller")
     signature = image_format[1]
     if not content.startswith(signature) or (
         image_format[0] == "webp" and content[8:12] != b"WEBP"
     ):
         raise HTTPException(status_code=415, detail="The uploaded file is not a valid image")
+    if settings.use_cloudinary:
+        if not all(
+            (
+                settings.cloudinary_cloud_name,
+                settings.cloudinary_api_key,
+                settings.cloudinary_api_secret,
+            )
+        ):
+            raise HTTPException(status_code=503, detail="Image storage is not configured")
+        try:
+            cloudinary.config(
+                cloud_name=settings.cloudinary_cloud_name,
+                api_key=settings.cloudinary_api_key,
+                api_secret=settings.cloudinary_api_secret,
+                secure=True,
+            )
+            result = await asyncio.to_thread(
+                cloudinary.uploader.upload,
+                io.BytesIO(content),
+                folder="safe-space-saturdays",
+                resource_type="image",
+                format=image_format[0],
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail="Image storage is temporarily unavailable"
+            ) from exc
+        secure_url = result.get("secure_url")
+        if not isinstance(secure_url, str) or not secure_url.startswith("https://"):
+            raise HTTPException(status_code=502, detail="Image storage returned an invalid URL")
+        return secure_url
     filename = f"{uuid4().hex}.{image_format[0]}"
     destination: Path = settings.upload_dir / filename
     await asyncio.to_thread(destination.write_bytes, content)
@@ -999,3 +1130,175 @@ async def leaderboard(
         LeaderboardEntry(rank=(page - 1) * limit + index, user=user_response(member))
         for index, member in enumerate(users, start=1)
     ]
+
+
+@router.get("/leaderboard/me", response_model=LeaderboardEntry)
+async def leaderboard_me(
+    user: CurrentUser, db: DbSession, period: str = "week"
+) -> LeaderboardEntry:
+    if period not in {"week", "month", "all"}:
+        raise HTTPException(status_code=422, detail="Invalid leaderboard period")
+    rank = (await db.scalar(select(func.count(User.id)).where(User.xp > user.xp)) or 0) + 1
+    return LeaderboardEntry(rank=rank, user=user_response(user))
+
+
+@router.get("/admin/bug-reports", response_model=list[BugReportResponse])
+async def admin_bug_reports(
+    admin: CurrentAdmin,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    report_status: str | None = None,
+) -> list[BugReportResponse]:
+    del admin
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = (
+        select(BugReport, User)
+        .join(User, User.id == BugReport.user_id)
+        .order_by(BugReport.created_at.desc())
+    )
+    if report_status:
+        if report_status not in {"open", "in_progress", "resolved", "closed"}:
+            raise HTTPException(status_code=422, detail="Invalid bug report status")
+        query = query.where(BugReport.status == report_status)
+    rows = (await db.execute(query.offset((page - 1) * limit).limit(limit))).all()
+    return [bug_report_response(report, reporter) for report, reporter in rows]
+
+
+@router.patch("/admin/bug-reports/{report_id}", response_model=BugReportResponse)
+async def update_bug_report(
+    report_id: int,
+    payload: BugReportUpdateRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> BugReportResponse:
+    report = await db.get(BugReport, report_id)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Bug report not found")
+    reporter = await db.get(User, report.user_id) if report.user_id else None
+    if reporter is None:
+        raise HTTPException(status_code=404, detail="Report owner not found")
+    report.status = payload.status
+    report.admin_note = payload.admin_note.strip() if payload.admin_note else None
+    await db.commit()
+    await db.refresh(report)
+    return bug_report_response(report, reporter)
+
+
+@router.get("/admin/users", response_model=list[UserResponse])
+async def admin_users(
+    admin: CurrentAdmin,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    search: str | None = None,
+) -> list[UserResponse]:
+    del admin
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = select(User).order_by(User.created_at.desc())
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        query = query.where((User.name.ilike(term)) | (User.email.ilike(term)))
+    users = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
+    return [user_response(member) for member in users]
+
+
+@router.patch("/admin/users/{user_id}", response_model=UserResponse)
+async def update_admin_user(
+    user_id: int,
+    payload: AdminUserUpdateRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> UserResponse:
+    member = await db.get(User, user_id)
+    if member is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if member.id == admin.id and payload.role != "admin":
+        raise HTTPException(status_code=400, detail="You cannot remove your own admin access")
+    member.role = payload.role
+    await db.commit()
+    await db.refresh(member)
+    return user_response(member)
+
+
+@router.post("/admin/users/{user_id}/password-reset", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_user_password(
+    user_id: int,
+    payload: AdminPasswordResetRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> None:
+    del admin
+    member = await db.get(User, user_id)
+    if member is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    member.password_hash = hash_password(payload.password)
+    await db.execute(delete(Session).where(Session.user_id == user_id))
+    await db.commit()
+
+
+@router.get("/admin/quotes", response_model=list[QuoteResponse])
+async def admin_quotes(
+    admin: CurrentAdmin,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    category: str | None = None,
+) -> list[QuoteResponse]:
+    del admin
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = select(Quote).order_by(Quote.created_at.desc())
+    if category:
+        query = query.where(Quote.category == category)
+    quotes = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
+    return [QuoteResponse.model_validate(quote) for quote in quotes]
+
+
+@router.post("/admin/quotes", response_model=QuoteResponse, status_code=status.HTTP_201_CREATED)
+async def admin_create_quote(
+    payload: AdminQuoteCreateRequest, admin: CurrentAdmin, db: DbSession
+) -> QuoteResponse:
+    if payload.is_featured:
+        await db.execute(update(Quote).values(is_featured=False))
+    quote = Quote(**payload.model_dump())
+    db.add(quote)
+    await db.commit()
+    await db.refresh(quote)
+    return QuoteResponse.model_validate(quote)
+
+
+@router.patch("/admin/quotes/{quote_id}", response_model=QuoteResponse)
+async def admin_update_quote(
+    quote_id: int,
+    payload: AdminQuoteUpdateRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> QuoteResponse:
+    quote = await db.get(Quote, quote_id)
+    if quote is None:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    if payload.is_featured:
+        await db.execute(update(Quote).where(Quote.id != quote_id).values(is_featured=False))
+    for key, value in payload.model_dump().items():
+        setattr(quote, key, value)
+    await db.commit()
+    await db.refresh(quote)
+    return QuoteResponse.model_validate(quote)
+
+
+@router.delete("/admin/quotes/{quote_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_quote(quote_id: int, admin: CurrentAdmin, db: DbSession) -> None:
+    del admin
+    quote = await db.get(Quote, quote_id)
+    if quote is None:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    if quote.is_featured:
+        raise HTTPException(
+            status_code=409,
+            detail="Choose another featured quote before deleting this one",
+        )
+    await db.delete(quote)
+    await db.commit()

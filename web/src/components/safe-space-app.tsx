@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight,
+  Bug,
   BookmarkSimple,
   CaretLeft,
   CaretRight,
@@ -37,7 +38,8 @@ import {
   X,
 } from '@phosphor-icons/react'
 
-import { API_URL, api } from '../lib/api'
+import { api, assetUrl } from '../lib/api'
+import type { CheckIn } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -49,6 +51,7 @@ type Screen =
   | 'login'
   | 'registration'
   | 'profile'
+  | 'admin'
 
 type Icon = ComponentType<{ size?: number; weight?: 'regular' | 'fill' | 'duotone'; color?: string }>
 
@@ -122,17 +125,31 @@ function PageHeader({ screen }: { screen: Screen }) {
             <span>{label}</span>
           </Link>
         ))}
+        {displayName && <div className="app-nav__mobile-account">
+          <Link onClick={() => setMobileNavOpen(false)} className={screen === 'profile' ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to="/profile">
+            <UserCircle size={22} weight={screen === 'profile' ? 'fill' : 'regular'} aria-hidden="true" />
+            <span>Profile &amp; settings</span>
+          </Link>
+          {currentUser.data?.role === 'admin' && <Link onClick={() => setMobileNavOpen(false)} className={screen === 'admin' ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to="/admin">
+            <ShieldCheck size={22} weight={screen === 'admin' ? 'fill' : 'regular'} aria-hidden="true" />
+            <span>Admin portal</span>
+          </Link>}
+          <button className="app-nav__link app-nav__link--button" type="button" onClick={() => { setMobileNavOpen(false); logout.mutate() }} disabled={logout.isPending}>
+            <X size={22} aria-hidden="true" />
+            <span>{logout.isPending ? 'Signing out…' : 'Log out'}</span>
+          </button>
+        </div>}
       </nav>
       <button className="mobile-nav-toggle" type="button" aria-label={mobileNavOpen ? 'Close navigation menu' : 'Open navigation menu'} aria-expanded={mobileNavOpen} aria-controls="main-navigation" onClick={() => setMobileNavOpen((open) => !open)}>
         {mobileNavOpen ? <X size={22} aria-hidden="true" /> : <List size={22} aria-hidden="true" />}
       </button>
       {displayName ? <div className="profile-menu-wrap" ref={profileMenuRef}>
         <button className="profile-menu" type="button" aria-label={`Open ${displayName} profile menu`} aria-expanded={menuOpen} aria-haspopup="menu" onClick={() => setMenuOpen((open) => !open)}>
-          <span className="avatar avatar--gold">{currentUser.data?.avatar_url ? <img src={`${API_URL}${currentUser.data.avatar_url}`} alt="" /> : displayName[0].toUpperCase()}</span>
+          <span className="avatar avatar--gold">{currentUser.data?.avatar_url ? <img src={assetUrl(currentUser.data.avatar_url)} alt="" /> : displayName[0].toUpperCase()}</span>
           <span className="profile-menu__name">{displayName}</span>
           <CaretDown size={16} aria-hidden="true" />
         </button>
-        {menuOpen && <div className="profile-dropdown" role="menu"><Link to="/profile" role="menuitem" onClick={() => setMenuOpen(false)}>Profile & settings</Link><button type="button" role="menuitem" onClick={() => logout.mutate()} disabled={logout.isPending}>{logout.isPending ? 'Signing out…' : 'Log out'}</button></div>}
+        {menuOpen && <div className="profile-dropdown" role="menu"><Link to="/profile" role="menuitem" onClick={() => setMenuOpen(false)}>Profile & settings</Link>{currentUser.data?.role === 'admin' && <Link to="/admin" role="menuitem" onClick={() => setMenuOpen(false)}>Admin portal</Link>}<button type="button" role="menuitem" onClick={() => logout.mutate()} disabled={logout.isPending}>{logout.isPending ? 'Signing out…' : 'Log out'}</button></div>}
       </div> : <div className="auth-actions" aria-label="Account actions"><Link className="auth-actions__login" to="/login">Log in</Link><Link className="button button--primary button--small" to="/registration">Sign up</Link></div>}
     </header>
   )
@@ -164,6 +181,18 @@ function SectionHeading({ eyebrow, title, description }: { eyebrow?: string; tit
   )
 }
 
+function ApiLoader({ label = 'Making a little space…' }: { label?: string }) {
+  return <div className="api-loader" role="status" aria-live="polite"><span className="api-loader__spark" aria-hidden="true">✦</span><span>{label}</span></div>
+}
+
+function ContentSkeleton({ rows = 3 }: { rows?: number }) {
+  return <div className="content-skeleton" aria-label="Loading content">{Array.from({ length: rows }, (_, index) => <div className="content-skeleton__row" key={index}><span className="content-skeleton__avatar" /><span className="content-skeleton__copy"><i /><i /><i /></span></div>)}</div>
+}
+
+function EmptyState({ title, message }: { title: string; message: string }) {
+  return <div className="empty-state" role="status"><Sparkle size={28} weight="fill" aria-hidden="true" /><div><strong>{title}</strong><p>{message}</p></div></div>
+}
+
 function StatCard({ icon: StatIcon, label, value, detail, tone = 'sage', progress }: { icon: Icon; label: string; value: string; detail: string; tone?: string; progress?: number }) {
   return (
     <article className={`stat-card stat-card--${tone}`}>
@@ -176,17 +205,19 @@ function StatCard({ icon: StatIcon, label, value, detail, tone = 'sage', progres
 
 function PaginationControls({ page, itemCount, pageSize, onPageChange, label = 'Results' }: { page: number; itemCount: number; pageSize: number; onPageChange: (page: number) => void; label?: string }) {
   const hasNext = itemCount === pageSize
+  if (page === 1 && !hasNext) return null
   return <nav className="pagination-controls" aria-label={`${label} pagination`}><button className="button button--secondary button--small" type="button" disabled={page === 1} onClick={() => onPageChange(page - 1)}>Previous</button><span aria-live="polite">Page {page}</span><button className="button button--secondary button--small" type="button" disabled={!hasNext} onClick={() => onPageChange(page + 1)}>Next</button></nav>
 }
 
 function Avatar({ initials, color = 'sage', imageUrl }: { initials: string; color?: string; imageUrl?: string | null }) {
-  return <span className={`avatar avatar--${color}`}>{imageUrl ? <img src={`${API_URL}${imageUrl}`} alt="" /> : initials}</span>
+  return <span className={`avatar avatar--${color}`}>{imageUrl ? <img src={assetUrl(imageUrl)} alt="" /> : initials}</span>
 }
 
 function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
   const [showPassword, setShowPassword] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [formError, setFormError] = useState('')
+  const [resetMessage, setResetMessage] = useState('')
   const [passwordValue, setPasswordValue] = useState('')
   const [confirmPasswordValue, setConfirmPasswordValue] = useState('')
   const isLogin = mode === 'login'
@@ -203,7 +234,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
     const password = String(data.get('password') ?? '')
     const confirmPassword = String(data.get('confirm-password') ?? '')
     if (!isLogin && name.length < 2) return setFormError('Please enter your full name.')
-    if (password.length < 10) return setFormError('Your password must be at least 10 characters.')
+    if (!isLogin && password.length < 10) return setFormError('Your password must be at least 10 characters.')
     if (!isLogin && password !== confirmPassword) return setFormError('Passwords do not match.')
     setFormError('')
     mutation.mutate({ name, email, password, confirm_password: confirmPassword })
@@ -220,14 +251,15 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
         <span className="auth-panel__leaf" aria-hidden="true">❧</span>
         <h2 id="auth-title">{isLogin ? 'Welcome back' : 'Create your safe space'}</h2>
         <p className="auth-panel__intro">{isLogin ? 'It’s good to have you here.' : 'Join a community that cares. You are not alone.'}</p>
-        {submitted && <div className="form-success" role="status"><CheckCircle size={20} weight="fill" /> {isLogin ? 'Welcome back, Jasmine.' : 'Your account is ready to begin.'}</div>}
+        {submitted && <div className="form-success" role="status"><CheckCircle size={20} weight="fill" /> {isLogin ? 'Welcome back.' : 'Your account is ready to begin.'}</div>}
         {(formError || mutation.isError) && <div className="form-error" role="alert">{formError || mutation.error?.message || 'We could not complete that request.'}</div>}
         <form onSubmit={onSubmit} noValidate>
           {!isLogin && <label>Full name<input name="name" type="text" placeholder="Your full name" required /></label>}
           <label>Email {isLogin && <span className="sr-only">address</span>}<span className="input-wrap"><EnvelopeSimple size={20} aria-hidden="true" /><input name="email" type="email" placeholder="you@example.com" required /></span></label>
-          <label>Password<span className="input-wrap"><LockKey size={20} aria-hidden="true" /><input name="password" type={showPassword ? 'text' : 'password'} placeholder={isLogin ? '••••••••••' : 'Create a strong password'} minLength={10} required value={passwordValue} onChange={(event) => setPasswordValue(event.target.value)} /><button className="input-action" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>{!isLogin && <small className="field-help">Use at least 10 characters.</small>}</label>
+          <label>Password<span className="input-wrap"><LockKey size={20} aria-hidden="true" /><input name="password" type={showPassword ? 'text' : 'password'} placeholder={isLogin ? '••••••••••' : 'Create a strong password'} minLength={!isLogin ? 10 : undefined} required value={passwordValue} onChange={(event) => setPasswordValue(event.target.value)} /><button className="input-action" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>{!isLogin && <small className="field-help">Use at least 10 characters.</small>}</label>
           {!isLogin && <label>Confirm password<span className="input-wrap"><LockKey size={20} aria-hidden="true" /><input name="confirm-password" type="password" placeholder="Confirm your password" minLength={10} required value={confirmPasswordValue} onChange={(event) => setConfirmPasswordValue(event.target.value)} aria-invalid={confirmPasswordValue.length > 0 && passwordValue !== confirmPasswordValue} />{confirmPasswordValue.length > 0 && passwordValue === confirmPasswordValue && passwordValue.length >= 10 && <Check size={20} className="input-valid" aria-label="Passwords match" />}</span></label>}
-          {isLogin ? <div className="form-row"><label className="checkbox-label"><input type="checkbox" defaultChecked /> <span>Remember me</span></label><button className="text-link" type="button">Forgot password?</button></div> : <label className="checkbox-label"><input type="checkbox" required /> <span>I agree to the Safe Space Saturdays Privacy Policy and Terms of Service.</span></label>}
+          {isLogin ? <div className="form-row"><label className="checkbox-label"><input type="checkbox" defaultChecked /> <span>Remember me</span></label><button className="text-link" type="button" onClick={() => setResetMessage('Password reset is not enabled in this pre-launch build. Please contact the project administrator.')}>Forgot password?</button></div> : <label className="checkbox-label"><input type="checkbox" required /> <span>I agree to the Safe Space Saturdays Privacy Policy and Terms of Service.</span></label>}
+          {resetMessage && <p className="form-help" role="status">{resetMessage}</p>}
           <button className="button button--primary button--wide" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Please wait…' : isLogin ? 'Log in' : 'Create account'}</button>
         </form>
         <p className="auth-switch">{isLogin ? 'New here?' : 'Already have an account?'} <Link to={isLogin ? '/registration' : '/login'}>{isLogin ? 'Create an account' : 'Log in'}</Link></p>
@@ -243,6 +275,7 @@ function HomeScreen() {
     <PageHeader screen="home" />
     <main className="page-content home-page">
       <WelcomeCarousel />
+      {dashboard.isLoading && <ApiLoader label="Gathering your safe-space details…" />}
       <section className="stats-grid">
         <StatCard icon={Flame} label="Login Streak" value={data ? String(data.user.streak) : '—'} detail="days" />
         <StatCard icon={Star} label="Total XP" value={data ? data.user.xp.toLocaleString() : '—'} detail="XP" tone="peach" progress={data?.level_progress} />
@@ -250,10 +283,10 @@ function HomeScreen() {
       </section>
       <section className="dashboard-grid">
         <article className="quote-card"><div className="card-title"><Quotes size={22} weight="fill" /> <span>Daily Quote</span></div><blockquote>“{data?.featured_quote?.text ?? 'Take a moment for yourself today.'}”</blockquote><cite>— {data?.featured_quote?.author ?? 'Safe Space Saturdays'}</cite></article>
-        <article className="check-card"><div className="card-title"><Smiley size={22} weight="fill" /> <span>How are you feeling today?</span></div><p>Your check-in helps us support you better.</p><div className="mood-row">{moods.map((mood) => <button key={mood.label} type="button"><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div><Link className="button button--primary" to="/check-in">Check In</Link></article>
+        <article className="check-card"><div className="card-title"><Smiley size={22} weight="fill" /> <span>How are you feeling today?</span></div><p>Your check-in helps us support you better.</p><div className="mood-row">{moods.map((mood) => <Link className="mood-option" key={mood.label} to="/check-in"><span>{mood.icon}</span><small>{mood.label}</small></Link>)}</div><Link className="button button--primary" to="/check-in">Check In</Link></article>
         <article className="community-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Community Corner</span></div><h3>You are not alone.</h3><p>Join a space that listens, encourages, and grows together.</p><Link className="button button--lilac" to="/community">Explore Community <ArrowRight size={16} /></Link></article>
       </section>
-      <GameStrip />
+      <ComingSoonBanner />
     </main>
     <PageFooter />
   </>
@@ -321,18 +354,36 @@ function CheckInScreen() {
   const [stress, setStress] = useState(3)
   const [thoughts, setThoughts] = useState('')
   const [gratitude, setGratitude] = useState('')
-  const [complete, setComplete] = useState(false)
-  const mutation = useMutation({ mutationFn: api.createCheckIn, onSuccess: () => setComplete(true) })
+  const [completedCheckIn, setCompletedCheckIn] = useState<CheckIn | null>(null)
+  const [draftSaved, setDraftSaved] = useState(false)
+  const queryClient = useQueryClient()
+  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const dashboard = useQuery({ queryKey: ['dashboard'], queryFn: api.dashboard, retry: false })
+  const [now, setNow] = useState(() => Date.now())
+  const latestCheckIn = completedCheckIn ?? dashboard.data?.latest_check_in ?? null
+  const nextCheckInAt = latestCheckIn?.completed ? new Date(latestCheckIn.created_at).getTime() + 12 * 60 * 60 * 1000 : 0
+  const remainingCooldown = Math.max(0, nextCheckInAt - now)
+  const cooldownActive = Boolean(latestCheckIn?.completed && remainingCooldown > 0)
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const mutation = useMutation({ mutationFn: api.createCheckIn, onSuccess: (checkIn) => { setCompletedCheckIn(checkIn); queryClient.invalidateQueries({ queryKey: ['me'] }); queryClient.invalidateQueries({ queryKey: ['dashboard'] }) } })
   const submit = () => {
     if (!selectedMood) return
     mutation.mutate({ mood: selectedMood, needs, energy, stress, thoughts: thoughts || null, gratitude: gratitude || null, completed: true })
   }
+  const saveDraft = () => {
+    window.localStorage.setItem('safe-space-checkin-draft', JSON.stringify({ selectedMood, needs, energy, stress, thoughts, gratitude }))
+    setDraftSaved(true)
+  }
+  if (cooldownActive && latestCheckIn) return <><PageHeader screen="check-in" /><main className="page-content checkin-complete-page"><section className="checkin-complete-card checkin-cooldown-card" aria-labelledby="checkin-complete-title"><div className="checkin-cooldown-card__visual"><img src="/assets/community-circle.png" alt="Friends reflecting together in a supportive circle" /><span className="checkin-complete-card__icon"><CheckCircle size={34} weight="fill" /></span></div><span className="eyebrow">A moment kept for you</span><h1 id="checkin-complete-title">Your check-in is complete.</h1><p className="checkin-complete-card__intro">You made space to notice what is happening inside you. Take this time to let your reflection settle.</p><div className="checkin-cooldown" role="timer" aria-live="polite"><small>Your next check-in opens in</small><strong>{formatCooldown(remainingCooldown)}</strong><span>Come back when you are ready to check in again.</span></div><CheckInReflection checkIn={latestCheckIn} /><div className="checkin-complete-actions"><Link className="button button--primary" to="/profile">Review your reflections</Link><Link className="button button--secondary" to="/">Return home</Link></div></section></main><PageFooter /></>
   return <><PageHeader screen="check-in" /><main className="page-content checkin-page"><div className="checkin-main"><SectionHeading title="Daily Check-In" description="Take a moment to check in with yourself. Your responses help us support you better." />
     <section className="form-card"><h2><Smiley size={24} weight="fill" /> 1. How are you feeling today?</h2><div className="mood-row mood-row--large">{moods.map((mood) => <button className={selectedMood === mood.label ? 'mood-option mood-option--selected' : 'mood-option'} key={mood.label} type="button" onClick={() => setSelectedMood(mood.label)}><span>{mood.icon}</span><small>{mood.label}</small></button>)}</div></section>
     <div className="two-column"><section className="form-card"><h2><Leaf size={24} weight="fill" /> 2. What do you need today?</h2><div className="choice-list">{['Rest', 'Encouragement', 'Space', 'Someone to Talk To', 'Motivation', 'Fun', 'Prayer / Positive Words'].map((choice) => <button type="button" key={choice} className={needs.includes(choice) ? 'choice-chip choice-chip--selected' : 'choice-chip'} onClick={() => setNeeds((current) => current.includes(choice) ? current.filter((item) => item !== choice) : [...current, choice])}><span aria-hidden="true">{choice === 'Rest' ? '🛏️' : choice === 'Encouragement' ? '🧡' : choice === 'Space' ? '☁️' : choice === 'Motivation' ? '⭐' : '🌿'}</span>{choice}</button>)}</div></section><section className="form-card"><h2><Sparkle size={24} weight="fill" /> 3. Energy & Stress Check</h2><RangeRow label="Energy Level" left="Low" right="High" value={energy} onChange={setEnergy} /><RangeRow label="Stress Level" left="Calm" right="Overwhelmed" value={stress} onChange={setStress} accent /></section></div>
     <div className="two-column"><section className="form-card"><h2><PencilSimple size={24} /> 4. What’s on your mind?</h2><label className="field-label" htmlFor="checkin-thoughts">Your thoughts<textarea id="checkin-thoughts" placeholder="Write a few thoughts about your day..." value={thoughts} onChange={(event) => setThoughts(event.target.value)} /></label></section><section className="form-card"><h2><Heart size={24} weight="fill" /> 5. What are you grateful for today?</h2><label className="field-label" htmlFor="checkin-gratitude">A small gratitude<textarea id="checkin-gratitude" placeholder="Write about something you are grateful for..." value={gratitude} onChange={(event) => setGratitude(event.target.value)} /></label></section></div>
-    <div className="privacy-note"><ShieldCheck size={24} weight="fill" /><span><strong>Your privacy matters.</strong><small>Your check-in is private and only you can see your responses.</small></span></div>{mutation.isError && <div className="form-error" role="alert">{mutation.error.message}</div>}<div className="checkin-actions"><button className="button button--primary button--wide" type="button" onClick={submit} disabled={mutation.isPending || !selectedMood}><CheckSquare size={22} /> {complete ? 'Check-In Complete' : mutation.isPending ? 'Saving…' : 'Complete Check-In'}</button><button className="button button--secondary button--wide" type="button"><BookmarkSimple size={22} /> Save for Later</button></div>
-  </div><aside className="checkin-sidebar"><StatCard icon={Flame} label="Current Streak" value="12" detail="days" /><article className="quote-card"><div className="card-title"><Quotes size={22} weight="fill" /> <span>Quote of the Day</span></div><blockquote>“You don’t have to have it all figured out to move forward.”</blockquote><cite>— Unknown</cite></article><article className="support-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Need Extra Support?</span></div><p>You are not alone. Reach out to a trusted club leader or join the <em>Wellness Circle.</em></p><Link className="button button--lilac" to="/community">Join Wellness Circle</Link></article></aside></main><PageFooter /></>
+    <div className="privacy-note"><ShieldCheck size={24} weight="fill" /><span><strong>Your privacy matters.</strong><small>Your check-in is private and only you can see your responses.</small></span></div>{mutation.isError && <div className="form-error" role="alert">{mutation.error.message}</div>}{draftSaved && <div className="form-success" role="status">Your check-in draft is saved on this device.</div>}<div className="checkin-actions"><button className="button button--primary button--wide" type="button" onClick={submit} disabled={mutation.isPending || !selectedMood}><CheckSquare size={22} /> {mutation.isPending ? 'Saving…' : 'Complete Check-In'}</button><button className="button button--secondary button--wide" type="button" onClick={saveDraft}><BookmarkSimple size={22} /> {draftSaved ? 'Saved for Later' : 'Save for Later'}</button></div>
+  </div><aside className="checkin-sidebar"><StatCard icon={Flame} label="Current Streak" value={currentUser.data ? String(currentUser.data.streak) : '—'} detail="days" /><article className="quote-card"><div className="card-title"><Quotes size={22} weight="fill" /> <span>Quote of the Day</span></div><blockquote>“You don’t have to have it all figured out to move forward.”</blockquote><cite>— Unknown</cite></article><article className="support-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Need Extra Support?</span></div><p>You are not alone. Reach out to a trusted club leader or join the <em>Wellness Circle.</em></p><Link className="button button--lilac" to="/community">Join Wellness Circle</Link></article></aside></main><PageFooter /></>
 }
 
 function RangeRow({ label, left, right, accent = false, value, onChange }: { label: string; left: string; right: string; accent?: boolean; value?: number; onChange?: (value: number) => void }) {
@@ -340,20 +391,36 @@ function RangeRow({ label, left, right, accent = false, value, onChange }: { lab
   return <div className={`range-row ${accent ? 'range-row--accent' : ''}`}><div className="range-row__heading"><label htmlFor={inputId}>{label}</label><output htmlFor={inputId}>{value ?? 3} / 5</output></div><input id={inputId} aria-label={label} type="range" min="1" max="5" value={value ?? 3} onInput={(event) => onChange?.(Number(event.currentTarget.value))} onChange={(event) => onChange?.(Number(event.currentTarget.value))} /><div className="range-labels"><span>{left}</span><span>{right}</span></div></div>
 }
 
+function CheckInReflection({ checkIn }: { checkIn: CheckIn }) {
+  const date = new Date(checkIn.created_at)
+  const moodMessage: Record<string, string> = {
+    Great: 'You had some brightness to hold onto.',
+    Good: 'There was some steadiness available to you.',
+    Okay: 'You gave yourself permission to be honest.',
+    'Not Great': 'You noticed a harder moment instead of hiding it.',
+    Struggling: 'You reached for support while things felt heavy.',
+  }
+  return <article className="checkin-reflection"><div className="checkin-reflection__header"><div><span className="eyebrow">{date.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span><h3>{checkIn.mood}</h3><p>{moodMessage[checkIn.mood] ?? 'You made time to check in with yourself.'}</p></div><span className="checkin-reflection__badge"><CheckCircle size={18} weight="fill" /> Complete</span></div><div className="checkin-reflection__metrics"><span><small>Energy</small><strong>{checkIn.energy} / 5</strong></span><span><small>Stress</small><strong>{checkIn.stress} / 5</strong></span><span><small>Needed</small><strong>{checkIn.needs.length || '—'}</strong></span></div><div className="checkin-reflection__body"><div><small>What you needed</small><p>{checkIn.needs.length ? checkIn.needs.join(' · ') : 'You did not name a specific need.'}</p></div><div><small>Your reflection</small><p>{checkIn.thoughts || 'You kept this reflection private.'}</p></div><div><small>Gratitude</small><p>{checkIn.gratitude || 'Nothing added this time.'}</p></div></div></article>
+}
+
 function QuotesScreen() {
   const [category, setCategory] = useState('All')
   const [page, setPage] = useState(1)
+  const [quoteDraft, setQuoteDraft] = useState('')
+  const [shareStatus, setShareStatus] = useState('')
   const queryClient = useQueryClient()
   const quotes = useQuery({ queryKey: ['quotes', category, page], queryFn: () => api.quotes(category, page, 4) })
   const save = useMutation({ mutationFn: api.saveQuote, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quotes'] }) })
+  const share = useMutation({ mutationFn: (text: string) => api.createPost(text), onSuccess: () => { setQuoteDraft(''); setShareStatus('Shared with the community.'); queryClient.invalidateQueries({ queryKey: ['posts'] }) } })
   const featured = quotes.data?.find((quote) => quote.is_featured) ?? quotes.data?.[0]
-  return <><PageHeader screen="quotes" /><main className="page-content quotes-page"><SectionHeading title="A little something for today" description="Words can uplift, comfort, and remind us we’re not alone. Take what you need, and come back anytime." /><article className="featured-quote"><span className="quote-mark"><Quotes size={28} weight="fill" /></span><blockquote>“{featured?.text ?? 'Take a moment for yourself today.'}”</blockquote><cite>— {featured?.author ?? 'Safe Space Saturdays'}</cite><div className="carousel-dots"><i /><i /><i /></div></article><div className="quote-grid">{(quotes.data ?? []).filter((quote) => quote.id !== featured?.id).slice(0, 3).map((quote, index) => <article className={`small-quote small-quote--${index}`} key={quote.id}><Quotes size={20} weight="fill" /><p>{quote.text}</p><cite>— {quote.author}</cite></article>)}</div><div className="quote-actions"><button className="button button--primary" type="button" disabled={!featured} onClick={() => featured && save.mutate(featured.id)}><BookmarkSimple size={20} /> {featured?.saved ? 'Saved' : 'Save this quote'}</button><button className="button button--secondary" type="button"><UsersThree size={20} /> Share with community</button></div><div className="filter-row">{['All', 'Encouragement', 'Rest', 'Growth', 'Connection'].map((filter, index) => <button className={category === filter ? 'filter-chip filter-chip--active' : 'filter-chip'} type="button" onClick={() => { setCategory(filter); setPage(1) }} key={filter}>{index === 0 ? <Leaf size={18} /> : index === 1 ? <Sparkle size={18} /> : index === 2 ? <span>☾</span> : <Leaf size={18} />}{filter}</button>)}</div><PaginationControls page={page} itemCount={quotes.data?.length ?? 0} pageSize={4} onPageChange={setPage} label="Quotes" /></main><PageFooter /></>
+  return <><PageHeader screen="quotes" /><main className="page-content quotes-page">{quotes.isLoading && <ContentSkeleton rows={3} />}<SectionHeading title="A little something for today" description="Words can uplift, comfort, and remind us we’re not alone. Take what you need, and come back anytime." /><article className="featured-quote"><span className="quote-mark"><Quotes size={28} weight="fill" /></span><blockquote>“{featured?.text ?? 'Take a moment for yourself today.'}”</blockquote><cite>— {featured?.author ?? 'Safe Space Saturdays'}</cite><div className="carousel-dots"><i /><i /><i /></div></article><div className="quote-grid">{(quotes.data ?? []).filter((quote) => quote.id !== featured?.id).slice(0, 3).map((quote, index) => <article className={`small-quote small-quote--${index}`} key={quote.id}><Quotes size={20} weight="fill" /><p>{quote.text}</p><cite>— {quote.author}</cite></article>)}</div><div className="quote-actions"><button className="button button--primary" type="button" disabled={!featured} onClick={() => featured && save.mutate(featured.id)}><BookmarkSimple size={20} /> {featured?.saved ? 'Saved' : 'Save this quote'}</button><button className="button button--secondary" type="button" disabled={!featured || share.isPending} onClick={() => featured && share.mutate(`“${featured.text}” — ${featured.author}`)}><UsersThree size={20} /> {share.isPending ? 'Sharing…' : 'Share with community'}</button></div><section className="quote-share-card" aria-labelledby="write-quote-title"><div className="card-title"><PencilSimple size={22} /><span id="write-quote-title">Write your own</span></div><p>Share a few words that might give someone else a little hope today.</p><form onSubmit={(event) => { event.preventDefault(); const text = quoteDraft.trim(); if (text) share.mutate(text) }}><textarea value={quoteDraft} onChange={(event) => { setQuoteDraft(event.target.value); setShareStatus('') }} placeholder="Write an encouraging thought or personal quote…" maxLength={1000} aria-label="Write your own quote" /><div className="quote-share-card__footer"><small>{quoteDraft.length}/1000</small><button className="button button--primary button--small" type="submit" disabled={!quoteDraft.trim() || share.isPending}>{share.isPending ? 'Sharing…' : 'Share quote'}</button></div></form>{shareStatus && <p className="form-success" role="status">{shareStatus}</p>}{share.isError && <p className="form-error" role="alert">{share.error.message}</p>}</section><div className="filter-row">{['All', 'Encouragement', 'Rest', 'Growth', 'Connection'].map((filter, index) => <button className={category === filter ? 'filter-chip filter-chip--active' : 'filter-chip'} type="button" onClick={() => { setCategory(filter); setPage(1) }} key={filter}>{index === 0 ? <Leaf size={18} /> : index === 1 ? <Sparkle size={18} /> : index === 2 ? <span>☾</span> : <Leaf size={18} />}{filter}</button>)}</div><PaginationControls page={page} itemCount={quotes.data?.length ?? 0} pageSize={4} onPageChange={setPage} label="Quotes" /></main><PageFooter /></>
 }
 
 function CommunityScreen() {
   const [draft, setDraft] = useState('')
   const [page, setPage] = useState(1)
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
+  const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({})
   const [openReplyPostId, setOpenReplyPostId] = useState<number | null>(null)
   const [imageFile, setImageFile] = useState<File | undefined>()
   const [imageError, setImageError] = useState('')
@@ -366,8 +433,8 @@ function CommunityScreen() {
   const chooseImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5_000_000) {
-      setImageError('Choose a JPEG, PNG, or WebP image smaller than 5 MB.')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10_000_000) {
+      setImageError('Choose a JPEG, PNG, or WebP image smaller than 10 MB.')
       setImageFile(undefined)
       event.currentTarget.value = ''
       return
@@ -375,7 +442,7 @@ function CommunityScreen() {
     setImageError('')
     setImageFile(file)
   }
-  return <><PageHeader screen="community" /><main className="page-content community-page"><section className="community-hero"><img src="/assets/community-circle.png" alt="A group of friends supporting each other" /><SectionHeading title="Community" description="A place to talk, listen, and feel less alone." /></section><div className="community-promos"><PromoCard title="Wellness Circle" body="Open talks and guided conversations in a judgement-free space." cta="Join Circle" tone="sage" icon="🌿" /><PromoCard title="Game Night" body="Play fun games, connect, and unwind with friends." cta="See Upcoming" tone="peach" icon="🎮" /><PromoCard title="Small Wins" body="Celebrate progress, share wins, and uplift each other." cta="Share a Win" tone="lilac" icon="🪴" /></div><div className="community-layout"><section className="conversation-card"><div className="section-row"><div className="card-title"><ChatCircleDots size={24} weight="fill" /><span>Community Conversations</span><small>Share, support, and grow together.</small></div><button className="button button--primary" type="button" onClick={() => document.getElementById('post-composer')?.focus()}><PencilSimple size={18} /> Start a Post</button></div><div className="post-composer"><label className="sr-only" htmlFor="post-composer">Share something with the community</label><textarea id="post-composer" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a small win or a kind thought…" /><div className="post-composer__controls"><label className="button button--secondary button--small post-image-picker"><span>Attach image</span><input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} /></label>{imageFile && <small>{imageFile.name}</small>}{imageError && <p className="form-error" role="alert">{imageError}</p>}<button className="button button--small button--primary" type="button" disabled={!draft.trim() || create.isPending || Boolean(imageError)} onClick={() => create.mutate()}>{create.isPending ? 'Posting…' : 'Post'}</button></div></div>{(postsQuery.data ?? []).map((post) => <article className="post-row" key={post.id}><Avatar initials={post.initials} color="sage" /><div className="post-row__body"><div className="post-row__meta"><strong>{post.author}</strong><span>• {new Date(post.created_at).toLocaleString()}</span></div><p>{post.text}</p>{post.image_url && <img className="post-row__image" src={`${API_URL}${post.image_url}`} alt={`Image shared by ${post.author}`} />}<div className="post-row__actions"><button className={post.my_reaction === 'like' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Like ${post.author}'s post`} aria-pressed={post.my_reaction === 'like'} onClick={() => react.mutate({ id: post.id, kind: 'like' })}><ThumbsUp size={17} weight="fill" /> <span>Like</span> {post.likes}</button><button className={post.my_reaction === 'dislike' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Dislike ${post.author}'s post`} aria-pressed={post.my_reaction === 'dislike'} onClick={() => react.mutate({ id: post.id, kind: 'dislike' })}><ThumbsDown size={17} weight="fill" /> <span>Dislike</span> {post.dislikes}</button><button className="reaction-button" type="button" aria-expanded={openReplyPostId === post.id} onClick={() => setOpenReplyPostId((current) => current === post.id ? null : post.id)}><ChatCircleDots size={17} /> <span>Reply</span></button></div>{post.comments.length > 0 && <div className="post-replies" aria-label={`Replies to ${post.author}'s post`}>{post.comments.map((comment) => <div className="post-reply" key={comment.id}><Avatar initials={comment.initials} color="lilac" /><div><strong>{comment.author}</strong><p>{comment.text}</p></div></div>)}</div>}{openReplyPostId === post.id && <form className="reply-form" onSubmit={(event) => { event.preventDefault(); const text = (replyDrafts[post.id] ?? '').trim(); if (text) reply.mutate({ id: post.id, text }) }}><label className="sr-only" htmlFor={`reply-${post.id}`}>Reply to {post.author}'s post</label><input id={`reply-${post.id}`} autoFocus value={replyDrafts[post.id] ?? ''} onChange={(event) => setReplyDrafts((drafts) => ({ ...drafts, [post.id]: event.target.value }))} placeholder="Write a thoughtful reply…" maxLength={1000} /><button className="button button--secondary button--small" type="submit" disabled={!(replyDrafts[post.id] ?? '').trim() || reply.isPending}>Reply</button></form>}</div><button className="more-button" aria-label={`More actions for ${post.author}`} type="button">•••</button></article>)}<PaginationControls page={page} itemCount={postsQuery.data?.length ?? 0} pageSize={10} onPageChange={setPage} label="Community posts" /></section><aside className="guidelines-card"><div className="card-title"><Leaf size={24} weight="fill" /><span>Community guidelines</span></div><p>We care for each other.</p>{[['🧡', 'Be Kind', 'Choose compassion and respect in every interaction.'], ['🔒', 'Respect Privacy', 'What’s shared here stays here. Protect each other’s stories.'], ['🌱', 'Encourage & Uplift', 'Cheer each other on and celebrate every step forward.']].map(([icon, title, text]) => <div className="guideline" key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</aside></div></main><PageFooter /></>
+  return <><PageHeader screen="community" /><main className="page-content community-page"><section className="community-hero"><img src="/assets/community-circle.png" alt="A group of friends supporting each other" /><SectionHeading title="Community" description="A place to talk, listen, and feel less alone." /></section><div className="community-promos"><PromoCard title="Wellness Circle" body="Open talks and guided conversations in a judgement-free space." cta="Join Circle" to="/community" tone="sage" icon="🌿" /><PromoCard title="Game Night" body="Play fun games, connect, and unwind with friends." cta="See Upcoming" to="/games" tone="peach" icon="🎮" /><PromoCard title="Small Wins" body="Celebrate progress, share wins, and uplift each other." cta="Share a Win" to="/community" tone="lilac" icon="🪴" /></div><div className="community-layout"><section className="conversation-card"><div className="section-row"><div className="card-title"><ChatCircleDots size={24} weight="fill" /><span>Community Conversations</span><small>Share, support, and grow together.</small></div><button className="button button--primary" type="button" onClick={() => document.getElementById('post-composer')?.focus()}><PencilSimple size={18} /> Start a Post</button></div><div className="post-composer"><label className="sr-only" htmlFor="post-composer">Share something with the community</label><textarea id="post-composer" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Share a small win or a kind thought…" /><div className="post-composer__controls"><label className="button button--secondary button--small post-image-picker"><span>Attach image</span><input ref={imageInput} type="file" accept="image/jpeg,image/png,image/webp" onChange={chooseImage} /></label>{imageFile && <small>{imageFile.name}</small>}{imageError && <p className="form-error" role="alert">{imageError}</p>}<button className="button button--small button--primary" type="button" disabled={!draft.trim() || create.isPending || Boolean(imageError)} onClick={() => create.mutate()}>{create.isPending ? 'Posting…' : 'Post'}</button></div></div>{postsQuery.isLoading && <ContentSkeleton rows={4} />}{(postsQuery.data?.length ?? 0) === 0 && !postsQuery.isLoading ? <EmptyState title="No conversations yet" message="Be the first to share a kind thought with the community." /> : (postsQuery.data ?? []).map((post) => <article className="post-row" key={post.id}><Avatar initials={post.initials} color="sage" imageUrl={post.avatar_url} /><div className="post-row__body"><div className="post-row__meta"><strong>{post.author}</strong><span>• {new Date(post.created_at).toLocaleString()}</span></div><p>{post.text}</p>{post.image_url && <img className="post-row__image" src={assetUrl(post.image_url)} alt={`Image shared by ${post.author}`} />}<div className="post-row__actions"><button className={post.my_reaction === 'like' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Like ${post.author}'s post`} aria-pressed={post.my_reaction === 'like'} onClick={() => react.mutate({ id: post.id, kind: 'like' })}><ThumbsUp size={17} weight="fill" /> <span>Like</span> {post.likes}</button><button className={post.my_reaction === 'dislike' ? 'reaction-button reaction-button--active' : 'reaction-button'} type="button" aria-label={`Dislike ${post.author}'s post`} aria-pressed={post.my_reaction === 'dislike'} onClick={() => react.mutate({ id: post.id, kind: 'dislike' })}><ThumbsDown size={17} weight="fill" /> <span>Dislike</span> {post.dislikes}</button><button className="reaction-button" type="button" aria-expanded={openReplyPostId === post.id} onClick={() => setOpenReplyPostId((current) => current === post.id ? null : post.id)}><ChatCircleDots size={17} /> <span>Reply</span></button></div>{post.comments.length > 0 && <div className="post-replies" aria-label={`Replies to ${post.author}'s post`}>{post.comments.slice(0, expandedReplies[post.id] ? undefined : 2).map((comment) => <div className="post-reply" key={comment.id}><Avatar initials={comment.initials} color="lilac" imageUrl={comment.avatar_url} /><div><strong>{comment.author}</strong><p>{comment.text}</p></div></div>)}{post.comments.length > 2 && <button className="view-replies-button" type="button" aria-expanded={Boolean(expandedReplies[post.id])} onClick={() => setExpandedReplies((current) => ({ ...current, [post.id]: !current[post.id] }))}>{expandedReplies[post.id] ? 'Show fewer replies' : `View ${post.comments.length - 2} more repl${post.comments.length - 2 === 1 ? 'y' : 'ies'}`}</button>}</div>}{openReplyPostId === post.id && <form className="reply-form" onSubmit={(event) => { event.preventDefault(); const text = (replyDrafts[post.id] ?? '').trim(); if (text) reply.mutate({ id: post.id, text }) }}><label className="sr-only" htmlFor={`reply-${post.id}`}>Reply to {post.author}'s post</label><input id={`reply-${post.id}`} autoFocus value={replyDrafts[post.id] ?? ''} onChange={(event) => setReplyDrafts((drafts) => ({ ...drafts, [post.id]: event.target.value }))} placeholder="Write a thoughtful reply…" maxLength={1000} /><button className="button button--secondary button--small" type="submit" disabled={!(replyDrafts[post.id] ?? '').trim() || reply.isPending}>Reply</button></form>}</div><button className="more-button" aria-label={`More actions for ${post.author}`} type="button">•••</button></article>)}<PaginationControls page={page} itemCount={postsQuery.data?.length ?? 0} pageSize={10} onPageChange={setPage} label="Community posts" /></section><aside className="community-sidebar"><section className="announcement-card" aria-labelledby="announcement-title"><div className="card-title"><Sparkle size={24} weight="fill" /><span id="announcement-title">Announcements</span></div><p className="announcement-card__intro">A few things happening around Safe Space Saturdays.</p><div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Games are coming soon</strong><p>We’re preparing friendly rooms, bot play, and game-night rules. Watch this space.</p><Link to="/games">See the update <ArrowRight size={15} /></Link></div></div><div className="announcement-item"><span className="announcement-item__badge announcement-item__badge--sage">Today</span><div><strong>Make space for a check-in</strong><p>A few honest minutes can help you notice what you need.</p><Link to="/check-in">Start a check-in <ArrowRight size={15} /></Link></div></div></section><section className="guidelines-card"><div className="card-title"><Leaf size={24} weight="fill" /><span>Community guidelines</span></div><p>We care for each other.</p>{[['🧡', 'Be Kind', 'Choose compassion and respect in every interaction.'], ['🔒', 'Respect Privacy', 'What’s shared here stays here. Protect each other’s stories.'], ['🌱', 'Encourage & Uplift', 'Cheer each other on and celebrate every step forward.']].map(([icon, title, text]) => <div className="guideline" key={title}><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>)}</section></aside></div></main><PageFooter /></>
 }
 
 function PromoCard({
@@ -384,12 +451,14 @@ function PromoCard({
   cta,
   tone,
   icon,
+  to,
 }: {
   title: string
   body: string
   cta: string
   tone: string
   icon: string
+  to: string
 }) {
   return (
     <article className={`promo-card promo-card--${tone}`}>
@@ -399,7 +468,7 @@ function PromoCard({
       <div>
         <h2>{title}</h2>
         <p>{body}</p>
-        <button className="button button--small button--primary">{cta}</button>
+        <Link className="button button--small button--primary" to={to}>{cta}</Link>
       </div>
     </article>
   )
@@ -522,7 +591,7 @@ function GamesScreen() {
                 <span>Live Rooms</span>
               </div>
             </div>
-            {(roomsQuery.data ?? []).map((room) => (
+            {roomsQuery.data && roomsQuery.data.length === 0 && !roomsQuery.isLoading ? <EmptyState title="No live rooms yet" message="Create a room when you are ready to play with the community." /> : (roomsQuery.data ?? []).map((room) => (
               <div className="room-row" key={room.id}>
                 <span className="room-icon" aria-hidden="true">
                   🎲
@@ -591,12 +660,19 @@ function GamesScreen() {
   )
 }
 
+}
+*/
+
 function LeaderboardScreen() {
   const [period, setPeriod] = useState('week')
   const [page, setPage] = useState(1)
   const leaderboard = useQuery({
     queryKey: ['leaderboard', period, page],
     queryFn: () => api.leaderboard(period, page, 10),
+  })
+  const progress = useQuery({
+    queryKey: ['leaderboard-me', period],
+    queryFn: () => api.leaderboardMe(period),
   })
   const entries = leaderboard.data ?? []
   return (
@@ -618,7 +694,7 @@ function LeaderboardScreen() {
                   key={entry.user.id}
                 >
                   <span className="podium-rank">{index + 1}</span>
-                  <Avatar initials={entry.user.name[0]} color="sage" />
+              <Avatar initials={entry.user.name[0]} color="sage" imageUrl={entry.user.avatar_url} />
                   <strong>{entry.user.name}</strong>
                   <span>{entry.user.xp.toLocaleString()} XP</span>
                   <div className="podium-block" />
@@ -635,16 +711,13 @@ function LeaderboardScreen() {
                 Rank
                 <strong>
                   #
-                  {entries.find((entry) => entry.user.name === 'Jasmine')
-                    ?.rank ?? '—'}
+                  {progress.data?.rank ?? '—'}
                 </strong>
               </span>
               <span>
                 Total XP
                 <strong>
-                  {entries
-                    .find((entry) => entry.user.name === 'Jasmine')
-                    ?.user.xp.toLocaleString() ?? '—'}{' '}
+                  {progress.data?.user.xp.toLocaleString() ?? '—'}{' '}
                   <small>XP</small>
                 </strong>
               </span>
@@ -682,11 +755,11 @@ function LeaderboardScreen() {
             <span>Total XP</span>
             <span>Current Streak</span>
           </div>
-          {entries.map((entry) => (
+          {!leaderboard.isLoading && entries.length === 0 ? <EmptyState title="No rankings yet" message="Complete a check-in or encourage the community to start earning points." /> : entries.map((entry) => (
             <div className="leaderboard-row" key={entry.user.id}>
               <strong>{entry.rank}</strong>
               <div>
-                <Avatar initials={entry.user.name[0]} color="sage" />
+                <Avatar initials={entry.user.name[0]} color="sage" imageUrl={entry.user.avatar_url} />
                 <span>
                   {entry.user.name} <Leaf size={16} weight="fill" />
                 </span>
@@ -725,6 +798,8 @@ function ProfileScreen() {
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [likedPage, setLikedPage] = useState(1)
   const [repliedPage, setRepliedPage] = useState(1)
+  const [savedQuotesPage, setSavedQuotesPage] = useState(1)
+  const [checkInsPage, setCheckInsPage] = useState(1)
   const [avatarError, setAvatarError] = useState('')
   const [theme, setTheme] = useState<'sage' | 'night' | 'high-contrast'>(() => {
     if (typeof window === 'undefined') return 'sage'
@@ -761,6 +836,16 @@ function ProfileScreen() {
   const repliedPosts = useQuery({
     queryKey: ['replied-posts', repliedPage],
     queryFn: () => api.repliedPosts(repliedPage),
+    enabled: activeTab === 'activity',
+  })
+  const savedQuotes = useQuery({
+    queryKey: ['saved-quotes', savedQuotesPage],
+    queryFn: () => api.savedQuotes(savedQuotesPage),
+    enabled: activeTab === 'activity',
+  })
+  const checkIns = useQuery({
+    queryKey: ['check-ins', checkInsPage],
+    queryFn: () => api.checkIns(checkInsPage, 5),
     enabled: activeTab === 'activity',
   })
   const saveAvatar = useMutation({
@@ -839,7 +924,7 @@ function ProfileScreen() {
               ) : user?.avatar_url ? (
                 <img
                   className="profile-avatar-image"
-                  src={`${API_URL}${user.avatar_url}`}
+                  src={assetUrl(user.avatar_url)}
                   alt="Your profile picture"
                 />
               ) : (
@@ -1008,6 +1093,7 @@ function ProfileScreen() {
           )}
           {activeTab === 'activity' && (
             <div className="profile-activity">
+              {(likedPosts.isLoading || repliedPosts.isLoading || savedQuotes.isLoading || checkIns.isLoading) && <ContentSkeleton rows={3} />}
               <section className="profile-card">
                 <div className="card-title">
                   <Heart size={22} weight="fill" />
@@ -1081,6 +1167,45 @@ function ProfileScreen() {
                   onPageChange={setRepliedPage}
                   label="Replied posts"
                 />
+              </section>
+              <section className="profile-card">
+                <div className="card-title">
+                  <BookmarkSimple size={22} weight="fill" />
+                  <span>Saved quotes</span>
+                </div>
+                {(savedQuotes.data ?? []).length > 0 ? (
+                  (savedQuotes.data ?? []).map((quote) => (
+                    <article className="activity-post activity-quote" key={quote.id}>
+                      <p>“{quote.text}”</p>
+                      <small>— {quote.author} · {quote.category}</small>
+                    </article>
+                  ))
+                ) : (
+                  <div className="profile-empty-state">
+                    <p>Quotes you save will stay here for a quieter moment.</p>
+                    <Link className="button button--secondary button--small" to="/quotes">
+                      Find a quote
+                    </Link>
+                  </div>
+                )}
+                <PaginationControls page={savedQuotesPage} itemCount={savedQuotes.data?.length ?? 0} pageSize={5} onPageChange={setSavedQuotesPage} label="Saved quotes" />
+              </section>
+              <section className="profile-card">
+                <div className="card-title">
+                  <Heart size={22} />
+                  <span>Check-in history</span>
+                </div>
+                {(checkIns.data ?? []).length > 0 ? (
+                  (checkIns.data ?? []).map((checkIn) => <CheckInReflection checkIn={checkIn} key={checkIn.id} />)
+                ) : (
+                  <div className="profile-empty-state">
+                    <p>Your private check-in reflections will appear here.</p>
+                    <Link className="button button--secondary button--small" to="/check-in">
+                      Make a check-in
+                    </Link>
+                  </div>
+                )}
+                <PaginationControls page={checkInsPage} itemCount={checkIns.data?.length ?? 0} pageSize={5} onPageChange={setCheckInsPage} label="Check-in history" />
               </section>
             </div>
           )}
@@ -1172,11 +1297,17 @@ function ProfileScreen() {
 
 export function SafeSpaceApp({ screen }: { screen: Screen }) {
   if (screen === 'login' || screen === 'registration') return <AuthLayout mode={screen} />
-  if (screen === 'profile') return <ProfileScreen />
-  if (screen === 'check-in') return <CheckInScreen />
-  if (screen === 'quotes') return <QuotesScreen />
-  if (screen === 'community') return <CommunityScreen />
-  if (screen === 'games') return <GamesScreen />
-  if (screen === 'leaderboard') return <LeaderboardScreen />
-  return <HomeScreen />
+  return <ProtectedApp screen={screen} />
+}
+
+function ProtectedApp({ screen }: { screen: Exclude<Screen, 'login' | 'registration'> }) {
+  const navigate = useNavigate()
+  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  useEffect(() => {
+    if (currentUser.isError) navigate({ to: '/login', replace: true })
+  }, [currentUser.isError, navigate])
+  if (currentUser.isLoading) return <main className="page-content auth-gate"><ApiLoader label="Checking your safe space session…" /></main>
+  if (currentUser.isError || !currentUser.data) return null
+  const content = screen === 'admin' ? <AdminScreen /> : screen === 'profile' ? <ProfileScreen /> : screen === 'check-in' ? <CheckInScreen /> : screen === 'quotes' ? <QuotesScreen /> : screen === 'community' ? <CommunityScreen /> : screen === 'games' ? <GamesScreen /> : screen === 'leaderboard' ? <LeaderboardScreen /> : <HomeScreen />
+  return <>{content}<BugReportWidget /></>
 }

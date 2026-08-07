@@ -62,6 +62,12 @@ async def get_current_user(
     return user
 
 
+async def get_current_admin(user: Annotated[User, Depends(get_current_user)]) -> User:
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user
+
+
 def session_expiry(remember_me: bool) -> datetime:
     days = get_settings().session_ttl_days if remember_me else 1
     return datetime.now(UTC) + timedelta(days=days)

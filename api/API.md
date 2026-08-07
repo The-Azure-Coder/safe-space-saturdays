@@ -17,7 +17,7 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 | Auth | POST | `/api/auth/logout` | End the current session |
 | Auth | GET | `/api/auth/me` | Current user |
 | Auth | PATCH | `/api/auth/me` | Update display name |
-| Auth | POST | `/api/auth/me/avatar` | Save a JPEG, PNG, or WebP profile picture (maximum 5 MB) |
+| Auth | POST | `/api/auth/me/avatar` | Save a JPEG, PNG, or WebP profile picture (maximum 10 MB) |
 | Dashboard | GET | `/api/dashboard` | Progress, rank, quote, latest check-in |
 | Check-ins | GET | `/api/check-ins?page=1&limit=20` | Private check-in history with pagination |
 | Check-ins | POST | `/api/check-ins` | Save a completed check-in |
@@ -27,7 +27,7 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 | Community | GET | `/api/community/activity/liked?page=1&limit=10` | Posts the current member liked or loved |
 | Community | GET | `/api/community/activity/replied?page=1&limit=10` | Posts the current member replied to |
 | Community | POST | `/api/community/posts` | Create a post |
-| Community | POST | `/api/community/posts/with-image` | Create a post with a JPEG, PNG, or WebP image (maximum 5 MB) |
+| Community | POST | `/api/community/posts/with-image` | Create a post with a JPEG, PNG, or WebP image (maximum 10 MB) |
 | Community | POST | `/api/community/posts/{id}/reactions` | Toggle or change a `like`, `dislike`, or `love` reaction |
 | Community | POST | `/api/community/posts/{id}/comments` | Add a comment |
 | Games | GET | `/api/games?page=1&limit=20` | Featured games with pagination |

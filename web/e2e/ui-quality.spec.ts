@@ -4,6 +4,7 @@ const routes = [
   ['Home', '/'], ['Login', '/login'], ['Registration', '/registration'],
   ['Daily Check-In', '/check-in'], ['Quotes', '/quotes'], ['Community', '/community'],
   ['Games', '/games'], ['Leaderboard', '/leaderboard'], ['Profile', '/profile'],
+  ['Admin', '/admin'],
 ] as const
 
 for (const [name, route] of routes) {
@@ -35,3 +36,24 @@ for (const [name, route] of routes) {
     expect(dimensions.scrollWidth, `${name} overflows horizontally at mobile width`).toBeLessThanOrEqual(dimensions.clientWidth)
   })
 }
+
+test('Mobile navigation is left-aligned when opened', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 })
+  await page.goto('/community', { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: 'Open navigation menu' }).click()
+  const navigation = page.locator('#main-navigation')
+  await expect(navigation).toBeVisible()
+  const alignment = await navigation.evaluate((element) => {
+    const nav = getComputedStyle(element)
+    const firstLink = element.querySelector('a')
+    return { justifyItems: nav.justifyItems, justifyContent: nav.justifyContent, linkJustify: firstLink ? getComputedStyle(firstLink).justifyContent : '' }
+  })
+  expect(alignment).toEqual({ justifyItems: 'start', justifyContent: 'start', linkJustify: 'flex-start' })
+})
+
+test('Community stacks into one column on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 })
+  await page.goto('/community', { waitUntil: 'networkidle' })
+  const layout = await page.locator('.community-layout').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)
+  expect(layout).toBe(1)
+})
