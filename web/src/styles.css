@@ -475,15 +475,22 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .auth-panel input:focus, .input-wrap:focus-within { border-color: var(--sage); background: var(--paper); box-shadow: 0 0 0 4px rgb(120 144 109 / 12%); }
 
 .checkin-page, .community-layout, .games-layout, .profile-layout { gap: 24px; }
-.games-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr); align-items: center; gap: 32px; margin-bottom: 28px; }
-.games-hero img { width: 100%; max-height: 300px; border-radius: 24px 24px 6px 24px; object-fit: cover; object-position: center; box-shadow: 0 16px 34px rgb(77 93 68 / 10%); }
-.game-night-banner { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 24px; padding: 22px 26px; border-radius: 22px 22px 6px 22px; background: #f8eee4; }
-.game-night-banner h2 { margin: 0; color: var(--ink); font-family: 'Playfair Display', Georgia, serif; font-size: clamp(22px, 2.5vw, 31px); }
-.game-night-banner p { margin: 7px 0 0; color: var(--muted); }
-.games-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(260px, .75fr); align-items: start; }
-.game-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
-.games-panel, .rooms-panel { padding: 22px; }
-.rooms-panel > .section-row { margin-bottom: 16px; }
+.games-hero { display: grid; grid-template-columns: 1fr 1.1fr; align-items: center; gap: 25px; }
+.games-hero img { width: 100%; max-height: 255px; object-fit: cover; object-position: center 55%; mix-blend-mode: multiply; }
+.game-night-banner { display: flex; align-items: center; gap: 20px; min-height: 120px; margin: 20px 0; padding: 20px 36px; border-radius: 20px; background: #27432b; color: white; }
+.game-night-banner div { flex: 1; }
+.game-night-banner h2 { margin: 0; color: white; font-family: 'Playfair Display', serif; font-size: 29px; }
+.game-night-banner p { margin: 6px 0 0; color: #dbe4d3; }
+.games-layout { display: grid; grid-template-columns: 1.8fr 1fr 1fr; gap: 18px; }
+.games-panel, .rooms-panel, .winner-panel { padding: 21px; }
+.game-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 13px; margin-top: 17px; }
+.room-row, .winner-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-top: 1px solid var(--line); }
+.room-row:first-of-type, .winner-row:first-of-type { margin-top: 16px; }
+.room-row > div, .winner-row > div { display: grid; flex: 1; gap: 4px; }
+.room-row small, .winner-row small { color: var(--muted); font-size: 12px; }
+.room-row .button { padding-inline: 16px; }
+.room-icon { font-size: 28px; }
+.winner-row .avatar { width: 39px; height: 39px; font-size: 16px; }
 .form-card, .conversation-card, .guidelines-card, .games-panel, .rooms-panel, .winner-panel, .profile-card { border: 0; box-shadow: 0 14px 34px rgb(77 93 68 / 7%); }
 .form-card { border-radius: 20px 20px 6px 20px; }
 .conversation-card > .section-row { padding-top: 24px; }
