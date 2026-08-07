@@ -759,6 +759,9 @@ function ProfileScreen() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [likedPage, setLikedPage] = useState(1)
@@ -1284,13 +1287,13 @@ function ProfileScreen() {
                 aria-busy={changePassword.isPending}
               >
                 <label htmlFor="current-password">Current password
-                  <input id="current-password" name="current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+                  <span className="password-field"><input id="current-password" name="current-password" type={showCurrentPassword ? 'text' : 'password'} autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /><button className="input-action" type="button" aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'} onClick={() => setShowCurrentPassword((visible) => !visible)}>{showCurrentPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
                 </label>
                 <label htmlFor="new-password">New password
-                  <input id="new-password" name="new-password" type="password" autoComplete="new-password" minLength={10} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} aria-describedby="password-help" required />
+                  <span className="password-field"><input id="new-password" name="new-password" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} aria-describedby="password-help" required /><button className="input-action" type="button" aria-label={showNewPassword ? 'Hide new password' : 'Show new password'} onClick={() => setShowNewPassword((visible) => !visible)}>{showNewPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
                 </label>
                 <label htmlFor="confirm-new-password">Confirm new password
-                  <input id="confirm-new-password" name="confirm-new-password" type="password" autoComplete="new-password" minLength={10} maxLength={128} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} aria-invalid={confirmNewPassword.length > 0 && newPassword !== confirmNewPassword} required />
+                  <span className="password-field"><input id="confirm-new-password" name="confirm-new-password" type={showConfirmNewPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} aria-invalid={confirmNewPassword.length > 0 && newPassword !== confirmNewPassword} required /><button className="input-action" type="button" aria-label={showConfirmNewPassword ? 'Hide confirmed password' : 'Show confirmed password'} onClick={() => setShowConfirmNewPassword((visible) => !visible)}>{showConfirmNewPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
                 </label>
                 <small id="password-help" className="field-help">Use at least 10 characters. Passwords must match.</small>
                 {changePassword.isError && <p className="form-error" role="alert">{changePassword.error.message}</p>}

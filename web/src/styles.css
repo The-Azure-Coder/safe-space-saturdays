@@ -113,6 +113,11 @@ main { min-height: 100vh; }
 .profile-card form { display: grid; gap: 10px; margin-top: 18px; }
 .profile-card form label { display: grid; gap: 7px; font-weight: 600; }
 .profile-card form input { width: 100%; }
+.password-field { display: flex; align-items: center; gap: 8px; min-height: 52px; padding-right: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.password-field:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px rgb(120 144 109 / 12%); }
+.profile-card form .password-field input { min-width: 0; min-height: 50px; padding: 0 13px; border: 0; outline: 0; background: transparent; box-shadow: none; }
+.password-field .input-action { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 36px; min-height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.password-field .input-action:hover, .password-field .input-action:focus-visible { background: var(--sage-pale); color: var(--sage-dark); }
 .profile-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
 .profile-tabs { display: flex; gap: 6px; margin: 24px 0 14px; padding: 6px; overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: rgb(255 253 248 / 72%); }
 .profile-tab { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 8px 15px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-weight: 700; white-space: nowrap; }
