@@ -63,6 +63,7 @@ export const api = {
   login: (body: { email: string; password: string; remember_me: boolean }) => apiFetch<{ user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   me: () => apiFetch<User>('/api/auth/me'),
   updateProfile: (body: { name: string }) => apiFetch<User>('/api/auth/me', { method: 'PATCH', body: JSON.stringify(body) }),
+  changePassword: (body: { current_password: string; new_password: string; confirm_password: string }) => apiFetch<void>('/api/auth/me/password', { method: 'POST', body: JSON.stringify(body) }),
   updateAvatar: (image: File) => { const body = new FormData(); body.append('image', image); return apiFetch<User>('/api/auth/me/avatar', { method: 'POST', body }) },
   logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
   dashboard: () => apiFetch<Dashboard>('/api/dashboard'),

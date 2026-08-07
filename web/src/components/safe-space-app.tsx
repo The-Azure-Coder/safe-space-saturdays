@@ -238,10 +238,10 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
         {submitted && <div className="form-success" role="status"><CheckCircle size={20} weight="fill" /> {isLogin ? 'Welcome back.' : 'Your account is ready to begin.'}</div>}
         {(formError || mutation.isError) && <div className="form-error" role="alert">{formError || mutation.error?.message || 'We could not complete that request.'}</div>}
         <form onSubmit={onSubmit} noValidate>
-          {!isLogin && <label>Full name<input name="name" type="text" placeholder="Your full name" required /></label>}
-          <label>Email {isLogin && <span className="sr-only">address</span>}<span className="input-wrap"><EnvelopeSimple size={20} aria-hidden="true" /><input name="email" type="email" placeholder="you@example.com" required /></span></label>
-          <label>Password<span className="input-wrap"><LockKey size={20} aria-hidden="true" /><input name="password" type={showPassword ? 'text' : 'password'} placeholder={isLogin ? '••••••••••' : 'Create a strong password'} minLength={!isLogin ? 10 : undefined} required value={passwordValue} onChange={(event) => setPasswordValue(event.target.value)} /><button className="input-action" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>{!isLogin && <small className="field-help">Use at least 10 characters.</small>}</label>
-          {!isLogin && <label>Confirm password<span className="input-wrap"><LockKey size={20} aria-hidden="true" /><input name="confirm-password" type="password" placeholder="Confirm your password" minLength={10} required value={confirmPasswordValue} onChange={(event) => setConfirmPasswordValue(event.target.value)} aria-invalid={confirmPasswordValue.length > 0 && passwordValue !== confirmPasswordValue} />{confirmPasswordValue.length > 0 && passwordValue === confirmPasswordValue && passwordValue.length >= 10 && <Check size={20} className="input-valid" aria-label="Passwords match" />}</span></label>}
+          {!isLogin && <label>Full name<input name="name" type="text" autoComplete="name" placeholder="Your full name" required /></label>}
+          <label>Email {isLogin && <span className="sr-only">address</span>}<span className="input-wrap"><EnvelopeSimple size={20} aria-hidden="true" /><input name="email" type="email" autoComplete="email" inputMode="email" autoCapitalize="none" spellCheck="false" placeholder="you@example.com" required /></span></label>
+          <label>Password<span className="input-wrap"><LockKey size={20} aria-hidden="true" /><input name="password" type={showPassword ? 'text' : 'password'} autoComplete={isLogin ? 'current-password' : 'new-password'} placeholder={isLogin ? '••••••••••' : 'Create a strong password'} minLength={!isLogin ? 10 : undefined} required value={passwordValue} onChange={(event) => setPasswordValue(event.target.value)} /><button className="input-action" type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>{!isLogin && <small className="field-help">Use at least 10 characters.</small>}</label>
+          {!isLogin && <label>Confirm password<span className="input-wrap"><LockKey size={20} aria-hidden="true" /><input name="confirm-password" type="password" autoComplete="new-password" placeholder="Confirm your password" minLength={10} required value={confirmPasswordValue} onChange={(event) => setConfirmPasswordValue(event.target.value)} aria-invalid={confirmPasswordValue.length > 0 && passwordValue !== confirmPasswordValue} />{confirmPasswordValue.length > 0 && passwordValue === confirmPasswordValue && passwordValue.length >= 10 && <Check size={20} className="input-valid" aria-label="Passwords match" />}</span></label>}
           {isLogin ? <div className="form-row"><label className="checkbox-label"><input type="checkbox" defaultChecked /> <span>Remember me</span></label><button className="text-link" type="button" onClick={() => setResetMessage('Password reset is not enabled in this pre-launch build. Please contact the project administrator.')}>Forgot password?</button></div> : <label className="checkbox-label"><input type="checkbox" required /> <span>I agree to the Safe Space Saturdays Privacy Policy and Terms of Service.</span></label>}
           {resetMessage && <p className="form-help" role="status">{resetMessage}</p>}
           <button className="button button--primary button--wide" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Please wait…' : isLogin ? 'Log in' : 'Create account'}</button>
@@ -754,8 +754,11 @@ function ProfileScreen() {
   const [name, setName] = useState('')
   const [saved, setSaved] = useState(false)
   const [activeTab, setActiveTab] = useState<
-    'profile' | 'activity' | 'appearance' | 'privacy'
+    'profile' | 'activity' | 'appearance' | 'privacy' | 'security'
   >('profile')
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [avatarFile, setAvatarFile] = useState<File | undefined>()
   const [likedPage, setLikedPage] = useState(1)
@@ -788,6 +791,14 @@ function ProfileScreen() {
     onSuccess: () => {
       queryClient.clear()
       window.location.href = '/login'
+    },
+  })
+  const changePassword = useMutation({
+    mutationFn: api.changePassword,
+    onSuccess: () => {
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmNewPassword('')
     },
   })
   const likedPosts = useQuery({
@@ -864,6 +875,7 @@ function ProfileScreen() {
     { id: 'activity' as const, label: 'Activity', icon: Heart },
     { id: 'appearance' as const, label: 'Appearance', icon: Palette },
     { id: 'privacy' as const, label: 'Privacy', icon: ShieldCheck },
+    { id: 'security' as const, label: 'Security', icon: LockKey },
   ]
   return (
     <>
@@ -1249,6 +1261,45 @@ function ProfileScreen() {
                 </button>
               </div>
             </div>
+          )}
+          {activeTab === 'security' && (
+            <section className="profile-card profile-security-card">
+              <div className="card-title">
+                <LockKey size={22} weight="fill" />
+                <span>Change password</span>
+              </div>
+              <p className="profile-card__intro">
+                Choose a password you do not use anywhere else. Your current session will stay signed in after the change.
+              </p>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  changePassword.mutate({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                    confirm_password: confirmNewPassword,
+                  })
+                }}
+                noValidate
+                aria-busy={changePassword.isPending}
+              >
+                <label htmlFor="current-password">Current password
+                  <input id="current-password" name="current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+                </label>
+                <label htmlFor="new-password">New password
+                  <input id="new-password" name="new-password" type="password" autoComplete="new-password" minLength={10} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} aria-describedby="password-help" required />
+                </label>
+                <label htmlFor="confirm-new-password">Confirm new password
+                  <input id="confirm-new-password" name="confirm-new-password" type="password" autoComplete="new-password" minLength={10} maxLength={128} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} aria-invalid={confirmNewPassword.length > 0 && newPassword !== confirmNewPassword} required />
+                </label>
+                <small id="password-help" className="field-help">Use at least 10 characters. Passwords must match.</small>
+                {changePassword.isError && <p className="form-error" role="alert">{changePassword.error.message}</p>}
+                {changePassword.isSuccess && <p className="form-success" role="status">Password changed successfully.</p>}
+                <button className="button button--primary" type="submit" disabled={changePassword.isPending || currentPassword.length === 0 || newPassword.length < 10 || newPassword !== confirmNewPassword}>
+                  {changePassword.isPending ? 'Changing password…' : 'Change password'}
+                </button>
+              </form>
+            </section>
           )}
         </section>
       </main>
