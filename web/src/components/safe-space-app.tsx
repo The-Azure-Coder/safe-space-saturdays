@@ -660,9 +660,6 @@ function GamesScreen() {
   )
 }
 
-}
-*/
-
 function LeaderboardScreen() {
   const [period, setPeriod] = useState('week')
   const [page, setPage] = useState(1)

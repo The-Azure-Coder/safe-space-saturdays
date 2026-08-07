@@ -20,9 +20,23 @@ class Settings(BaseSettings):
     session_ttl_days: int = 30
     cookie_secure: bool = False
     upload_dir: Path = DEFAULT_UPLOAD_DIR
-    max_upload_bytes: int = 5_000_000
+    max_upload_bytes: int = 10_000_000
     redis_url: str = "redis://localhost:6379/0"
     realtime_node_id: str = socket.gethostname()
+    use_cloudinary: bool = False
+    cloudinary_cloud_name: str | None = None
+    cloudinary_api_key: str | None = None
+    cloudinary_api_secret: str | None = None
+
+    @model_validator(mode="after")
+    def require_secure_production_cookies(self) -> "Settings":
+        if self.database_url.startswith("postgres://"):
+            self.database_url = "postgresql+psycopg://" + self.database_url.removeprefix("postgres://")
+        elif self.database_url.startswith("postgresql://"):
+            self.database_url = "postgresql+psycopg://" + self.database_url.removeprefix("postgresql://")
+        if self.app_env == "production" and not self.cookie_secure:
+            raise ValueError("COOKIE_SECURE must be true when APP_ENV=production")
+        return self
 
 
 @lru_cache
