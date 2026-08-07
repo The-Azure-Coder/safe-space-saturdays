@@ -112,6 +112,11 @@ main { min-height: 100vh; }
 .profile-card .card-title { margin-bottom: 12px; }
 .profile-card form { display: grid; gap: 10px; margin-top: 18px; }
 .profile-card form label { display: grid; gap: 7px; font-weight: 600; }
+.profile-card form .field-error { color: #a04436; font-size: 12px; font-weight: 600; line-height: 1.35; }
+.form-error--validation { margin: 4px 0 2px; }
+.form-error--validation strong { display: block; margin-bottom: 4px; }
+.form-error--validation ul { margin: 0; padding-left: 20px; }
+.form-error--validation li + li { margin-top: 3px; }
 .profile-card form input { width: 100%; }
 .password-field { display: flex; align-items: center; gap: 8px; min-height: 52px; padding-right: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
 .password-field:focus-within { border-color: var(--sage); box-shadow: 0 0 0 3px rgb(120 144 109 / 12%); }

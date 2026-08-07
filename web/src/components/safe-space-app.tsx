@@ -860,6 +860,19 @@ function ProfileScreen() {
       </>
     )
   const displayName = name || user?.name || ''
+  const passwordErrors = [
+    ...(currentPassword.length === 0 ? ['Enter your current password.'] : []),
+    ...(newPassword.length === 0
+      ? ['Enter a new password.']
+      : newPassword.length < 10
+        ? ['Your new password must be at least 10 characters.']
+        : []),
+    ...(confirmNewPassword.length === 0
+      ? ['Confirm your new password.']
+      : newPassword !== confirmNewPassword
+        ? ['Your passwords do not match.']
+        : []),
+  ]
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -1286,16 +1299,23 @@ function ProfileScreen() {
                 noValidate
                 aria-busy={changePassword.isPending}
               >
-                <label htmlFor="current-password">Current password
-                  <span className="password-field"><input id="current-password" name="current-password" type={showCurrentPassword ? 'text' : 'password'} autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /><button className="input-action" type="button" aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'} onClick={() => setShowCurrentPassword((visible) => !visible)}>{showCurrentPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
+                <label htmlFor="current-password">
+                  Current password
+                  <span className="password-field"><input id="current-password" name="current-password" type={showCurrentPassword ? 'text' : 'password'} autoComplete="current-password" value={currentPassword} onChange={(event) => { changePassword.reset(); setCurrentPassword(event.target.value) }} aria-invalid={currentPassword.length === 0} aria-describedby="current-password-error" required /><button className="input-action" type="button" aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'} onClick={() => setShowCurrentPassword((visible) => !visible)}>{showCurrentPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
+                  {currentPassword.length === 0 && <small id="current-password-error" className="field-error">Enter your current password.</small>}
                 </label>
-                <label htmlFor="new-password">New password
-                  <span className="password-field"><input id="new-password" name="new-password" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} aria-describedby="password-help" required /><button className="input-action" type="button" aria-label={showNewPassword ? 'Hide new password' : 'Show new password'} onClick={() => setShowNewPassword((visible) => !visible)}>{showNewPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
+                <label htmlFor="new-password">
+                  New password
+                  <span className="password-field"><input id="new-password" name="new-password" type={showNewPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} value={newPassword} onChange={(event) => { changePassword.reset(); setNewPassword(event.target.value) }} aria-invalid={newPassword.length > 0 && newPassword.length < 10} aria-describedby="password-help new-password-error" required /><button className="input-action" type="button" aria-label={showNewPassword ? 'Hide new password' : 'Show new password'} onClick={() => setShowNewPassword((visible) => !visible)}>{showNewPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
+                  {newPassword.length === 0 ? <small id="new-password-error" className="field-error">Enter a new password.</small> : newPassword.length < 10 && <small id="new-password-error" className="field-error">Your new password must be at least 10 characters.</small>}
                 </label>
-                <label htmlFor="confirm-new-password">Confirm new password
-                  <span className="password-field"><input id="confirm-new-password" name="confirm-new-password" type={showConfirmNewPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} value={confirmNewPassword} onChange={(event) => setConfirmNewPassword(event.target.value)} aria-invalid={confirmNewPassword.length > 0 && newPassword !== confirmNewPassword} required /><button className="input-action" type="button" aria-label={showConfirmNewPassword ? 'Hide confirmed password' : 'Show confirmed password'} onClick={() => setShowConfirmNewPassword((visible) => !visible)}>{showConfirmNewPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
+                <label htmlFor="confirm-new-password">
+                  Confirm new password
+                  <span className="password-field"><input id="confirm-new-password" name="confirm-new-password" type={showConfirmNewPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} value={confirmNewPassword} onChange={(event) => { changePassword.reset(); setConfirmNewPassword(event.target.value) }} aria-invalid={confirmNewPassword.length === 0 || newPassword !== confirmNewPassword} aria-describedby="confirm-password-error" required /><button className="input-action" type="button" aria-label={showConfirmNewPassword ? 'Hide confirmed password' : 'Show confirmed password'} onClick={() => setShowConfirmNewPassword((visible) => !visible)}>{showConfirmNewPassword ? <EyeSlash size={20} /> : <Eye size={20} />}</button></span>
+                  {confirmNewPassword.length === 0 ? <small id="confirm-password-error" className="field-error">Confirm your new password.</small> : newPassword !== confirmNewPassword && <small id="confirm-password-error" className="field-error">Your passwords do not match.</small>}
                 </label>
                 <small id="password-help" className="field-help">Use at least 10 characters. Passwords must match.</small>
+                {passwordErrors.length > 0 && <div className="form-error form-error--validation" role="alert" aria-live="polite"><strong>Please fix the following:</strong><ul>{passwordErrors.map((error) => <li key={error}>{error}</li>)}</ul></div>}
                 {changePassword.isError && <p className="form-error" role="alert">{changePassword.error.message}</p>}
                 {changePassword.isSuccess && <p className="form-success" role="status">Password changed successfully.</p>}
                 <button className="button button--primary" type="submit" disabled={changePassword.isPending || currentPassword.length === 0 || newPassword.length < 10 || newPassword !== confirmNewPassword}>
