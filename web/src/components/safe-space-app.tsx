@@ -314,6 +314,8 @@ function ComingSoonBanner() {
   return <section className="coming-soon-banner" aria-labelledby="coming-soon-title"><div className="coming-soon-banner__mark" aria-hidden="true">✦</div><div><span className="eyebrow">Game night is on its way</span><h2 id="coming-soon-title">A little more play is coming soon <span className="heart-doodle">♡</span></h2><p>We’re thoughtfully building the rooms, rules, and friendly bot experience. Until then, there is always space to check in, connect, and grow together.</p></div><Link className="button button--small button--primary" to="/community">Stay connected <ArrowRight size={16} /></Link></section>
 }
 
+void ComingSoonBanner
+
 function GameStrip() {
   const navigate = useNavigate()
   const catalog = useQuery({ queryKey: ['games', 'home'], queryFn: () => api.games(1, 20), retry: false })
