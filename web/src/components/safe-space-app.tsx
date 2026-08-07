@@ -310,6 +310,10 @@ function WelcomeCarousel() {
   return <section className={`welcome-carousel welcome-carousel--${slide.tone}`} aria-roledescription="carousel" aria-label="A little encouragement"><div key={`copy-${activeSlide}`} className="welcome-carousel__copy" aria-live="polite"><span className="welcome-carousel__eyebrow">{slide.eyebrow}</span><h2>{slide.title}</h2><p>{slide.body}</p><Link className="button button--primary button--small" to={slide.to}>{slide.cta} <ArrowRight size={16} /></Link></div><div key={`art-${activeSlide}`} className="welcome-carousel__art"><img className="welcome-carousel__image" src="/assets/community-circle.png" alt="Friends supporting one another in a safe space" /><span className="welcome-carousel__sun" aria-hidden="true" /><span className="welcome-carousel__flower welcome-carousel__flower--one" aria-hidden="true">✦</span><span className="welcome-carousel__flower welcome-carousel__flower--two" aria-hidden="true">✿</span><span className="welcome-carousel__icon" aria-hidden="true"><SlideIcon size={36} weight="fill" /></span></div><div className="welcome-carousel__controls"><button type="button" aria-label="Previous encouragement" onClick={() => move(-1)}><CaretLeft size={20} /></button><div className="welcome-carousel__dots">{welcomeSlides.map((item, index) => <button type="button" key={item.title} className={index === activeSlide ? 'welcome-carousel__dot welcome-carousel__dot--active' : 'welcome-carousel__dot'} aria-label={`Show encouragement ${index + 1}`} aria-current={index === activeSlide ? 'true' : undefined} onClick={() => setActiveSlide(index)} />)}</div><button type="button" aria-label="Next encouragement" onClick={() => move(1)}><CaretRight size={20} /></button></div></section>
 }
 
+function ComingSoonBanner() {
+  return <section className="coming-soon-banner" aria-labelledby="coming-soon-title"><div className="coming-soon-banner__mark" aria-hidden="true">✦</div><div><span className="eyebrow">Game night is on its way</span><h2 id="coming-soon-title">A little more play is coming soon <span className="heart-doodle">♡</span></h2><p>We’re thoughtfully building the rooms, rules, and friendly bot experience. Until then, there is always space to check in, connect, and grow together.</p></div><Link className="button button--small button--primary" to="/community">Stay connected <ArrowRight size={16} /></Link></section>
+}
+
 function GameStrip() {
   const navigate = useNavigate()
   const catalog = useQuery({ queryKey: ['games', 'home'], queryFn: () => api.games(1, 20), retry: false })
@@ -333,6 +337,23 @@ function GameStrip() {
   })
   const featured = games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-bingo.png', color: 'peach' })
   return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{featured.map((game) => <GameTile game={game} key={game.name} compact onPlay={() => launch.mutate(game)} />)}</div></section>
+}
+
+void GameStrip
+
+function formatCooldown(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function AdminScreen() {
+  const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  if (profile.isLoading) return <><PageHeader screen="admin" /><main className="page-content"><ApiLoader label="Loading admin workspace…" /></main></>
+  if (profile.isError || profile.data?.role !== 'admin') return <><PageHeader screen="admin" /><main className="page-content"><section className="empty-state-card"><ShieldCheck size={34} /><h1>Admin access required</h1><p>This workspace is restricted to approved administrators.</p><Link className="button button--secondary" to="/">Return home</Link></section></main><PageFooter /></>
+  return <><PageHeader screen="admin" /><main className="page-content admin-page"><SectionHeading eyebrow="Steward workspace" title="Admin portal" description="Manage reports, members, and community content." /><section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>Admin tools</h2><p>Use the dedicated administration controls to manage the community safely.</p></div></div><div className="admin-list"><Link className="admin-list-item" to="/admin">Bug reports, users, and quote management</Link></div></section></main><PageFooter /></>
 }
 
 function GameTile({ game, compact = false, onPlay }: { game: GameDefinition; compact?: boolean; onPlay?: () => void }) {
