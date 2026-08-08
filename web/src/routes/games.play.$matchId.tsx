@@ -15,6 +15,7 @@ function ConnectFourScreen() {
   const [error, setError] = useState('')
   const [pendingColumn, setPendingColumn] = useState<number | null>(null)
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null)
+  const [ending, setEnding] = useState(false)
   const socket = useRef<WebSocket | null>(null)
 
   useEffect(() => {
@@ -65,9 +66,20 @@ function ConnectFourScreen() {
     }
     void api.move(matchId, column).then(setMatch).catch((reason: Error) => setError(reason.message)).finally(() => setPendingColumn(null))
   }
+  const endSession = async () => {
+    if (!match || !window.confirm('End this game session and delete its room? This cannot be undone.')) return
+    setEnding(true)
+    try {
+      await api.endRoom(match.room_id)
+      window.location.href = '/games'
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Only the room host can end this session.')
+      setEnding(false)
+    }
+  }
 
   return <main className="page-content game-play-page connect-four-page">
-    <Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link>
+    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>
     <section className="game-play-header">
       <div><span className="eyebrow">Friendly match · Connect Four</span><h1>Make a line. Take your time.</h1><p>Plan a step ahead and enjoy a bright little game break.</p></div>
       <div className="game-play-badge"><Sparkle size={20} weight="fill" /><span>{match?.move_count ?? 0} of 42 spaces played</span></div>

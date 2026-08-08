@@ -76,6 +76,7 @@ test('two authenticated users can fill a human room and take turns in every game
         expect((await guest.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { answer: 0 } } })).status()).toBe(200)
       }
     }
+    expect((await host.delete(`/api/games/rooms/${roomId}`)).status()).toBe(204)
     await host.dispose()
     await guest.dispose()
   }

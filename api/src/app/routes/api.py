@@ -1025,6 +1025,26 @@ async def list_room_participants(
     ]
 
 
+@router.delete("/games/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def end_game_room(room_id: int, user: CurrentUser, db: DbSession) -> Response:
+    room = await db.get(GameRoom, room_id, with_for_update=True)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.host_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the room host can end this game")
+    match_id = await db.scalar(
+        select(GameMatch.id).where(GameMatch.room_id == room_id).limit(1)
+    )
+    if match_id is not None:
+        match_manager.matches.pop(match_id, None)
+        universal_matches.matches.pop(match_id, None)
+        if match_manager.room_matches.get(room_id) == match_id:
+            match_manager.room_matches.pop(room_id, None)
+    await db.delete(room)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/games/rooms/{room_id}/ready", response_model=RoomResponse)
 async def set_room_ready(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
     room = await db.get(GameRoom, room_id)

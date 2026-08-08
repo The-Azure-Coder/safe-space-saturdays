@@ -97,6 +97,7 @@ export const api = {
   move: (id: string, column: number) => apiFetch<Match>(`/api/games/matches/${id}/moves`, { method: 'POST', body: JSON.stringify({ column }) }),
   createGameSession: (room_id: number, fill_with_bots = true) => apiFetch<GameSession>('/api/games/sessions', { method: 'POST', body: JSON.stringify({ room_id, fill_with_bots }) }),
   setRoomReady: (id: number) => apiFetch<Room>(`/api/games/rooms/${id}/ready`, { method: 'POST' }),
+  endRoom: (id: number) => apiFetch<void>(`/api/games/rooms/${id}`, { method: 'DELETE' }),
   gameSession: (id: string) => apiFetch<GameSession>(`/api/games/sessions/${id}`),
   gameAction: (id: string, action: Record<string, any>) => apiFetch<GameSession>(`/api/games/sessions/${id}/actions`, { method: 'POST', body: JSON.stringify({ action }) }),
   leaderboard: (period: string, page = 1, limit = 10) => apiFetch<Array<LeaderboardEntry>>(`/api/leaderboard?period=${period}&page=${page}&limit=${limit}`),

@@ -128,7 +128,7 @@ class UniversalMatchManager:
                     # roll, and choose a token instead of receiving every state
                     # in a single imperceptible burst.
                     if match.sockets:
-                        await asyncio.sleep(0.45 if match.state.get("phase") == "roll" else 0.65)
+                        await asyncio.sleep(0.95 if match.state.get("phase") == "roll" else 1.15)
                     match.state = apply_action(
                         match.state,
                         current_bot,
