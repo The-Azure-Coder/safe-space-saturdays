@@ -80,7 +80,10 @@ def _load_question(state: dict[str, Any], index: int) -> None:
     )
 
 
-def new_trivia_state(rng: random.Random) -> dict[str, Any]:
+def new_trivia_state(
+    rng: random.Random, player_count: int = 2, bot_players: tuple[int, ...] = (1,)
+) -> dict[str, Any]:
+    player_count = max(2, min(2, player_count))
     state: dict[str, Any] = {
         "game": "trivia",
         "current_player": 0,
@@ -89,11 +92,12 @@ def new_trivia_state(rng: random.Random) -> dict[str, Any]:
         "question_index": 0,
         "question_count": ROUND_LENGTH,
         "question_ids": rng.sample(range(len(QUESTION_BANK)), ROUND_LENGTH),
-        "scores": [0, 0],
-        "streaks": [0, 0],
+        "scores": [0 for _ in range(player_count)],
+        "streaks": [0 for _ in range(player_count)],
+        "bot_players": list(bot_players),
         "players": [
-            {"name": "You", "is_bot": False},
-            {"name": "Milo Bot", "is_bot": True},
+            {"name": "You" if index == 0 else "Milo Bot", "is_bot": index in bot_players}
+            for index in range(player_count)
         ],
         "action_count": 0,
     }
@@ -142,12 +146,20 @@ def apply_trivia_action(
         raise IllegalMove("Choose one answer")
 
     correct = answer == state["correct"]
+    if player in state.get("bot_players", []) and time.time() > state["deadline"]:
+        answer = -1
+    if (
+        player not in state.get("bot_players", [])
+        and time.time() > state["deadline"]
+        and answer != -1
+    ):
+        raise IllegalMove("Question time expired")
     if correct:
         state["streaks"][player] += 1
         elapsed_ms = max(
             0,
             int(action.get("response_ms", 0))
-            if player == 1
+            if player in state.get("bot_players", [])
             else int((time.time() - state["question_started_at"]) * 1000),
         )
         speed_bonus = max(0, 100 - elapsed_ms // 150)
@@ -160,10 +172,14 @@ def apply_trivia_action(
     state["selected_answers"][player] = answer
     state["action_count"] += 1
 
-    if player == 0:
+    if player == 0 and 1 in state.get("bot_players", []):
         state["phase"] = "bot"
         state["current_player"] = 1
         state["last_event"] = "Answer locked. Milo is choosing…"
+    elif player == 0:
+        state["phase"] = "question"
+        state["current_player"] = 1
+        state["last_event"] = "Answer locked. Your opponent is choosing…"
     else:
         state["phase"] = "reveal"
         state["current_player"] = 0

@@ -39,7 +39,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { api, assetUrl } from '../lib/api'
-import type { CheckIn } from '../lib/api'
+import type { CheckIn, Room } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -522,6 +522,7 @@ function GamesScreen() {
   const [roomName, setRoomName] = useState('A gentle game night')
   const [roomGameId, setRoomGameId] = useState<number | null>(null)
   const [roomPlayers, setRoomPlayers] = useState(4)
+  const [roomFillBots, setRoomFillBots] = useState(true)
   const gamesQuery = useQuery({
     queryKey: ['games', gamesPage],
     queryFn: () => api.games(gamesPage, 4),
@@ -529,10 +530,15 @@ function GamesScreen() {
   const roomsQuery = useQuery({
     queryKey: ['rooms', roomsPage],
     queryFn: () => api.rooms(roomsPage, 5),
+    refetchInterval: 2500,
   })
   const queryClient = useQueryClient()
   const join = useMutation({
     mutationFn: api.joinRoom,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+  })
+  const ready = useMutation({
+    mutationFn: api.setRoomReady,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
   })
   const createMatch = useMutation({
@@ -540,7 +546,7 @@ function GamesScreen() {
     onSuccess: (match) => navigate({ to: '/games/play/$matchId', params: { matchId: match.match_id } }),
   })
   const createGameSession = useMutation({
-    mutationFn: api.createGameSession,
+    mutationFn: (input: { room_id: number; fill_with_bots: boolean }) => api.createGameSession(input.room_id, input.fill_with_bots),
     onSuccess: (match) => navigate({ to: '/games/session/$matchId', params: { matchId: match.match_id } }),
   })
   const playGame = useMutation({
@@ -567,6 +573,13 @@ function GamesScreen() {
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
     },
   })
+  const startRoom = (room: Room) => {
+    if (room.game === 'Connect Four') {
+      createMatch.mutate({ room_id: room.id, with_bot: room.fill_with_bots, bot_difficulty: 'friendly' })
+    } else {
+      createGameSession.mutate({ room_id: room.id, fill_with_bots: room.fill_with_bots })
+    }
+  }
   const availableGames: Array<GameDefinition> = gamesQuery.data?.length
     ? gamesQuery.data.map((game) => ({ ...game, color: game.color }))
     : games.map((game, index) => ({ ...game, id: index + 1 }))
@@ -601,14 +614,16 @@ function GamesScreen() {
             Create Room
           </button>
         </section>
-        {showCreateRoom && <form className="room-create-card" onSubmit={(event) => { event.preventDefault(); if (roomGameId && roomName.trim()) createRoom.mutate({ game_id: roomGameId, name: roomName.trim(), max_players: roomPlayers }) }}>
+        {showCreateRoom && <form className="room-create-card" onSubmit={(event) => { event.preventDefault(); if (roomGameId && roomName.trim()) createRoom.mutate({ game_id: roomGameId, name: roomName.trim(), max_players: roomPlayers, fill_with_bots: roomFillBots }) }}>
           <div><span className="eyebrow">Make space for play</span><h2>Create a room</h2><p>Choose a game, invite friends, and keep it friendly.</p></div>
           <label className="field-label">Room name<input value={roomName} onChange={(event) => setRoomName(event.target.value)} maxLength={100} required /></label>
           <label className="field-label">Game<select value={roomGameId ?? ''} onChange={(event) => setRoomGameId(Number(event.target.value))} required>{availableGames.map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}</select></label>
           <label className="field-label">Players<select value={roomPlayers} onChange={(event) => setRoomPlayers(Number(event.target.value))}><option value={2}>2 players</option><option value={3}>3 players</option><option value={4}>4 players</option></select></label>
+          <label className="field-label">Open seats<select value={roomFillBots ? 'bots' : 'humans'} onChange={(event) => setRoomFillBots(event.target.value === 'bots')}><option value="bots">Fill remaining seats with bots</option><option value="humans">Humans only</option></select></label>
           <div className="room-create-actions"><button className="button button--primary" type="submit" disabled={createRoom.isPending || !roomGameId}>{createRoom.isPending ? 'Creating…' : 'Create room'}</button><button className="button button--secondary" type="button" onClick={() => setShowCreateRoom(false)}>Cancel</button></div>
         </form>}
         {playGame.error && <p className="form-error" role="alert">{playGame.error.message}</p>}
+        {(createMatch.error || createGameSession.error || ready.error || join.error) && <p className="form-error" role="alert">{(createMatch.error || createGameSession.error || ready.error || join.error)?.message}</p>}
         <div className="games-layout">
           <section className="games-panel">
             <div className="card-title">
@@ -654,19 +669,25 @@ function GamesScreen() {
                 >
                   {room.joined ? 'Joined' : 'Join'}
                 </button>
-                {room.game === 'Connect Four' && room.joined && (
-                  <button
-                    className="button button--small button--secondary"
-                    type="button"
-                    disabled={createMatch.isPending}
-                    onClick={() => createMatch.mutate({ room_id: room.id, with_bot: true, bot_difficulty: 'friendly' })}
-                  >
-                    {createMatch.isPending ? 'Opening…' : 'Play bot'}
+                {room.joined && room.status === 'open' && !room.is_host && (
+                  <button className="button button--small button--secondary" type="button" disabled={ready.isPending} onClick={() => ready.mutate(room.id)}>
+                    {room.ready ? 'Ready ✓' : 'Ready'}
                   </button>
                 )}
-                {room.game !== 'Connect Four' && room.joined && (
-                  <button className="button button--small button--secondary" type="button" disabled={createGameSession.isPending} onClick={() => createGameSession.mutate(room.id)}>
-                    {createGameSession.isPending ? 'Opening…' : 'Play'}
+                {room.joined && room.status === 'open' && room.is_host && (
+                  <button className="button button--small button--secondary" type="button" disabled={createMatch.isPending || createGameSession.isPending} onClick={() => startRoom(room)}>
+                    {createMatch.isPending || createGameSession.isPending ? 'Opening…' : room.fill_with_bots ? 'Start with bots' : 'Start game'}
+                  </button>
+                )}
+                {room.joined && room.status === 'open' && room.is_host && !room.fill_with_bots && (
+                  <button className="button button--small button--ghost" type="button" disabled={ready.isPending} onClick={() => ready.mutate(room.id)}>
+                    {room.ready ? 'Ready ✓' : 'Ready'}
+                  </button>
+                )}
+                {room.joined && room.status === 'open' && !room.is_host && <small className="room-waiting">Waiting for host…</small>}
+                {room.joined && room.status === 'active' && room.match_id && (
+                  <button className="button button--small button--secondary" type="button" onClick={() => room.game === 'Connect Four' ? navigate({ to: '/games/play/$matchId', params: { matchId: room.match_id! } }) : navigate({ to: '/games/session/$matchId', params: { matchId: room.match_id! } })}>
+                    Enter game
                   </button>
                 )}
               </div>

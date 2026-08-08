@@ -57,6 +57,8 @@ async def security_headers_and_origin_check(request: Request, call_next):
             "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
         )
     return response
+
+
 app.include_router(health_router)
 app.include_router(api_router)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

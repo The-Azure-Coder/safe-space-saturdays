@@ -19,9 +19,7 @@ def test_ludo_roll_without_legal_move_passes_turn(monkeypatch: pytest.MonkeyPatc
 def test_ludo_four_player_state_uses_every_reference_board_seat() -> None:
     state = new_state("ludo", player_count=4)
     assert state["player_count"] == 4
-    assert [player["color"] for player in state["players"]] == [
-        "red", "blue", "green", "yellow"
-    ]
+    assert [player["color"] for player in state["players"]] == ["red", "blue", "green", "yellow"]
     assert [player["offset"] for player in state["players"]] == [39, 0, 13, 26]
     assert len(state["positions"]) == len(state["captures"]) == len(state["last_rolls"]) == 4
 
@@ -157,11 +155,15 @@ def test_four_player_dominoes_deals_every_tile_and_cycles_turns() -> None:
     for expected_player in (1, 2, 3, 0):
         player = state["current_player"]
         move = state["legal_moves"][0] if state["legal_moves"] else None
-        state = apply_action(
-            state,
-            player,
-            {"tile_index": move["tile_index"], "side": move["sides"][0]},
-        ) if move else apply_action(state, player, {"pass": True})
+        state = (
+            apply_action(
+                state,
+                player,
+                {"tile_index": move["tile_index"], "side": move["sides"][0]},
+            )
+            if move
+            else apply_action(state, player, {"pass": True})
+        )
         assert state["current_player"] == expected_player
 
 

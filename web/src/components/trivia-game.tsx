@@ -49,7 +49,7 @@ function playTone(kind: 'tap' | 'correct' | 'wrong' | 'complete') {
   window.setTimeout(() => void context.close(), notes.length * 120 + 240)
 }
 
-export function TriviaGame({ state, send, error }: { state: Partial<TriviaState>; send: (action: Record<string, unknown>) => void; error?: string }) {
+export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Partial<TriviaState>; send: (action: Record<string, unknown>) => void; error?: string; playerIndex?: number }) {
   const players = state.players?.length === 2 ? state.players : DEFAULT_PLAYERS
   const phase = state.phase ?? 'question'
   const questionIndex = state.question_index ?? 0
@@ -103,7 +103,7 @@ export function TriviaGame({ state, send, error }: { state: Partial<TriviaState>
   }
   const isReveal = phase === 'reveal' || phase === 'complete'
   const progress = Math.min(100, ((questionIndex + (isReveal ? 1 : 0)) / questionCount) * 100)
-  const resultText = state.draw ? 'A perfect tie!' : state.winner === 0 ? 'You are the trivia star!' : state.winner === 1 ? 'Milo wins this round!' : ''
+  const resultText = state.draw ? 'A perfect tie!' : state.winner === playerIndex ? 'You are the trivia star!' : state.winner !== undefined && state.winner !== null ? `${players[state.winner]?.name ?? 'Your opponent'} wins this round!` : ''
 
   return <section className="trivia-game-shell" aria-label="Trivia arena">
     <div className="trivia-topline">
@@ -133,9 +133,9 @@ export function TriviaGame({ state, send, error }: { state: Partial<TriviaState>
       <div className="trivia-options">
         {(state.options ?? []).map((option, index) => {
           const correct = isReveal && state.correct_answer === index
-          const chosen = selectedAnswers[0] === index
+          const chosen = selectedAnswers[playerIndex] === index
           const wrong = isReveal && chosen && !correct
-          return <button className={`trivia-option${correct ? ' trivia-option--correct' : ''}${wrong ? ' trivia-option--wrong' : ''}${chosen ? ' trivia-option--chosen' : ''}`} type="button" disabled={phase !== 'question' || pending} onClick={() => answer(index)} key={option}>
+          return <button className={`trivia-option${correct ? ' trivia-option--correct' : ''}${wrong ? ' trivia-option--wrong' : ''}${chosen ? ' trivia-option--chosen' : ''}`} type="button" disabled={phase !== 'question' || state.current_player !== playerIndex || pending} onClick={() => answer(index)} key={option}>
             <span>{String.fromCharCode(65 + index)}</span><strong>{option}</strong>{correct && <CheckCircle size={22} weight="fill" />}{wrong && <XCircle size={22} weight="fill" />}
           </button>
         })}

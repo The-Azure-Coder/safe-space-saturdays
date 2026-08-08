@@ -29,7 +29,12 @@ from app.config import get_settings
 from app.db import get_session, session_factory
 from app.games.connect_four import ConnectFourState, IllegalMove
 from app.games.manager import LiveMatch, match_manager
-from app.games.multi import GAME_TYPES, normalise_domino_state, normalise_ludo_state
+from app.games.multi import (
+    GAME_TYPES,
+    normalise_bingo_state,
+    normalise_domino_state,
+    normalise_ludo_state,
+)
 from app.games.persistence import create_persisted_match, record_state
 from app.games.realtime import realtime_bus
 from app.games.trivia import normalise_trivia_state
@@ -40,6 +45,7 @@ from app.models import (
     Comment,
     Game,
     GameMatch,
+    GameMatchPlayer,
     GameRoom,
     GameWinner,
     Post,
@@ -82,6 +88,7 @@ from app.schemas import (
     ReactionRequest,
     RegisterRequest,
     RoomCreateRequest,
+    RoomParticipantResponse,
     RoomResponse,
     UserResponse,
 )
@@ -104,15 +111,15 @@ def match_response(match: LiveMatch) -> MatchResponse:
     return MatchResponse.model_validate(match.snapshot())
 
 
-def universal_response(match: UniversalMatch) -> GameSessionResponse:
-    return GameSessionResponse.model_validate(match.snapshot())
+def universal_response(match: UniversalMatch, user_id: int | None = None) -> GameSessionResponse:
+    return GameSessionResponse.model_validate(match.snapshot(user_id))
 
 
 def match_channel(match_id: str) -> str:
     return f"safe-space:game:{match_id}"
 
 
-def restore_connect_match(row: GameMatch) -> LiveMatch:
+def restore_connect_match(row: GameMatch, seats: list[GameMatchPlayer] | None = None) -> LiveMatch:
     snapshot = row.state
     raw_last_move = snapshot.get("last_move")
     last_move = (
@@ -134,34 +141,52 @@ def restore_connect_match(row: GameMatch) -> LiveMatch:
         last_move=last_move,
         winning_cells=winning_cells,
     )
+    seat_rows = seats or []
+    player_ids = {
+        seat.user_id: seat.seat_index + 1 for seat in seat_rows if seat.user_id is not None
+    } or {row.player_user_id: 1}
+    bot_player = next(
+        (seat.seat_index + 1 for seat in seat_rows if seat.player_type == "bot"), None
+    )
     match = LiveMatch(
         id=row.id,
         room_id=row.room_id,
         state=state,
-        player_ids={row.player_user_id: 1},
-        bot_player=2,
+        player_ids=player_ids,
+        bot_player=bot_player,
     )
     match_manager.matches[row.id] = match
     match_manager.room_matches[row.room_id] = row.id
     return match
 
 
-def restore_universal_match(row: GameMatch, player_count: int = 2) -> UniversalMatch:
+def restore_universal_match(
+    row: GameMatch, player_count: int = 2, seats: list[GameMatchPlayer] | None = None
+) -> UniversalMatch:
     if row.game_type == "ludo":
         normalise_ludo_state(row.state, player_count)
     if row.game_type == "dominoes":
         normalise_domino_state(row.state, player_count)
     if row.game_type == "trivia":
         normalise_trivia_state(row.state)
+    if row.game_type == "bingo":
+        normalise_bingo_state(row.state, player_count)
+    seat_rows = seats or []
+    player_ids = {
+        seat.user_id: seat.seat_index for seat in seat_rows if seat.user_id is not None
+    } or {row.player_user_id: 0}
+    bot_players = tuple(seat.seat_index for seat in seat_rows if seat.player_type == "bot")
+    resolved_bot_players = bot_players if seat_rows else tuple(
+        range(1, player_count if row.game_type in {"ludo", "dominoes"} else 2)
+    )
     match = UniversalMatch(
         id=row.id,
         room_id=row.room_id,
         game_type=row.game_type,
         state=row.state,
-        player_ids={row.player_user_id: 0},
-        bot_players=tuple(
-            range(1, player_count if row.game_type in {"ludo", "dominoes"} else 2)
-        ),
+        player_ids=player_ids,
+        bot_player=resolved_bot_players[0] if resolved_bot_players else None,
+        bot_players=resolved_bot_players,
     )
     universal_matches.matches[row.id] = match
     return match
@@ -172,15 +197,22 @@ async def hydrate_match(match_id: str) -> tuple[LiveMatch | None, UniversalMatch
         row = await db.get(GameMatch, match_id)
         if row is None:
             return None, None
+        seats = list(
+            (
+                await db.scalars(
+                    select(GameMatchPlayer)
+                    .where(GameMatchPlayer.match_id == row.id)
+                    .order_by(GameMatchPlayer.seat_index)
+                )
+            ).all()
+        )
         if row.game_type == "connect-four":
-            return restore_connect_match(row), None
+            return restore_connect_match(row, seats), None
         room = await db.get(GameRoom, row.room_id)
         player_count = (
-            room.max_players
-            if room is not None and row.game_type in {"ludo", "dominoes"}
-            else 2
+            room.max_players if room is not None and row.game_type in {"ludo", "dominoes"} else 2
         )
-        return None, restore_universal_match(row, player_count)
+        return None, restore_universal_match(row, player_count, seats)
 
 
 async def relay_remote_events(websocket: WebSocket, match_id: str) -> None:
@@ -189,11 +221,17 @@ async def relay_remote_events(websocket: WebSocket, match_id: str) -> None:
             await websocket.send_json(message["payload"])
 
 
+async def relay_remote_universal_events(
+    websocket: WebSocket, match: UniversalMatch, user_id: int
+) -> None:
+    async for message in realtime_bus.subscribe(match_channel(match.id)):
+        if message.get("origin") != get_settings().realtime_node_id:
+            await websocket.send_json({"type": "state", "match": match.snapshot(user_id)})
+
+
 async def grant_game_win_reward(db: AsyncSession, user_id: int, match_id: str) -> bool:
     key = f"game-win:{match_id}:{user_id}"
-    existing = await db.scalar(
-        select(RewardLedger).where(RewardLedger.idempotency_key == key)
-    )
+    existing = await db.scalar(select(RewardLedger).where(RewardLedger.idempotency_key == key))
     if existing is not None:
         return False
     user = await db.get(User, user_id)
@@ -228,6 +266,99 @@ def game_type_for_name(name: str) -> str | None:
 
 def user_response(user: User) -> UserResponse:
     return UserResponse.model_validate(user)
+
+
+def game_capacity(game_name: str) -> int:
+    normalized = game_name.strip().lower()
+    if normalized in {"connect four", "connect-four", "trivia", "trivia battle"}:
+        return 2
+    if normalized in {"ludo", "dominoes", "block dominoes"}:
+        return 4
+    if normalized == "bingo":
+        return 8
+    return 4
+
+
+async def build_match_seats(
+    room: GameRoom,
+    game_type: str,
+    user_id: int,
+    db: AsyncSession,
+    fill_with_bots: bool,
+) -> tuple[list[dict[str, object]], dict[int, int], tuple[int, ...], dict[int, str]]:
+    participants = (
+        await db.scalars(
+            select(RoomParticipant)
+            .where(RoomParticipant.room_id == room.id)
+            .order_by(RoomParticipant.joined_at, RoomParticipant.id)
+        )
+    ).all()
+    if not any(participant.user_id == user_id for participant in participants):
+        raise HTTPException(status_code=403, detail="Join the room before starting a match")
+    if not all(participant.ready for participant in participants):
+        raise HTTPException(status_code=409, detail="Every human player must be ready")
+    count = min(room.max_players, game_capacity(game_type))
+    if len(participants) > count:
+        raise HTTPException(
+            status_code=409, detail="This room has too many players for the selected game"
+        )
+    if not fill_with_bots and len(participants) < count:
+        raise HTTPException(
+            status_code=409, detail=f"All {count} seats must be filled before starting"
+        )
+    users = {
+        user.id: user
+        for user in (
+            await db.scalars(
+                select(User).where(
+                    User.id.in_([participant.user_id for participant in participants])
+                )
+            )
+        ).all()
+    }
+    bot_names = (
+        "Milo Bot",
+        "Maya Bot",
+        "Sunny Bot",
+        "Cedar Bot",
+        "River Bot",
+        "Sage Bot",
+        "Olive Bot",
+    )
+    seats: list[dict[str, object]] = []
+    player_ids: dict[int, int] = {}
+    bot_players: list[int] = []
+    player_names: dict[int, str] = {}
+    for seat_index in range(count):
+        if seat_index < len(participants):
+            participant = participants[seat_index]
+            member = users[participant.user_id]
+            participant.seat_index = seat_index
+            player_ids[member.id] = seat_index
+            player_names[seat_index] = member.name
+            seats.append(
+                {
+                    "seat_index": seat_index,
+                    "user_id": member.id,
+                    "player_type": "human",
+                    "display_name": member.name,
+                    "bot_difficulty": None,
+                }
+            )
+        else:
+            bot_players.append(seat_index)
+            name = bot_names[seat_index % len(bot_names)]
+            player_names[seat_index] = name
+            seats.append(
+                {
+                    "seat_index": seat_index,
+                    "user_id": None,
+                    "player_type": "bot",
+                    "display_name": name,
+                    "bot_difficulty": room.bot_difficulty,
+                }
+            )
+    return seats, player_ids, tuple(bot_players), player_names
 
 
 def bug_report_response(report: BugReport, reporter: User) -> BugReportResponse:
@@ -422,11 +553,7 @@ async def create_check_in(
     checkin_dates = await db.scalars(
         select(CheckIn.created_at).where(CheckIn.user_id == user.id, CheckIn.completed.is_(True))
     )
-    dates = [
-        created_at.astimezone(UTC).date()
-        for created_at in checkin_dates
-        if created_at
-    ]
+    dates = [created_at.astimezone(UTC).date() for created_at in checkin_dates if created_at]
     user.streak = current_checkin_streak(dates, date.today())
     user.xp += 25
     user.level = max(1, user.xp // 250 + 1)
@@ -774,13 +901,15 @@ async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomRespon
         )
         or 0
     )
-    joined = (
-        await db.scalar(
-            select(RoomParticipant.id).where(
-                RoomParticipant.room_id == room.id, RoomParticipant.user_id == user_id
-            )
+    participant = await db.scalar(
+        select(RoomParticipant).where(
+            RoomParticipant.room_id == room.id, RoomParticipant.user_id == user_id
         )
-        is not None
+    )
+    active_match = await db.scalar(
+        select(GameMatch.id)
+        .where(GameMatch.room_id == room.id, GameMatch.status == "active")
+        .limit(1)
     )
     return RoomResponse(
         id=room.id,
@@ -789,7 +918,11 @@ async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomRespon
         players=participants,
         max_players=room.max_players,
         status=room.status,
-        joined=joined,
+        joined=participant is not None,
+        is_host=room.host_id == user_id,
+        match_id=active_match,
+        ready=participant.ready if participant else False,
+        fill_with_bots=room.fill_with_bots,
     )
 
 
@@ -802,7 +935,7 @@ async def list_rooms(
     rooms = (
         await db.scalars(
             select(GameRoom)
-            .where(GameRoom.status == "open")
+            .where(GameRoom.status.in_(["open", "active"]))
             .order_by(GameRoom.created_at.desc())
             .offset((page - 1) * limit)
             .limit(limit)
@@ -813,24 +946,32 @@ async def list_rooms(
 
 @router.post("/games/rooms", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
 async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSession) -> RoomResponse:
-    if await db.get(Game, payload.game_id) is None:
+    game = await db.get(Game, payload.game_id)
+    if game is None:
         raise HTTPException(status_code=404, detail="Game not found")
+    if payload.max_players > game_capacity(game.name):
+        raise HTTPException(
+            status_code=422,
+            detail=f"{game.name} supports at most {game_capacity(game.name)} players",
+        )
     room = GameRoom(
         game_id=payload.game_id,
         host_id=user.id,
         name=payload.name.strip(),
         max_players=payload.max_players,
+        fill_with_bots=payload.fill_with_bots,
+        bot_difficulty=payload.bot_difficulty,
     )
     db.add(room)
     await db.flush()
-    db.add(RoomParticipant(room_id=room.id, user_id=user.id))
+    db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=0, ready=True))
     await db.commit()
     return await room_out(room, user.id, db)
 
 
 @router.post("/games/rooms/{room_id}/join", response_model=RoomResponse)
 async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
-    room = await db.get(GameRoom, room_id)
+    room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room not available")
     count = (
@@ -849,8 +990,53 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
         )
         is None
     ):
-        db.add(RoomParticipant(room_id=room_id, user_id=user.id))
+        if count >= room.max_players:
+            raise HTTPException(status_code=409, detail="Room is full")
+        db.add(RoomParticipant(room_id=room_id, user_id=user.id, seat_index=count))
         await db.commit()
+    return await room_out(room, user.id, db)
+
+
+@router.get("/games/rooms/{room_id}/participants", response_model=list[RoomParticipantResponse])
+async def list_room_participants(
+    room_id: int, user: CurrentUser, db: DbSession
+) -> list[RoomParticipantResponse]:
+    room = await db.get(GameRoom, room_id)
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    participants = (
+        await db.execute(
+            select(RoomParticipant, User)
+            .join(User, User.id == RoomParticipant.user_id)
+            .where(RoomParticipant.room_id == room_id)
+            .order_by(RoomParticipant.seat_index, RoomParticipant.joined_at)
+        )
+    ).all()
+    return [
+        RoomParticipantResponse(
+            user_id=participant.user_id,
+            name=member.name,
+            avatar_url=member.avatar_url,
+            seat_index=participant.seat_index,
+            ready=participant.ready,
+            is_host=room.host_id == participant.user_id,
+        )
+        for participant, member in participants
+    ]
+
+
+@router.post("/games/rooms/{room_id}/ready", response_model=RoomResponse)
+async def set_room_ready(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
+    room = await db.get(GameRoom, room_id)
+    participant = await db.scalar(
+        select(RoomParticipant).where(
+            RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
+        )
+    )
+    if room is None or participant is None or room.status != "open":
+        raise HTTPException(status_code=409, detail="Room is not accepting readiness changes")
+    participant.ready = not participant.ready
+    await db.commit()
     return await room_out(room, user.id, db)
 
 
@@ -858,9 +1044,11 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
 async def create_match(
     payload: MatchCreateRequest, user: CurrentUser, db: DbSession
 ) -> MatchResponse:
-    room = await db.get(GameRoom, payload.room_id)
+    room = await db.scalar(select(GameRoom).where(GameRoom.id == payload.room_id).with_for_update())
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room not available")
+    if room.host_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the room host can start a match")
     joined = await db.scalar(
         select(RoomParticipant.id).where(
             RoomParticipant.room_id == room.id, RoomParticipant.user_id == user.id
@@ -875,12 +1063,15 @@ async def create_match(
     existing_match = match_manager.get(existing_id) if existing_id else None
     if existing_match:
         return match_response(existing_match)
+    seats, player_ids, bot_players, player_names = await build_match_seats(
+        room, "connect-four", user.id, db, payload.with_bot
+    )
     match = match_manager.create(
-        room.id, user.id, payload.with_bot, payload.bot_difficulty
+        room.id, user.id, payload.with_bot, payload.bot_difficulty, player_ids
     )
     room.status = "active"
     await create_persisted_match(
-        db, match.id, room.id, "connect-four", user.id, match.snapshot()
+        db, match.id, room.id, "connect-four", user.id, match.snapshot(), seats
     )
     await db.commit()
     return match_response(match)
@@ -911,9 +1102,7 @@ async def play_move(
         raise HTTPException(status_code=409, detail=str(error)) from error
     persisted = await db.get(GameMatch, match.id)
     if persisted is not None:
-        await record_state(
-            db, persisted, user.id, {"column": payload.column}, match.snapshot()
-        )
+        await record_state(db, persisted, user.id, {"column": payload.column}, match.snapshot())
     if match.state.winner == 1 and not match.reward_granted:
         await grant_game_win_reward(db, user.id, match.id)
         match.reward_granted = True
@@ -959,7 +1148,7 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
         await websocket.close(code=1008)
         return
     await websocket.accept()
-    match.sockets.add(websocket)
+    match.sockets[websocket] = user.id
     relay_task = asyncio.create_task(relay_remote_events(websocket, match.id))
     await websocket.send_json({"type": "state", "state": match.snapshot()})
     try:
@@ -995,7 +1184,7 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                     await db.commit()
                     match.reward_granted = True
     except WebSocketDisconnect:
-        match.sockets.discard(websocket)
+        match.sockets.pop(websocket, None)
     finally:
         relay_task.cancel()
 
@@ -1006,9 +1195,7 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
 async def create_game_session(
     payload: GameSessionCreateRequest, user: CurrentUser, db: DbSession
 ) -> GameSessionResponse:
-    room = await db.scalar(
-        select(GameRoom).where(GameRoom.id == payload.room_id).with_for_update()
-    )
+    room = await db.scalar(select(GameRoom).where(GameRoom.id == payload.room_id).with_for_update())
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room not available")
     if room.host_id != user.id:
@@ -1024,13 +1211,22 @@ async def create_game_session(
     game_type = game_type_for_name(game.name if game else "")
     if game_type not in GAME_TYPES:
         raise HTTPException(status_code=409, detail="This game is not playable yet")
-    match = universal_matches.create(room.id, user.id, game_type, room.max_players)
-    room.status = "active"
-    await create_persisted_match(
-        db, match.id, room.id, game_type, user.id, match.state
+    seats, player_ids, bot_players, player_names = await build_match_seats(
+        room, game_type, user.id, db, payload.fill_with_bots
     )
+    match = universal_matches.create(
+        room.id,
+        user.id,
+        game_type,
+        min(room.max_players, game_capacity(game_type)),
+        player_ids=player_ids,
+        bot_players=bot_players,
+        player_names=player_names,
+    )
+    room.status = "active"
+    await create_persisted_match(db, match.id, room.id, game_type, user.id, match.state, seats)
     await db.commit()
-    return universal_response(match)
+    return universal_response(match, user.id)
 
 
 @router.get("/games/sessions/{match_id}", response_model=GameSessionResponse)
@@ -1042,7 +1238,7 @@ async def get_game_session(match_id: str, user: CurrentUser) -> GameSessionRespo
         raise HTTPException(status_code=404, detail="Game session not found")
     if user.id not in match.player_ids:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
-    return universal_response(match)
+    return universal_response(match, user.id)
 
 
 @router.post("/games/sessions/{match_id}/actions", response_model=GameSessionResponse)
@@ -1071,10 +1267,10 @@ async def game_session_action(
         match_channel(match.id),
         {
             "origin": get_settings().realtime_node_id,
-            "payload": {"type": "state", "match": match.snapshot()},
+            "payload": {"type": "refresh", "match_id": match.id},
         },
     )
-    return universal_response(match)
+    return universal_response(match, user.id)
 
 
 @router.websocket("/games/sessions/{match_id}/ws")
@@ -1087,9 +1283,9 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
         await websocket.close(code=1008)
         return
     await websocket.accept()
-    match.sockets.add(websocket)
-    relay_task = asyncio.create_task(relay_remote_events(websocket, match.id))
-    await websocket.send_json({"type": "state", "match": match.snapshot()})
+    match.sockets[websocket] = user.id
+    relay_task = asyncio.create_task(relay_remote_universal_events(websocket, match, user.id))
+    await websocket.send_json({"type": "state", "match": match.snapshot(user.id)})
     try:
         while True:
             message = await websocket.receive_json()
@@ -1104,12 +1300,8 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
             async with session_factory() as db:
                 persisted = await db.get(GameMatch, match.id)
                 if persisted is not None:
-                    await record_state(
-                        db, persisted, user.id, message["action"], match.state
-                    )
-                    if match.state.get("winner") is not None or match.state.get(
-                        "draw", False
-                    ):
+                    await record_state(db, persisted, user.id, message["action"], match.state)
+                    if match.state.get("winner") is not None or match.state.get("draw", False):
                         persisted.status = "completed"
                 if match.state.get("winner") == 0 and not match.reward_granted:
                     await grant_game_win_reward(db, user.id, match.id)
@@ -1119,11 +1311,11 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                 match_channel(match.id),
                 {
                     "origin": get_settings().realtime_node_id,
-                    "payload": {"type": "state", "match": match.snapshot()},
+                    "payload": {"type": "refresh", "match_id": match.id},
                 },
             )
     except WebSocketDisconnect:
-        match.sockets.discard(websocket)
+        match.sockets.pop(websocket, None)
     finally:
         relay_task.cancel()
 

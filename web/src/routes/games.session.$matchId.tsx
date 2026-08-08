@@ -47,7 +47,7 @@ function GameSessionScreen() {
     {match?.game === 'ludo' && <LudoGame state={(state ?? {}) as Partial<LudoState>} send={send} />}
     {match?.game === 'dominoes' && <DominoGame state={(state ?? {}) as Partial<DominoState>} send={send} error={error} />}
     {match?.game === 'bingo' && <BingoBoard state={state ?? {}} send={send} />}
-    {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} />}
+    {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} playerIndex={Number(state?.seat_index ?? 0)} />}
   </main>
 }
 

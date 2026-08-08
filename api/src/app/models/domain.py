@@ -146,17 +146,27 @@ class GameRoom(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100))
     max_players: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
     status: Mapped[str] = mapped_column(String(20), default="open", server_default="open")
+    fill_with_bots: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    bot_difficulty: Mapped[str] = mapped_column(
+        String(20), default="friendly", server_default="friendly"
+    )
 
 
 class RoomParticipant(Base):
     __tablename__ = "room_participants"
-    __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_room_participant"),)
+    __table_args__ = (
+        UniqueConstraint("room_id", "user_id", name="uq_room_participant"),
+        UniqueConstraint("room_id", "seat_index", name="uq_room_participant_seat"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     room_id: Mapped[int] = mapped_column(
         ForeignKey("game_rooms.id", ondelete="CASCADE"), index=True
     )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    seat_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ready: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class GameWinner(TimestampMixin, Base):
@@ -180,6 +190,27 @@ class GameMatch(TimestampMixin, Base):
     state: Mapped[dict[str, Any]] = mapped_column(JSON)
     version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     status: Mapped[str] = mapped_column(String(20), default="active", server_default="active")
+
+
+class GameMatchPlayer(Base):
+    __tablename__ = "game_match_players"
+    __table_args__ = (
+        UniqueConstraint("match_id", "seat_index", name="uq_game_match_player_seat"),
+        UniqueConstraint("match_id", "user_id", name="uq_game_match_player_user"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    match_id: Mapped[str] = mapped_column(
+        ForeignKey("game_matches.id", ondelete="CASCADE"), index=True
+    )
+    seat_index: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    player_type: Mapped[str] = mapped_column(String(10), default="human", server_default="human")
+    display_name: Mapped[str] = mapped_column(String(120))
+    bot_difficulty: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    result: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class GameEvent(Base):

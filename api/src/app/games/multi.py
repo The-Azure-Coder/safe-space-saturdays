@@ -60,17 +60,26 @@ def _domino_players(player_count: int) -> list[dict[str, Any]]:
     ]
 
 
-def new_state(game_type: str, player_count: int = 2) -> dict[str, Any]:
+def new_state(
+    game_type: str, player_count: int = 2, bot_players: tuple[int, ...] | None = None
+) -> dict[str, Any]:
     if game_type not in GAME_TYPES:
         raise IllegalMove("This game is not available yet")
     if game_type == "ludo":
         players = _ludo_players(player_count)
         return {
-            "game": "ludo", "current_player": 0, "winner": None,
-            "player_count": len(players), "players": players,
+            "game": "ludo",
+            "current_player": 0,
+            "winner": None,
+            "player_count": len(players),
+            "players": players,
             "positions": [[-1, -1, -1, -1] for _ in players],
-            "phase": "roll", "roll": None, "legal_tokens": [],
-            "six_streak": 0, "turn_number": 1, "action_count": 0,
+            "phase": "roll",
+            "roll": None,
+            "legal_tokens": [],
+            "six_streak": 0,
+            "turn_number": 1,
+            "action_count": 0,
             "captures": [0 for _ in players],
             "last_rolls": [None for _ in players],
             "last_move": None,
@@ -82,28 +91,54 @@ def new_state(game_type: str, player_count: int = 2) -> dict[str, Any]:
         _RNG.shuffle(deck)
         hands = [deck[index * 7 : index * 7 + 7] for index in range(len(players))]
         return {
-            "game": "dominoes", "current_player": 0, "winner": None, "draw": False,
-            "player_count": len(players), "players": players,
-            "hands": hands, "board": [], "passes": 0,
-            "turn_number": 1, "action_count": 0, "last_move": None,
+            "game": "dominoes",
+            "current_player": 0,
+            "winner": None,
+            "draw": False,
+            "player_count": len(players),
+            "players": players,
+            "hands": hands,
+            "board": [],
+            "passes": 0,
+            "turn_number": 1,
+            "action_count": 0,
+            "last_move": None,
             "last_event": "Your turn. Place any domino to open the round.",
             "legal_moves": [
-                {"tile_index": index, "sides": ["right"]}
-                for index in range(len(hands[0]))
+                {"tile_index": index, "sides": ["right"]} for index in range(len(hands[0]))
             ],
         }
     if game_type == "bingo":
         numbers = list(range(1, 76))
         _RNG.shuffle(numbers)
-        card = [sorted(numbers[index * 5 : index * 5 + 5]) for index in range(5)]
-        card[2][2] = 0
+        player_count = max(2, min(8, player_count))
+        cards: list[list[list[int]]] = []
+        for player in range(player_count):
+            card = [
+                sorted(numbers[player * 25 + index * 5 : player * 25 + index * 5 + 5])
+                for index in range(5)
+            ]
+            card[2][2] = 0
+            cards.append(card)
+        marked_cards = [
+            [[row == 2 and col == 2 for col in range(5)] for row in range(5)] for _ in cards
+        ]
         return {
-            "game": "bingo", "current_player": 0, "winner": None, "draw": False,
-            "card": card,
-            "marked": [[row == 2 and col == 2 for col in range(5)] for row in range(5)],
-            "drawn": [], "remaining": list(range(1, 76)),
+            "game": "bingo",
+            "current_player": 0,
+            "winner": None,
+            "draw": False,
+            "player_count": player_count,
+            "cards": cards,
+            "marked_cards": marked_cards,
+            # Compatibility aliases for early clients/tests; snapshots expose only
+            # the requesting player's card and marked state.
+            "card": cards[0],
+            "marked": marked_cards[0],
+            "drawn": [],
+            "remaining": list(range(1, 76)),
         }
-    return new_trivia_state(_RNG)
+    return new_trivia_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
 
 
 def _next_player(state: dict[str, Any]) -> None:
@@ -129,12 +164,10 @@ def normalise_ludo_state(state: dict[str, Any], player_count: int | None = None)
         for index in range(requested_count)
     ]
     state["captures"] = [
-        old_captures[index] if index < len(old_captures) else 0
-        for index in range(requested_count)
+        old_captures[index] if index < len(old_captures) else 0 for index in range(requested_count)
     ]
     state["last_rolls"] = [
-        old_rolls[index] if index < len(old_rolls) else None
-        for index in range(requested_count)
+        old_rolls[index] if index < len(old_rolls) else None for index in range(requested_count)
     ]
     if int(state.get("current_player", 0)) >= requested_count:
         state["current_player"] = 0
@@ -144,6 +177,27 @@ def normalise_ludo_state(state: dict[str, Any], player_count: int | None = None)
     state.setdefault("turn_number", 1)
     state.setdefault("action_count", 0)
     state.setdefault("last_move", None)
+
+
+def normalise_bingo_state(state: dict[str, Any], player_count: int = 2) -> None:
+    if "cards" in state and "marked_cards" in state:
+        return
+    legacy_card = state.pop("card", None)
+    legacy_marked = state.pop("marked", None)
+    replacement = new_state("bingo", max(2, min(8, player_count)))
+    cards = replacement["cards"]
+    marked_cards = replacement["marked_cards"]
+    if legacy_card is not None:
+        cards[0] = legacy_card
+    if legacy_marked is not None:
+        marked_cards[0] = legacy_marked
+    state["cards"] = cards
+    state["marked_cards"] = marked_cards
+    state["card"] = cards[0]
+    state["marked"] = marked_cards[0]
+    state.setdefault("player_count", len(cards))
+    state.setdefault("drawn", [])
+    state.setdefault("remaining", list(range(1, 76)))
     state.setdefault("last_event", "Roll the dice.")
 
 
@@ -303,9 +357,7 @@ def _refresh_domino_legal_moves(state: dict[str, Any]) -> None:
     state["legal_moves"] = _domino_legal_moves(state, int(state["current_player"]))
 
 
-def normalise_domino_state(
-    state: dict[str, Any], player_count: int | None = None
-) -> None:
+def normalise_domino_state(state: dict[str, Any], player_count: int | None = None) -> None:
     requested_count = max(2, min(4, player_count or len(state.get("hands", [])) or 2))
     old_count = len(state.get("hands", []))
     if old_count < requested_count:
@@ -398,7 +450,10 @@ def _apply_domino_action(
     state["passes"] = 0
     state["action_count"] += 1
     state["last_move"] = {
-        "player": player, "tile": oriented, "side": side, "pass": False,
+        "player": player,
+        "tile": oriented,
+        "side": side,
+        "pass": False,
     }
     state["last_event"] = f"{player_name} placed {oriented[0]}–{oriented[1]} on the {side}."
     if not state["hands"][player]:
@@ -419,19 +474,21 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
     if game == "dominoes":
         return _apply_domino_action(state, player, action)
     if game == "bingo":
-        _turn(state, player)
+        if not 0 <= player < len(state.get("cards", [])):
+            raise IllegalMove("You are not a player in this round")
         if action.get("action") == "draw":
             if not state["remaining"]:
                 state["draw"] = True
                 return state
             number = state["remaining"].pop()
             state["drawn"].append(number)
-            for row in range(5):
-                for col in range(5):
-                    if state["card"][row][col] == number:
-                        state["marked"][row][col] = True
+            for card_index, card in enumerate(state["cards"]):
+                for row in range(5):
+                    for col in range(5):
+                        if card[row][col] == number:
+                            state["marked_cards"][card_index][row][col] = True
             return state
-        if action.get("action") == "claim" and _bingo_complete(state["marked"]):
+        if action.get("action") == "claim" and _bingo_complete(state["marked_cards"][player]):
             state["winner"] = player
             return state
         raise IllegalMove("Draw a ball before claiming bingo")

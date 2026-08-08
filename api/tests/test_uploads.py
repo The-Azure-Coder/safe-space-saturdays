@@ -18,14 +18,18 @@ async def test_cloudinary_upload_returns_secure_url(monkeypatch: pytest.MonkeyPa
         calls["upload"] = kwargs
         return {"secure_url": "https://res.cloudinary.com/example/image/upload/sample.jpg"}
 
-    monkeypatch.setattr(api_routes, "get_settings", lambda: SimpleNamespace(
-        max_upload_bytes=5_000_000,
-        use_cloudinary=True,
-        cloudinary_cloud_name="example",
-        cloudinary_api_key="key",
-        cloudinary_api_secret="secret",
-        upload_dir=None,
-    ))
+    monkeypatch.setattr(
+        api_routes,
+        "get_settings",
+        lambda: SimpleNamespace(
+            max_upload_bytes=5_000_000,
+            use_cloudinary=True,
+            cloudinary_cloud_name="example",
+            cloudinary_api_key="key",
+            cloudinary_api_secret="secret",
+            upload_dir=None,
+        ),
+    )
     monkeypatch.setattr(api_routes.cloudinary, "config", fake_config)
     monkeypatch.setattr(api_routes.cloudinary.uploader, "upload", fake_upload)
 

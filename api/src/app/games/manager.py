@@ -25,7 +25,7 @@ class LiveMatch:
     bot_player: Player | None = None
     bot_difficulty: str = "friendly"
     reward_granted: bool = False
-    sockets: set[WebSocket] = field(default_factory=set)
+    sockets: dict[WebSocket, int] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def snapshot(self) -> dict[str, Any]:
@@ -42,8 +42,20 @@ class MatchManager:
         self.matches: dict[str, LiveMatch] = {}
         self.room_matches: dict[int, str] = {}
 
-    def create(self, room_id: int, user_id: int, with_bot: bool, difficulty: str) -> LiveMatch:
-        match = LiveMatch(id=str(uuid4()), room_id=room_id, player_ids={user_id: 1})
+    def create(
+        self,
+        room_id: int,
+        user_id: int,
+        with_bot: bool,
+        difficulty: str,
+        player_ids: dict[int, int] | None = None,
+    ) -> LiveMatch:
+        match = LiveMatch(
+            id=str(uuid4()),
+            room_id=room_id,
+            player_ids={user: seat + 1 for user, seat in (player_ids or {user_id: 0}).items()},
+        )
+        match.bot_player = None
         if with_bot:
             match.bot_player = 2
             match.bot_difficulty = difficulty
@@ -56,13 +68,13 @@ class MatchManager:
 
     async def broadcast(self, match: LiveMatch, message: dict[str, Any]) -> None:
         disconnected: list[WebSocket] = []
-        for socket in match.sockets:
+        for socket in list(match.sockets):
             try:
                 await socket.send_json(message)
             except Exception:
                 disconnected.append(socket)
         for socket in disconnected:
-            match.sockets.discard(socket)
+            match.sockets.pop(socket, None)
 
     async def move(self, match: LiveMatch, user_id: int, column: int) -> dict[str, Any]:
         async with match.lock:

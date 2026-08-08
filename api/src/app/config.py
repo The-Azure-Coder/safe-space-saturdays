@@ -31,9 +31,13 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def require_secure_production_cookies(self) -> "Settings":
         if self.database_url.startswith("postgres://"):
-            self.database_url = "postgresql+psycopg://" + self.database_url.removeprefix("postgres://")
+            self.database_url = "postgresql+psycopg://" + self.database_url.removeprefix(
+                "postgres://"
+            )
         elif self.database_url.startswith("postgresql://"):
-            self.database_url = "postgresql+psycopg://" + self.database_url.removeprefix("postgresql://")
+            self.database_url = "postgresql+psycopg://" + self.database_url.removeprefix(
+                "postgresql://"
+            )
         if self.app_env == "production" and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must be true when APP_ENV=production")
         return self

@@ -19,22 +19,36 @@ class UniversalMatch:
     player_ids: dict[int, int]
     bot_player: int | None = 1
     bot_players: tuple[int, ...] = ()
-    sockets: set[WebSocket] = field(default_factory=set)
+    sockets: dict[WebSocket, int] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reward_granted: bool = False
 
-    def snapshot(self) -> dict[str, Any]:
+    def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
         public_state = deepcopy(self.state)
+        seat = self.player_ids.get(user_id, 0) if user_id is not None else 0
+        public_state["seat_index"] = seat
         if self.game_type == "dominoes":
             hands = public_state.get("hands", [])
             public_state["hand_counts"] = [len(hand) for hand in hands]
-            public_state["hands"] = [hands[0] if hands else []] + [
-                [] for _ in hands[1:]
+            public_state["hands"] = [
+                hands[seat] if index == seat else [] for index in range(len(hands))
             ]
+        if self.game_type == "bingo":
+            cards = public_state.pop("cards", [])
+            marked_cards = public_state.pop("marked_cards", [])
+            public_state["card"] = cards[seat] if seat < len(cards) else []
+            public_state["marked"] = marked_cards[seat] if seat < len(marked_cards) else []
         if self.game_type == "trivia":
             correct = public_state.pop("correct", None)
             if public_state.get("phase") in {"reveal", "complete"}:
                 public_state["correct_answer"] = correct
+            selected = public_state.get("selected_answers", [])
+            public_state["selected_answers"] = [
+                answer
+                if index == seat or public_state.get("phase") in {"reveal", "complete"}
+                else None
+                for index, answer in enumerate(selected)
+            ]
         return {
             "match_id": self.id,
             "room_id": self.room_id,
@@ -48,16 +62,32 @@ class UniversalMatchManager:
         self.matches: dict[str, UniversalMatch] = {}
 
     def create(
-        self, room_id: int, user_id: int, game_type: str, player_count: int = 2
+        self,
+        room_id: int,
+        user_id: int,
+        game_type: str,
+        player_count: int = 2,
+        player_ids: dict[int, int] | None = None,
+        bot_players: tuple[int, ...] | None = None,
+        player_names: dict[int, str] | None = None,
     ) -> UniversalMatch:
         effective_count = player_count if game_type in {"ludo", "dominoes"} else 2
+        resolved_bot_players = (
+            bot_players if bot_players is not None else tuple(range(1, effective_count))
+        )
+        state = new_state(game_type, effective_count, resolved_bot_players)
+        for seat, name in (player_names or {}).items():
+            if seat < len(state.get("players", [])):
+                state["players"][seat]["name"] = name
+                state["players"][seat]["is_bot"] = seat in resolved_bot_players
         match = UniversalMatch(
             id=str(uuid4()),
             room_id=room_id,
             game_type=game_type,
-            state=new_state(game_type, effective_count),
-            player_ids={user_id: 0},
-            bot_players=tuple(range(1, effective_count)),
+            state=state,
+            player_ids=player_ids or {user_id: 0},
+            bot_player=resolved_bot_players[0] if resolved_bot_players else None,
+            bot_players=resolved_bot_players,
         )
         self.matches[match.id] = match
         return match
@@ -66,11 +96,11 @@ class UniversalMatchManager:
         return self.matches.get(match_id)
 
     async def broadcast(self, match: UniversalMatch) -> None:
-        for socket in list(match.sockets):
+        for socket, user_id in list(match.sockets.items()):
             try:
-                await socket.send_json({"type": "state", "match": match.snapshot()})
+                await socket.send_json({"type": "state", "match": match.snapshot(user_id)})
             except Exception:
-                match.sockets.discard(socket)
+                match.sockets.pop(socket, None)
 
     async def action(
         self, match: UniversalMatch, user_id: int, payload: dict[str, Any]
@@ -92,18 +122,13 @@ class UniversalMatchManager:
                 # Continue across every bot seat until play returns to the human.
                 for _ in range(96):
                     current_bot = int(match.state.get("current_player", 0))
-                    if (
-                        match.state.get("winner") is not None
-                        or current_bot not in bot_players
-                    ):
+                    if match.state.get("winner") is not None or current_bot not in bot_players:
                         break
                     # Give connected players enough time to see the bot think,
                     # roll, and choose a token instead of receiving every state
                     # in a single imperceptible burst.
                     if match.sockets:
-                        await asyncio.sleep(
-                            0.45 if match.state.get("phase") == "roll" else 0.65
-                        )
+                        await asyncio.sleep(0.45 if match.state.get("phase") == "roll" else 0.65)
                     match.state = apply_action(
                         match.state,
                         current_bot,
