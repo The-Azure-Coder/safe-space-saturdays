@@ -167,9 +167,11 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
             const row = Math.floor(index / 7)
             const position = index % 7
             const column = row % 2 === 0 ? position + 1 : 7 - position
+            const reverse = row % 2 === 1
+            const turn = position === 0 && row > 0
             const newest = state.last_move?.tile && ((state.last_move.side === 'left' && index === 0) || (state.last_move.side !== 'left' && index === board.length - 1))
-            return <span className={`domino-chain__cell${newest ? ` domino-chain__cell--new domino-chain__cell--from-${state.last_move?.side ?? 'right'}` : ''}`} style={{ gridRow: row + 1, gridColumn: column }} key={`${index}-${tile[0]}-${tile[1]}`}>
-              <DominoTile tile={tile} />
+            return <span className={`domino-chain__cell${reverse ? ' domino-chain__cell--reverse' : ''}${turn ? ' domino-chain__cell--turn' : ''}${newest ? ` domino-chain__cell--new domino-chain__cell--from-${state.last_move?.side ?? 'right'}` : ''}`} style={{ gridRow: row + 1, gridColumn: column }} key={`${index}-${tile[0]}-${tile[1]}`}>
+              <DominoTile tile={tile} className={reverse ? 'domino-piece--reverse' : ''} />
             </span>
           })}
         </div>}

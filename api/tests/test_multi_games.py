@@ -2,7 +2,7 @@ import pytest
 
 from app.games import multi
 from app.games.connect_four import IllegalMove
-from app.games.multi import apply_action, new_state
+from app.games.multi import apply_action, new_state, normalise_domino_state
 from app.games.universal import UniversalMatch
 
 
@@ -174,11 +174,27 @@ def test_dominoes_orients_tiles_and_rejects_an_avoidable_pass() -> None:
         "board": [[5, 6]],
         "current_player": 0,
     }
+    normalise_domino_state(state)
     with pytest.raises(IllegalMove, match="still have"):
         apply_action(state, 0, {"pass": True})
     state = apply_action(state, 0, {"tile_index": 0, "side": "left"})
     assert state["board"] == [[2, 5], [5, 6]]
     assert state["last_move"]["tile"] == [2, 5]
+
+
+def test_dominoes_rejects_the_wrong_open_end() -> None:
+    state = {
+        **new_state("dominoes"),
+        "hands": [[[1, 2], [4, 5]], [[0, 0]]],
+        "board": [[5, 6]],
+        "current_player": 0,
+    }
+    normalise_domino_state(state)
+    assert state["legal_moves"] == [{"tile_index": 1, "sides": ["left"]}]
+    with pytest.raises(IllegalMove, match="does not match"):
+        apply_action(state, 0, {"tile_index": 1, "side": "right"})
+    updated = apply_action(state, 0, {"tile_index": 1, "side": "left"})
+    assert updated["board"] == [[4, 5], [5, 6]]
 
 
 def test_blocked_domino_round_uses_lowest_pip_total() -> None:
