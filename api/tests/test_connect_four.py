@@ -1,6 +1,8 @@
+from dataclasses import replace
+
 import pytest
 
-from app.games.connect_four import IllegalMove, apply_move, initial_state
+from app.games.connect_four import IllegalMove, apply_move, choose_bot_column, initial_state
 
 
 def test_vertical_win_and_draw_state() -> None:
@@ -10,6 +12,8 @@ def test_vertical_win_and_draw_state() -> None:
         state = apply_move(state, player, column)
     assert state.winner == 1
     assert state.move_count == 7
+    assert state.last_move == (2, 0)
+    assert state.winning_cells == ((2, 0), (3, 0), (4, 0), (5, 0))
 
 
 def test_rejects_wrong_turn_and_full_column() -> None:
@@ -27,3 +31,16 @@ def test_diagonal_win() -> None:
     for column in (0, 1, 1, 2, 2, 3, 2, 3, 3, 6, 3):
         state = apply_move(state, state.current_player, column)
     assert state.winner == 1
+
+
+def test_thoughtful_bot_takes_a_win_and_blocks_the_player() -> None:
+    state = initial_state()
+    for column in (0, 6, 1, 6, 4, 6, 5):
+        state = apply_move(state, state.current_player, column)
+    assert choose_bot_column(state, 2, "thoughtful") == 6
+
+    block_state = initial_state()
+    for column in (0, 6, 1, 6, 2):
+        block_state = apply_move(block_state, block_state.current_player, column)
+    block_state = replace(block_state, current_player=2)
+    assert choose_bot_column(block_state, 2, "thoughtful") == 3

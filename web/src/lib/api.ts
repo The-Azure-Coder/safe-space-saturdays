@@ -55,7 +55,7 @@ export type Comment = { id: number; post_id: number; author: string; initials: s
 export type Post = { id: number; author: string; initials: string; avatar_url: string | null; text: string; image_url: string | null; created_at: string; likes: number; dislikes: number; loves: number; my_reaction: 'like' | 'dislike' | 'love' | null; comments: Array<Comment>; mine: boolean }
 export type Game = { id: number; name: string; players: string; icon: string; color: string; is_featured: boolean }
 export type Room = { id: number; name: string; game: string; players: number; max_players: number; status: string; joined: boolean }
-export type Match = { match_id: string; room_id: number; game: string; board: Array<Array<number>>; current_player: 1 | 2; winner: 1 | 2 | null; draw: boolean; move_count: number }
+export type Match = { match_id: string; room_id: number; game: string; board: Array<Array<number>>; current_player: 1 | 2; winner: 1 | 2 | null; draw: boolean; move_count: number; last_move: [number, number] | null; winning_cells: Array<[number, number]> }
 export type GameSession = { match_id: string; room_id: number; game: string; state: Record<string, any> }
 export type LeaderboardEntry = { rank: number; user: User }
 export type BugReport = { id: number; user_id: number | null; reporter_name: string; reporter_email: string; title: string; description: string; severity: string; status: string; page_url: string | null; admin_note: string | null; created_at: string; updated_at: string }
@@ -65,6 +65,7 @@ export const api = {
   login: (body: { email: string; password: string; remember_me: boolean }) => apiFetch<{ user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   me: () => apiFetch<User>('/api/auth/me'),
   updateProfile: (body: { name: string }) => apiFetch<User>('/api/auth/me', { method: 'PATCH', body: JSON.stringify(body) }),
+  changePassword: (body: { current_password: string; new_password: string; confirm_password: string }) => apiFetch<void>('/api/auth/me/password', { method: 'POST', body: JSON.stringify(body) }),
   updateAvatar: (image: File) => { const body = new FormData(); body.append('image', image); return apiFetch<User>('/api/auth/me/avatar', { method: 'POST', body }) },
   logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
   dashboard: () => apiFetch<Dashboard>('/api/dashboard'),

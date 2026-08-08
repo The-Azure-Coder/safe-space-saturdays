@@ -78,6 +78,7 @@ class MatchManager:
                 and not match.state.draw
             )
             if bot_turn:
+                await asyncio.sleep(0.55)
                 bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
                 match.state = apply_move(match.state, 2, bot_column)
                 await self.broadcast(

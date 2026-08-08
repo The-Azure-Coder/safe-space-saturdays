@@ -10,9 +10,26 @@ import random
 from typing import Any
 
 from app.games.connect_four import IllegalMove
+from app.games.trivia import apply_trivia_action, new_trivia_state, trivia_bot_action
 
 GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia"}
 _RNG = random.Random()
+LUDO_FINISH = 56
+LUDO_TRACK_LENGTH = 52
+LUDO_SEATS = {
+    "blue": {"offset": 0, "name": "Milo Bot"},
+    "green": {"offset": 13, "name": "Maya Bot"},
+    "yellow": {"offset": 26, "name": "Sunny Bot"},
+    "red": {"offset": 39, "name": "You"},
+}
+# Matches the reference game's supported combinations: opposite seats for two,
+# three occupied corners for three, and every yard for four.
+LUDO_PLAYER_COLORS = {
+    2: ("red", "green"),
+    3: ("red", "blue", "yellow"),
+    4: ("red", "blue", "green", "yellow"),
+}
+LUDO_SAFE_CELLS = frozenset({0, 8, 13, 21, 26, 34, 39, 47})
 
 
 def _turn(state: dict[str, Any], player: int) -> None:
@@ -22,20 +39,58 @@ def _turn(state: dict[str, Any], player: int) -> None:
         raise IllegalMove("It is not your turn")
 
 
-def new_state(game_type: str) -> dict[str, Any]:
+def _ludo_players(player_count: int) -> list[dict[str, Any]]:
+    player_count = max(2, min(4, player_count))
+    return [
+        {
+            "name": "You" if index == 0 else LUDO_SEATS[color]["name"],
+            "color": color,
+            "offset": LUDO_SEATS[color]["offset"],
+            "is_bot": index != 0,
+        }
+        for index, color in enumerate(LUDO_PLAYER_COLORS[player_count])
+    ]
+
+
+def _domino_players(player_count: int) -> list[dict[str, Any]]:
+    names = ("You", "Milo Bot", "Maya Bot", "Sunny Bot")
+    return [
+        {"name": names[index], "is_bot": index != 0}
+        for index in range(max(2, min(4, player_count)))
+    ]
+
+
+def new_state(game_type: str, player_count: int = 2) -> dict[str, Any]:
     if game_type not in GAME_TYPES:
         raise IllegalMove("This game is not available yet")
     if game_type == "ludo":
+        players = _ludo_players(player_count)
         return {
             "game": "ludo", "current_player": 0, "winner": None,
-            "positions": [[-1, -1, -1, -1] for _ in range(2)], "roll": None,
+            "player_count": len(players), "players": players,
+            "positions": [[-1, -1, -1, -1] for _ in players],
+            "phase": "roll", "roll": None, "legal_tokens": [],
+            "six_streak": 0, "turn_number": 1, "action_count": 0,
+            "captures": [0 for _ in players],
+            "last_rolls": [None for _ in players],
+            "last_move": None,
+            "last_event": "Your turn. Roll the dice to begin.",
         }
     if game_type == "dominoes":
+        players = _domino_players(player_count)
         deck = [[left, right] for left in range(7) for right in range(left, 7)]
         _RNG.shuffle(deck)
+        hands = [deck[index * 7 : index * 7 + 7] for index in range(len(players))]
         return {
             "game": "dominoes", "current_player": 0, "winner": None, "draw": False,
-            "hands": [deck[:7], deck[7:14]], "board": [], "passes": 0,
+            "player_count": len(players), "players": players,
+            "hands": hands, "board": [], "passes": 0,
+            "turn_number": 1, "action_count": 0, "last_move": None,
+            "last_event": "Your turn. Place any domino to open the round.",
+            "legal_moves": [
+                {"tile_index": index, "sides": ["right"]}
+                for index in range(len(hands[0]))
+            ],
         }
     if game_type == "bingo":
         numbers = list(range(1, 76))
@@ -48,16 +103,167 @@ def new_state(game_type: str) -> dict[str, Any]:
             "marked": [[row == 2 and col == 2 for col in range(5)] for row in range(5)],
             "drawn": [], "remaining": list(range(1, 76)),
         }
-    return {
-        "game": "trivia", "current_player": 0, "winner": None, "draw": False,
-        "question_index": 0, "scores": [0, 0], "answered": False,
-        "question": "Which word best describes a gentle pause?",
-        "options": ["Rush", "Rest", "Noise", "Pressure"], "correct": 1,
-    }
+    return new_trivia_state(_RNG)
 
 
 def _next_player(state: dict[str, Any]) -> None:
-    state["current_player"] = 1 - state["current_player"]
+    player_count = int(state.get("player_count", len(state.get("positions", [0, 1]))))
+    state["current_player"] = (state["current_player"] + 1) % player_count
+
+
+def _roll_die() -> int:
+    return _RNG.randint(1, 6)
+
+
+def normalise_ludo_state(state: dict[str, Any], player_count: int | None = None) -> None:
+    """Hydrate fields added after early persisted Ludo matches were created."""
+    requested_count = max(2, min(4, player_count or int(state.get("player_count", 2))))
+    players = _ludo_players(requested_count)
+    old_positions = state.get("positions", [])
+    old_captures = state.get("captures", [])
+    old_rolls = state.get("last_rolls", [])
+    state["player_count"] = requested_count
+    state["players"] = players
+    state["positions"] = [
+        list(old_positions[index][:4]) if index < len(old_positions) else [-1, -1, -1, -1]
+        for index in range(requested_count)
+    ]
+    state["captures"] = [
+        old_captures[index] if index < len(old_captures) else 0
+        for index in range(requested_count)
+    ]
+    state["last_rolls"] = [
+        old_rolls[index] if index < len(old_rolls) else None
+        for index in range(requested_count)
+    ]
+    if int(state.get("current_player", 0)) >= requested_count:
+        state["current_player"] = 0
+    state.setdefault("phase", "roll")
+    state.setdefault("legal_tokens", [])
+    state.setdefault("six_streak", 0)
+    state.setdefault("turn_number", 1)
+    state.setdefault("action_count", 0)
+    state.setdefault("last_move", None)
+    state.setdefault("last_event", "Roll the dice.")
+
+
+def _ludo_global_cell(state: dict[str, Any], player: int, position: int) -> int | None:
+    if not 0 <= position < LUDO_TRACK_LENGTH:
+        return None
+    return (position + int(state["players"][player]["offset"])) % LUDO_TRACK_LENGTH
+
+
+def _ludo_legal_tokens(state: dict[str, Any], player: int, roll: int) -> list[int]:
+    legal: list[int] = []
+    for token, position in enumerate(state["positions"][player]):
+        if position == -1 and roll == 6:
+            legal.append(token)
+        elif 0 <= position < LUDO_FINISH and position + roll <= LUDO_FINISH:
+            legal.append(token)
+    return legal
+
+
+def _ludo_switch_turn(state: dict[str, Any], message: str) -> None:
+    _next_player(state)
+    state["phase"] = "roll"
+    state["legal_tokens"] = []
+    state["six_streak"] = 0
+    state["turn_number"] += 1
+    state["last_event"] = message
+
+
+def _ludo_captures(state: dict[str, Any], player: int, position: int) -> list[int]:
+    destination = _ludo_global_cell(state, player, position)
+    if destination is None or destination in LUDO_SAFE_CELLS:
+        return []
+    captured: list[int] = []
+    for opponent, opponent_tokens in enumerate(state["positions"]):
+        if opponent == player:
+            continue
+        for token, opponent_position in enumerate(opponent_tokens):
+            if _ludo_global_cell(state, opponent, opponent_position) == destination:
+                state["positions"][opponent][token] = -1
+                captured.append(token)
+    if captured:
+        state["captures"][player] += len(captured)
+    return captured
+
+
+def _apply_ludo_action(
+    state: dict[str, Any], player: int, action: dict[str, Any]
+) -> dict[str, Any]:
+    normalise_ludo_state(state)
+    _turn(state, player)
+    action_name = action.get("action")
+
+    if action_name == "roll":
+        if state["phase"] != "roll":
+            raise IllegalMove("Choose a highlighted token before rolling again")
+        roll = _roll_die()
+        state["action_count"] += 1
+        state["roll"] = roll
+        state["last_rolls"][player] = roll
+        state["six_streak"] = state["six_streak"] + 1 if roll == 6 else 0
+        if state["six_streak"] >= 3:
+            _ludo_switch_turn(state, "Three sixes ends the turn. The dice passes across.")
+            return state
+        legal_tokens = _ludo_legal_tokens(state, player, roll)
+        state["legal_tokens"] = legal_tokens
+        player_name = state["players"][player]["name"]
+        if legal_tokens:
+            state["phase"] = "move"
+            state["last_event"] = f"{player_name} rolled {roll}. Choose a token to move."
+        elif roll == 6:
+            state["phase"] = "roll"
+            state["last_event"] = f"{player_name} rolled 6 but has no legal move. Roll again."
+        else:
+            _ludo_switch_turn(state, f"{player_name} rolled {roll} with no legal move.")
+        return state
+
+    if action_name != "move":
+        raise IllegalMove("Roll the dice before choosing a token")
+    if state["phase"] != "move" or not isinstance(state.get("roll"), int):
+        raise IllegalMove("Roll the dice before choosing a token")
+    token = action.get("token")
+    if not isinstance(token, int) or token not in state["legal_tokens"]:
+        raise IllegalMove("Choose one of the highlighted tokens")
+
+    roll = state["roll"]
+    old_position = state["positions"][player][token]
+    new_position = 0 if old_position == -1 else old_position + roll
+    state["positions"][player][token] = new_position
+    captured = _ludo_captures(state, player, new_position)
+    finished = new_position == LUDO_FINISH
+    state["action_count"] += 1
+    state["legal_tokens"] = []
+    state["last_move"] = {
+        "player": player,
+        "token": token,
+        "from": old_position,
+        "to": new_position,
+        "roll": roll,
+        "captured": captured,
+    }
+
+    player_name = state["players"][player]["name"]
+    if all(position == LUDO_FINISH for position in state["positions"][player]):
+        state["winner"] = player
+        state["phase"] = "finished"
+        state["last_event"] = f"{player_name} brought every token home!"
+        return state
+
+    event = f"{player_name} moved token {token + 1} by {roll}."
+    if captured:
+        event += f" Captured {len(captured)} token{'s' if len(captured) != 1 else ''}!"
+    if finished:
+        event += " One token made it home!"
+    extra_turn = roll == 6 or bool(captured) or finished
+    if extra_turn:
+        state["phase"] = "roll"
+        state["last_event"] = event + " Roll again."
+    else:
+        _ludo_switch_turn(state, event)
+    return state
 
 
 def _bingo_complete(marked: list[list[bool]]) -> bool:
@@ -71,61 +277,147 @@ def _bingo_complete(marked: list[list[bool]]) -> bool:
     return any(all(line) for line in lines)
 
 
+def _domino_sides(tile: list[int], board: list[list[int]]) -> list[str]:
+    if not board:
+        return ["right"]
+    sides: list[str] = []
+    if board[0][0] in tile:
+        sides.append("left")
+    if board[-1][1] in tile:
+        sides.append("right")
+    return sides
+
+
+def _domino_legal_moves(state: dict[str, Any], player: int) -> list[dict[str, Any]]:
+    return [
+        {"tile_index": index, "sides": _domino_sides(tile, state["board"])}
+        for index, tile in enumerate(state["hands"][player])
+        if _domino_sides(tile, state["board"])
+    ]
+
+
+def _refresh_domino_legal_moves(state: dict[str, Any]) -> None:
+    if state.get("winner") is not None or state.get("draw", False):
+        state["legal_moves"] = []
+        return
+    state["legal_moves"] = _domino_legal_moves(state, int(state["current_player"]))
+
+
+def normalise_domino_state(
+    state: dict[str, Any], player_count: int | None = None
+) -> None:
+    requested_count = max(2, min(4, player_count or len(state.get("hands", [])) or 2))
+    old_count = len(state.get("hands", []))
+    if old_count < requested_count:
+        used = {
+            tuple(sorted(tile))
+            for tile in state.get("board", [])
+            + [tile for hand in state.get("hands", []) for tile in hand]
+        }
+        remaining = [
+            [left, right]
+            for left in range(7)
+            for right in range(left, 7)
+            if (left, right) not in used
+        ]
+        for index in range(old_count, requested_count):
+            start = (index - old_count) * 7
+            state["hands"].append(remaining[start : start + 7])
+    effective_count = len(state.get("hands", [])) or requested_count
+    state["player_count"] = effective_count
+    state["players"] = _domino_players(effective_count)
+    state.setdefault("passes", 0)
+    state.setdefault("turn_number", 1)
+    state.setdefault("action_count", 0)
+    state.setdefault("last_move", None)
+    state.setdefault("last_event", "Choose a domino that matches either open end.")
+    _refresh_domino_legal_moves(state)
+
+
+def _finish_blocked_domino_round(state: dict[str, Any]) -> None:
+    totals = [sum(sum(tile) for tile in hand) for hand in state["hands"]]
+    lowest = min(totals)
+    winners = [index for index, total in enumerate(totals) if total == lowest]
+    state["winner"] = winners[0] if len(winners) == 1 else None
+    state["draw"] = len(winners) != 1
+    state["last_event"] = (
+        "The table is blocked. Lowest remaining pip count wins."
+        if len(winners) == 1
+        else "The table is blocked and the lowest pip counts are tied."
+    )
+    _refresh_domino_legal_moves(state)
+
+
+def _apply_domino_action(
+    state: dict[str, Any], player: int, action: dict[str, Any]
+) -> dict[str, Any]:
+    normalise_domino_state(state)
+    _turn(state, player)
+    legal_moves = _domino_legal_moves(state, player)
+    player_name = state["players"][player]["name"]
+
+    if action.get("pass") is True:
+        if legal_moves:
+            raise IllegalMove("You still have a domino that can be played")
+        state["passes"] += 1
+        state["action_count"] += 1
+        state["last_move"] = {"player": player, "pass": True}
+        state["last_event"] = f"{player_name} passed with no legal move."
+        if state["passes"] >= state["player_count"]:
+            _finish_blocked_domino_round(state)
+            return state
+        _next_player(state)
+        state["turn_number"] += 1
+        _refresh_domino_legal_moves(state)
+        return state
+
+    index = action.get("tile_index")
+    side = action.get("side", "right")
+    if not isinstance(index, int) or not 0 <= index < len(state["hands"][player]):
+        raise IllegalMove("Choose a domino from your hand")
+    if side not in {"left", "right"}:
+        raise IllegalMove("Choose the left or right end of the line")
+    move = next((move for move in legal_moves if move["tile_index"] == index), None)
+    if move is None or side not in move["sides"]:
+        raise IllegalMove("That domino does not match this end of the line")
+
+    tile = state["hands"][player].pop(index)
+    if not state["board"]:
+        oriented = tile
+        side = "right"
+        state["board"].append(oriented)
+    elif side == "left":
+        edge = state["board"][0][0]
+        oriented = tile if tile[1] == edge else [tile[1], tile[0]]
+        state["board"].insert(0, oriented)
+    else:
+        edge = state["board"][-1][1]
+        oriented = tile if tile[0] == edge else [tile[1], tile[0]]
+        state["board"].append(oriented)
+
+    state["passes"] = 0
+    state["action_count"] += 1
+    state["last_move"] = {
+        "player": player, "tile": oriented, "side": side, "pass": False,
+    }
+    state["last_event"] = f"{player_name} placed {oriented[0]}–{oriented[1]} on the {side}."
+    if not state["hands"][player]:
+        state["winner"] = player
+        state["last_event"] = f"{player_name} played every domino and won the round!"
+        _refresh_domino_legal_moves(state)
+        return state
+    _next_player(state)
+    state["turn_number"] += 1
+    _refresh_domino_legal_moves(state)
+    return state
+
+
 def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> dict[str, Any]:
     game = state["game"]
     if game == "ludo":
-        _turn(state, player)
-        token = action.get("token")
-        if not isinstance(token, int) or not 0 <= token < 4:
-            raise IllegalMove("Choose one of your four tokens")
-        roll = _RNG.randint(1, 6)
-        position = state["positions"][player][token]
-        if position == -1 and roll != 6:
-            state["roll"] = roll
-            _next_player(state)
-            return state
-        new_position = 0 if position == -1 else position + roll
-        if new_position > 56:
-            state["roll"] = roll
-            _next_player(state)
-            return state
-        state["positions"][player][token] = new_position
-        state["roll"] = roll
-        if all(value == 56 for value in state["positions"][player]):
-            state["winner"] = player
-        elif roll != 6:
-            _next_player(state)
-        return state
+        return _apply_ludo_action(state, player, action)
     if game == "dominoes":
-        _turn(state, player)
-        if action.get("pass") is True:
-            state["passes"] += 1
-            if state["passes"] >= 2:
-                totals = [sum(sum(tile) for tile in hand) for hand in state["hands"]]
-                state["winner"] = 0 if totals[0] <= totals[1] else 1
-            else:
-                _next_player(state)
-            return state
-        index = action.get("tile_index")
-        side = action.get("side", "right")
-        if not isinstance(index, int) or not 0 <= index < len(state["hands"][player]):
-            raise IllegalMove("Choose a tile from your hand")
-        tile = state["hands"][player][index]
-        if state["board"]:
-            edge = state["board"][0][0] if side == "left" else state["board"][-1][1]
-            if edge not in tile:
-                raise IllegalMove("That tile does not match the board")
-        state["hands"][player].pop(index)
-        if side == "left":
-            state["board"].insert(0, tile)
-        else:
-            state["board"].append(tile)
-        state["passes"] = 0
-        if not state["hands"][player]:
-            state["winner"] = player
-        else:
-            _next_player(state)
-        return state
+        return _apply_domino_action(state, player, action)
     if game == "bingo":
         _turn(state, player)
         if action.get("action") == "draw":
@@ -143,37 +435,58 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
             state["winner"] = player
             return state
         raise IllegalMove("Draw a ball before claiming bingo")
-    _turn(state, player)
-    answer = action.get("answer")
-    if not isinstance(answer, int) or not 0 <= answer < 4:
-        raise IllegalMove("Choose one answer")
-    if state["answered"]:
-        raise IllegalMove("This question is already answered")
-    if answer == state["correct"]:
-        state["scores"][player] += 100
-    state["answered"] = True
-    if state["question_index"] >= 4:
-        state["winner"] = 0 if state["scores"][0] >= state["scores"][1] else 1
-    else:
-        state["question_index"] += 1
-        state["answered"] = False
-        _next_player(state)
-    return state
+    return apply_trivia_action(state, player, action)
 
 
 def bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
     game = state["game"]
+    if game == "trivia":
+        return trivia_bot_action(state)
     if game == "ludo":
-        return {"token": 0}
+        normalise_ludo_state(state)
+        if state["phase"] == "roll":
+            return {"action": "roll"}
+        legal_tokens = state.get("legal_tokens", [])
+        if not legal_tokens:
+            raise IllegalMove("The bot has no legal Ludo move")
+
+        def move_score(token: int) -> tuple[int, int]:
+            position = state["positions"][player][token]
+            destination = 0 if position == -1 else position + int(state["roll"])
+            score = destination
+            if destination == LUDO_FINISH:
+                score += 1_000
+            target_cell = _ludo_global_cell(state, player, destination)
+            if target_cell is not None and target_cell not in LUDO_SAFE_CELLS:
+                if any(
+                    _ludo_global_cell(state, opponent, opponent_position) == target_cell
+                    for opponent, opponent_tokens in enumerate(state["positions"])
+                    if opponent != player
+                    for opponent_position in opponent_tokens
+                ):
+                    score += 500
+            if position == -1:
+                score += 120
+            return score, -token
+
+        token = max(legal_tokens, key=move_score)
+        return {"action": "move", "token": token}
     if game == "dominoes":
-        for index, tile in enumerate(state["hands"][player]):
-            right_edge = state["board"][-1][1] if state["board"] else None
-            left_edge = state["board"][0][0] if state["board"] else None
-            if not state["board"] or tile[0] in (right_edge, left_edge) or tile[1] in (
-                right_edge,
-                left_edge,
-            ):
-                return {"tile_index": index, "side": "right"}
+        normalise_domino_state(state)
+        legal_moves = _domino_legal_moves(state, player)
+        if legal_moves:
+            move = max(
+                legal_moves,
+                key=lambda candidate: (
+                    sum(state["hands"][player][candidate["tile_index"]]),
+                    state["hands"][player][candidate["tile_index"]][0]
+                    == state["hands"][player][candidate["tile_index"]][1],
+                ),
+            )
+            return {
+                "tile_index": move["tile_index"],
+                "side": move["sides"][0],
+            }
         return {"pass": True}
     if game == "bingo":
         return {"action": "draw"}

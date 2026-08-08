@@ -90,6 +90,18 @@ class ProfileUpdateRequest(BaseModel):
     name: str = Field(min_length=2, max_length=120)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=10, max_length=128)
+    confirm_password: str = Field(min_length=10, max_length=128)
+
+    @model_validator(mode="after")
+    def passwords_match(self) -> "ChangePasswordRequest":
+        if self.new_password != self.confirm_password:
+            raise ValueError("Passwords do not match")
+        return self
+
+
 class QuoteResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -195,6 +207,8 @@ class MatchResponse(BaseModel):
     winner: Literal[1, 2] | None
     draw: bool
     move_count: int
+    last_move: tuple[int, int] | None = None
+    winning_cells: list[tuple[int, int]] = Field(default_factory=list)
 
 
 class MoveRequest(BaseModel):

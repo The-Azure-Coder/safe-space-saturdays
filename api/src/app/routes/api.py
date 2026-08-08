@@ -29,9 +29,10 @@ from app.config import get_settings
 from app.db import get_session, session_factory
 from app.games.connect_four import ConnectFourState, IllegalMove
 from app.games.manager import LiveMatch, match_manager
-from app.games.multi import GAME_TYPES
+from app.games.multi import GAME_TYPES, normalise_domino_state, normalise_ludo_state
 from app.games.persistence import create_persisted_match, record_state
 from app.games.realtime import realtime_bus
+from app.games.trivia import normalise_trivia_state
 from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
     BugReport,
@@ -59,6 +60,7 @@ from app.schemas import (
     BugReportCreateRequest,
     BugReportResponse,
     BugReportUpdateRequest,
+    ChangePasswordRequest,
     CheckInRequest,
     CheckInResponse,
     CommentCreateRequest,
@@ -112,12 +114,25 @@ def match_channel(match_id: str) -> str:
 
 def restore_connect_match(row: GameMatch) -> LiveMatch:
     snapshot = row.state
+    raw_last_move = snapshot.get("last_move")
+    last_move = (
+        (int(raw_last_move[0]), int(raw_last_move[1]))
+        if isinstance(raw_last_move, list) and len(raw_last_move) == 2
+        else None
+    )
+    winning_cells = tuple(
+        (int(cell[0]), int(cell[1]))
+        for cell in snapshot.get("winning_cells", [])
+        if isinstance(cell, list) and len(cell) == 2
+    )
     state = ConnectFourState(
         board=tuple(tuple(int(cell) for cell in board_row) for board_row in snapshot["board"]),
         current_player=1 if int(snapshot["current_player"]) == 1 else 2,
         winner=snapshot.get("winner"),
         draw=bool(snapshot.get("draw", False)),
         move_count=int(snapshot.get("move_count", 0)),
+        last_move=last_move,
+        winning_cells=winning_cells,
     )
     match = LiveMatch(
         id=row.id,
@@ -131,13 +146,22 @@ def restore_connect_match(row: GameMatch) -> LiveMatch:
     return match
 
 
-def restore_universal_match(row: GameMatch) -> UniversalMatch:
+def restore_universal_match(row: GameMatch, player_count: int = 2) -> UniversalMatch:
+    if row.game_type == "ludo":
+        normalise_ludo_state(row.state, player_count)
+    if row.game_type == "dominoes":
+        normalise_domino_state(row.state, player_count)
+    if row.game_type == "trivia":
+        normalise_trivia_state(row.state)
     match = UniversalMatch(
         id=row.id,
         room_id=row.room_id,
         game_type=row.game_type,
         state=row.state,
         player_ids={row.player_user_id: 0},
+        bot_players=tuple(
+            range(1, player_count if row.game_type in {"ludo", "dominoes"} else 2)
+        ),
     )
     universal_matches.matches[row.id] = match
     return match
@@ -150,7 +174,13 @@ async def hydrate_match(match_id: str) -> tuple[LiveMatch | None, UniversalMatch
             return None, None
         if row.game_type == "connect-four":
             return restore_connect_match(row), None
-        return None, restore_universal_match(row)
+        room = await db.get(GameRoom, row.room_id)
+        player_count = (
+            room.max_players
+            if room is not None and row.game_type in {"ludo", "dominoes"}
+            else 2
+        )
+        return None, restore_universal_match(row, player_count)
 
 
 async def relay_remote_events(websocket: WebSocket, match_id: str) -> None:
@@ -319,6 +349,19 @@ async def update_me(
     await db.commit()
     await db.refresh(user)
     return user_response(user)
+
+
+@router.post("/auth/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_my_password(
+    payload: ChangePasswordRequest, user: CurrentUser, db: DbSession
+) -> None:
+    if not verify_password(payload.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    user.password_hash = hash_password(payload.new_password)
+    await db.commit()
 
 
 @router.post("/auth/me/avatar", response_model=UserResponse)
@@ -963,9 +1006,13 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
 async def create_game_session(
     payload: GameSessionCreateRequest, user: CurrentUser, db: DbSession
 ) -> GameSessionResponse:
-    room = await db.get(GameRoom, payload.room_id)
+    room = await db.scalar(
+        select(GameRoom).where(GameRoom.id == payload.room_id).with_for_update()
+    )
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room not available")
+    if room.host_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the room host can start a match")
     joined = await db.scalar(
         select(RoomParticipant.id).where(
             RoomParticipant.room_id == room.id, RoomParticipant.user_id == user.id
@@ -977,7 +1024,7 @@ async def create_game_session(
     game_type = game_type_for_name(game.name if game else "")
     if game_type not in GAME_TYPES:
         raise HTTPException(status_code=409, detail="This game is not playable yet")
-    match = universal_matches.create(room.id, user.id, game_type)
+    match = universal_matches.create(room.id, user.id, game_type, room.max_players)
     room.status = "active"
     await create_persisted_match(
         db, match.id, room.id, game_type, user.id, match.state
@@ -1014,14 +1061,12 @@ async def game_session_action(
     persisted = await db.get(GameMatch, match.id)
     if persisted is not None:
         await record_state(db, persisted, user.id, payload.action, match.state)
+        if match.state.get("winner") is not None or match.state.get("draw", False):
+            persisted.status = "completed"
     if match.state.get("winner") == 0 and not match.reward_granted:
         await grant_game_win_reward(db, user.id, match.id)
         match.reward_granted = True
-        if persisted is not None:
-            persisted.status = "completed"
-        await db.commit()
-    else:
-        await db.commit()
+    await db.commit()
     await realtime_bus.publish(
         match_channel(match.id),
         {
@@ -1062,7 +1107,14 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                     await record_state(
                         db, persisted, user.id, message["action"], match.state
                     )
-                    await db.commit()
+                    if match.state.get("winner") is not None or match.state.get(
+                        "draw", False
+                    ):
+                        persisted.status = "completed"
+                if match.state.get("winner") == 0 and not match.reward_granted:
+                    await grant_game_win_reward(db, user.id, match.id)
+                    match.reward_granted = True
+                await db.commit()
             await realtime_bus.publish(
                 match_channel(match.id),
                 {
@@ -1070,11 +1122,6 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                     "payload": {"type": "state", "match": match.snapshot()},
                 },
             )
-            if match.state.get("winner") == 0 and not match.reward_granted:
-                async with session_factory() as db:
-                    await grant_game_win_reward(db, user.id, match.id)
-                    await db.commit()
-                    match.reward_granted = True
     except WebSocketDisconnect:
         match.sockets.discard(websocket)
     finally:
