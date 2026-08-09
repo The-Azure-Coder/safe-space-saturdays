@@ -2676,7 +2676,7 @@ function GamesScreen() {
         <section className="game-night-banner">
           <div>
             <h2>
-              Game Night Starts at 6:30 PM!{' '}
+              Game Night Starts at 7:00 PM!{' '}
               <span className="heart-doodle">♡</span>
             </h2>
             <p>Join friends for fun, connection, and friendly competition.</p>

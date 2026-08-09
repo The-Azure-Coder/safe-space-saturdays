@@ -1367,3 +1367,36 @@ html[data-theme='night'] .carousel-dot--active { background: #b9d8b5; }
 .games-panel .game-grid--games-expanded .game-tile { min-height: 150px; }
 .games-panel .games-view-more { display: flex; margin: 16px auto 0; }
 .quotes-page .quote-actions { margin-top: 28px; }
+/* Crimson Ty final contrast pass: keep every dashboard surface inside the red night palette. */
+html[data-theme='crimson'] .welcome-carousel,
+html[data-theme='crimson'] .welcome-carousel--peach,
+html[data-theme='crimson'] .welcome-carousel--lilac,
+html[data-theme='crimson'] .progress-card,
+html[data-theme='crimson'] .leaderboard-table,
+html[data-theme='crimson'] .quote-share-card,
+html[data-theme='crimson'] .announcement-card,
+html[data-theme='crimson'] .game-night-banner { border-color: var(--line); background: #42252b; color: var(--ink); }
+html[data-theme='crimson'] .welcome-carousel p,
+html[data-theme='crimson'] .announcement-card__intro,
+html[data-theme='crimson'] .announcement-item p,
+html[data-theme='crimson'] .progress-card p { color: var(--muted); }
+html[data-theme='crimson'] .welcome-carousel__eyebrow,
+html[data-theme='crimson'] .welcome-carousel--peach .welcome-carousel__eyebrow,
+html[data-theme='crimson'] .welcome-carousel--lilac .welcome-carousel__eyebrow { color: #f1a18b; }
+html[data-theme='crimson'] .welcome-carousel__controls { background: rgb(58 32 38 / 88%); }
+html[data-theme='crimson'] .welcome-carousel__controls > button { border-color: var(--line); background: #5a3037; color: #ffeae4; }
+html[data-theme='crimson'] .welcome-carousel__controls > button:hover { background: #713a43; }
+html[data-theme='crimson'] .welcome-carousel__dot { background: #97606a; }
+html[data-theme='crimson'] .welcome-carousel__dot--active { background: #f09a82; box-shadow: 0 0 0 3px rgb(240 154 130 / 18%); }
+html[data-theme='crimson'] .app-nav__link--active { border-color: rgb(240 154 130 / 35%); background: #6b353e; color: #ffeae4; box-shadow: 0 0 0 2px rgb(240 154 130 / 14%); }
+html[data-theme='crimson'] .leaderboard-table__head { border-color: var(--line); background: #5a3037; color: #f8e9e5; }
+html[data-theme='crimson'] .leaderboard-row,
+html[data-theme='crimson'] .leaderboard-row--you { border-color: var(--line); background: #3a2026; color: var(--ink); }
+html[data-theme='crimson'] .leaderboard-row:hover { background: #5a3037; }
+html[data-theme='crimson'] .quote-share-card textarea { border-color: #80505a; background: #2c1b20; color: #fff2ed; }
+html[data-theme='crimson'] .quote-share-card textarea::placeholder { color: #d4aaa3; opacity: 1; }
+html[data-theme='crimson'] .announcement-card { background: linear-gradient(145deg, #512d33, #3b2928); }
+html[data-theme='crimson'] .announcement-item { border-color: rgb(248 224 218 / 18%); }
+html[data-theme='crimson'] .announcement-item__badge { background: #6b353e; color: #ffd0c2; }
+html[data-theme='crimson'] .announcement-item__badge--sage { background: #394735; color: #d4edc5; }
+html[data-theme='crimson'] .game-night-banner { background: #4b2b31; }
