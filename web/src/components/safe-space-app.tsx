@@ -2171,6 +2171,7 @@ function CommunityScreen() {
   const postsQuery = useQuery({
     queryKey: ['posts', page],
     queryFn: () => api.posts(page, 10),
+    refetchInterval: 60_000,
   })
   const create = useMutation({
     mutationFn: () => api.createPost(draft.trim(), imageFile),
@@ -3163,6 +3164,7 @@ function LeaderboardScreen() {
   const leaderboard = useQuery({
     queryKey: ['leaderboard', period, page],
     queryFn: () => api.leaderboard(period, page, 10),
+    refetchInterval: 60_000,
   })
   const progress = useQuery({
     queryKey: ['leaderboard-me', period],
