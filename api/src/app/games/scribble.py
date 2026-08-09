@@ -11,9 +11,32 @@ from typing import Any
 from app.games.connect_four import IllegalMove
 
 WORDS = (
-    "rainbow", "dinosaur", "rocket", "cactus", "guitar", "sunflower",
-    "pancake", "volcano", "bicycle", "treehouse", "turtle", "popcorn",
-    "butterfly", "campfire", "ice cream", "mermaid", "cloud", "sneaker",
+    # Nature and animals
+    "rainbow", "sunflower", "cactus", "cloud", "volcano", "campfire",
+    "mountain", "waterfall", "island", "palm tree", "snowflake", "moon",
+    "star", "planet", "sun", "flower", "tree", "leaf", "mushroom",
+    "butterfly", "dinosaur", "turtle", "penguin", "elephant", "giraffe",
+    "lion", "monkey", "octopus", "whale", "shark", "dolphin", "rabbit",
+    "cat", "dog", "frog", "snail", "bee", "spider", "parrot", "owl",
+    # Places and transport
+    "treehouse", "castle", "lighthouse", "school", "hospital", "library",
+    "restaurant", "supermarket", "playground", "beach", "farm", "island",
+    "rocket", "bicycle", "skateboard", "roller skates", "train", "bus",
+    "airplane", "helicopter", "sailboat", "submarine", "canoe", "car",
+    "motorcycle", "hot air balloon", "spaceship", "traffic light",
+    # Food and everyday objects
+    "pancake", "popcorn", "pizza", "hamburger", "ice cream", "cupcake",
+    "cake", "sandwich", "taco", "watermelon", "banana", "apple", "cookie",
+    "lollipop", "coconut", "teapot", "backpack", "umbrella", "sunglasses",
+    "toothbrush", "alarm clock", "telephone", "camera", "television", "book",
+    "pencil", "scissors", "key", "crown", "treasure chest", "present",
+    # Activities, people, and playful ideas
+    "guitar", "drum", "piano", "microphone", "ballerina", "superhero",
+    "pirate", "wizard", "astronaut", "robot", "detective", "firefighter",
+    "doctor", "chef", "gardener", "sailor", "dancing", "singing", "reading",
+    "sleeping", "swimming", "fishing", "painting", "camping", "gardening",
+    "football", "basketball", "tennis", "baseball", "kite", "yo-yo", "puzzle",
+    "birthday party", "snowman", "mermaid", "dragon", "unicorn", "magic wand",
 )
 
 GUESS_SECONDS = 30
