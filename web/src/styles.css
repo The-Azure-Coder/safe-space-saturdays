@@ -1075,6 +1075,18 @@ html[data-theme='night'] .content-skeleton__copy i { background: #385542; }
 html[data-theme='night'] .quote-card { background: #3d2e29; color: var(--ink); }
 html[data-theme='night'] .check-card { background: #263d30; color: var(--ink); }
 html[data-theme='night'] .community-card { background: #332f40; color: var(--ink); }
+html[data-theme='night'] .quote-share-card {
+  border-color: var(--line);
+  background: #21342a;
+  color: var(--ink);
+}
+html[data-theme='night'] .quote-share-card textarea,
+html[data-theme='night'] .quote-share-card textarea:focus {
+  border-color: var(--line);
+  background: #1d3026;
+  color: var(--ink);
+}
+html[data-theme='night'] .quote-share-card textarea::placeholder { color: #91a99a; opacity: 1; }
 html[data-theme='night'] .game-strip { background: #21342a; color: var(--ink); }
 html[data-theme='night'] .progress-card { border-color: var(--line); background: #263a31; color: var(--ink); }
 html[data-theme='night'] .leaderboard-table__head,
