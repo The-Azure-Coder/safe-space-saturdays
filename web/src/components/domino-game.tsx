@@ -47,7 +47,7 @@ function createDominoLayout(board: Array<[number, number]>): Array<DominoLayout>
       direction *= -1
       currentX = turnX + direction * 0.5
       hasHorizontal = false
-      return
+      continue
     }
 
     layout.push({ x: currentX, y: row + 0.5, vertical: false, reverse: direction < 0 })

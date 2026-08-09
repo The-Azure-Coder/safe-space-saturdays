@@ -86,6 +86,13 @@ type GameDefinition = {
   color: string
 }
 
+function gameRoomCapacity(name: string | undefined): number {
+  const normalized = name?.trim().toLowerCase() ?? ''
+  if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle') return 2
+  if (normalized === 'bingo') return 8
+  return 4
+}
+
 const games: Array<GameDefinition> = [
   {
     name: 'Ludo',
@@ -2680,6 +2687,11 @@ function GamesScreen() {
   const availableGames: Array<GameDefinition> = gamesQuery.data?.length
     ? gamesQuery.data.map((game) => ({ ...game, color: game.color }))
     : games.map((game, index) => ({ ...game, id: index + 1 }))
+  const selectedGame = availableGames.find((game) => game.id === roomGameId)
+  const maxRoomPlayers = gameRoomCapacity(selectedGame?.name)
+  useEffect(() => {
+    if (roomPlayers > maxRoomPlayers) setRoomPlayers(maxRoomPlayers)
+  }, [maxRoomPlayers, roomPlayers])
   const rooms = roomsQuery.data ?? []
   const firstGameId = availableGames[0]?.id ?? null
   return (
@@ -2774,9 +2786,9 @@ function GamesScreen() {
                 value={roomPlayers}
                 onChange={(event) => setRoomPlayers(Number(event.target.value))}
               >
-                <option value={2}>2 players</option>
-                <option value={3}>3 players</option>
-                <option value={4}>4 players</option>
+                {[2, 3, 4, 5, 6, 7, 8].filter((count) => count <= maxRoomPlayers).map((count) => (
+                  <option value={count} key={count}>{count} players</option>
+                ))}
               </select>
             </label>
             <label className="field-label">
@@ -2890,10 +2902,10 @@ function GamesScreen() {
                   </div>
                   {room.joined ? (
                     <span
-                      className="room-status-pill"
+                      className="room-status-pill room-status-pill--joined"
                       aria-label="You joined this room"
                     >
-                      Joined
+                      Joined ✓
                     </span>
                   ) : (
                     <button
@@ -2907,12 +2919,13 @@ function GamesScreen() {
                   )}
                   {room.joined && room.status === 'open' && !room.is_host && (
                     <button
-                      className="button button--small button--secondary"
+                      className={`button button--small room-ready-button ${room.ready ? 'room-ready-button--active' : ''}`}
                       type="button"
+                      aria-pressed={room.ready}
                       disabled={ready.isPending}
                       onClick={() => ready.mutate(room.id)}
                     >
-                      {room.ready ? 'Ready ✓' : 'Ready'}
+                      {room.ready ? 'Ready ✓' : 'Ready up'}
                     </button>
                   )}
                   {room.joined && room.status === 'open' && room.is_host && (
@@ -2936,16 +2949,20 @@ function GamesScreen() {
                     room.is_host &&
                     !room.fill_with_bots && (
                       <button
-                        className="button button--small button--ghost"
+                        className={`button button--small room-ready-button ${room.ready ? 'room-ready-button--active' : ''}`}
                         type="button"
+                        aria-pressed={room.ready}
                         disabled={ready.isPending}
                         onClick={() => ready.mutate(room.id)}
                       >
-                        {room.ready ? 'Ready ✓' : 'Ready'}
+                        {room.ready ? 'Ready ✓' : 'Ready up'}
                       </button>
                     )}
                   {room.joined && room.status === 'open' && !room.is_host && (
-                    <small className="room-waiting">Waiting for host…</small>
+                    <span className="room-waiting" role="status">
+                      <span className="room-waiting__dot" aria-hidden="true" />
+                      Waiting for host…
+                    </span>
                   )}
                   {room.joined && room.status === 'active' && room.match_id && (
                     <button

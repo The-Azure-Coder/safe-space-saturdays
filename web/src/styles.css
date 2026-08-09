@@ -714,6 +714,10 @@ html[data-theme='night'] .domino-game-head p, html[data-theme='night'] .domino-p
   .connect-four-tip { margin-top: 14px; }
   .room-create-card { grid-template-columns: 1fr; }
   .room-create-card > div:first-child, .room-create-actions { grid-column: auto; }
+  .room-row { flex-wrap: wrap; align-items: center; }
+  .room-row__details { min-width: calc(100% - 52px); }
+  .room-row .room-status-pill, .room-row .room-action-button, .room-row .room-ready-button { margin-left: 40px; }
+  .room-row .room-waiting { margin-left: 40px; }
 }
 html[data-theme='night'] .connect-four-shell { background: #21352b; }
 html[data-theme='night'] .connect-four-player { background: #1d3026; }
@@ -958,6 +962,13 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .room-row .button { padding-inline: 16px; white-space: nowrap; }
 .room-action-button { min-width: 96px; }
 .room-status-pill { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid var(--sage-pale); border-radius: 999px; background: var(--sage-pale); color: var(--sage-dark); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.room-status-pill--joined { gap: 5px; border-color: color-mix(in srgb, var(--sage) 34%, var(--line)); }
+.room-ready-button { min-width: 86px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }
+.room-ready-button:hover, .room-ready-button:focus-visible { border-color: var(--sage); background: var(--sage-pale); color: var(--sage-dark); }
+.room-ready-button--active { border-color: var(--sage-dark); background: var(--sage-pale); color: var(--sage-dark); }
+.room-waiting { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.room-waiting__dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 4px var(--orange-pale); animation: room-waiting-pulse 1.8s ease-in-out infinite; }
+@keyframes room-waiting-pulse { 50% { opacity: .45; transform: scale(.8); } }
 .room-icon { font-size: 28px; }
 .winner-row .avatar { width: 39px; height: 39px; font-size: 16px; }
 .form-card, .conversation-card, .guidelines-card, .games-panel, .rooms-panel, .winner-panel, .profile-card { border: 0; box-shadow: 0 14px 34px rgb(77 93 68 / 7%); }
