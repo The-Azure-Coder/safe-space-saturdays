@@ -53,6 +53,7 @@ class UniversalMatch:
             drawer = int(public_state.get("current_drawer", 0))
             if seat != drawer:
                 public_state.pop("word", None)
+                public_state.pop("word_choices", None)
             public_state["is_drawer"] = seat == drawer
             public_state["drawer_name"] = public_state.get("players", [{}])[drawer].get("name", "The drawer")
         return {
@@ -123,7 +124,7 @@ class UniversalMatchManager:
                 bool(bot_players)
                 and match.state.get("winner") is None
                 and match.state.get("current_player") in bot_players
-                and (match.game_type != "scribble" or match.state.get("bot_draw_pending", False))
+                and (match.game_type != "scribble" or match.state.get("phase") == "choosing" or match.state.get("bot_draw_pending", False))
             )
             if bot_turn and match.game_type == "ludo":
                 # Continue across every bot seat until play returns to the human.

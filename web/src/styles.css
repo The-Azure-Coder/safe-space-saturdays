@@ -620,6 +620,11 @@ html[data-theme='night'] .domino-game-head p, html[data-theme='night'] .domino-p
 .scribble-canvas--draw { cursor: crosshair; }
 .scribble-canvas-note { position: absolute; right: 16px; bottom: 13px; padding: 5px 9px; border-radius: 999px; background: rgb(255 253 248 / 86%); color: #8c826f; font-size: 12px; pointer-events: none; }
 .scribble-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.scribble-timer { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid color-mix(in srgb, #d87958 45%, var(--line)); border-radius: 12px; color: var(--text); background: color-mix(in srgb, #fff1d8 70%, var(--surface)); }
+.scribble-timer span { flex: 1; height: 7px; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--line) 65%, transparent); }
+.scribble-timer i { display: block; height: 100%; border-radius: inherit; background: #d87958; transition: width .25s linear; }
+.scribble-timer--urgent { color: #a34032; }
+.scribble-word-choices { display: flex; flex-wrap: wrap; gap: 9px; }
 .scribble-palette { display: flex; gap: 7px; margin-right: auto; }
 .scribble-color { width: 28px; height: 28px; padding: 0; border: 3px solid transparent; border-radius: 50%; cursor: pointer; }
 .scribble-color--selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface); }
@@ -629,7 +634,14 @@ html[data-theme='night'] .domino-game-head p, html[data-theme='night'] .domino-p
 .scribble-guesses { display: flex; flex-wrap: wrap; gap: 7px; }
 .scribble-guess { padding: 7px 10px; border-radius: 10px; background: color-mix(in srgb, var(--surface) 85%, var(--line)); color: var(--muted); font-size: 13px; }
 .scribble-guess--correct { background: #e4f3dc; color: #315542; font-weight: 700; }
+.scribble-guess--warm { background: #fff0d2; color: #925d25; font-weight: 700; }
 .scribble-result { display: flex; align-items: center; gap: 11px; padding: 14px 16px; border-radius: 15px; background: #fff1d8; color: #714c25; }
+.scribble-round-result { display: grid; gap: 14px; padding: 20px; border: 1px solid color-mix(in srgb, #d87958 48%, var(--line)); border-radius: 18px; background: color-mix(in srgb, #fff1d8 78%, var(--surface)); color: var(--text); box-shadow: 0 14px 35px rgb(49 85 66 / 12%); }
+.scribble-round-result h3 { margin: 3px 0 0; }
+.scribble-round-scores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.scribble-round-scores > div { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 11px 12px; border-radius: 12px; background: var(--surface); }
+.scribble-round-scores strong { color: #a95338; }
+.scribble-round-scores small { grid-column: 1 / -1; color: var(--muted); }
 .scribble-result .game-play-again { margin-left: auto; }
 .scribble-rules { color: var(--muted); }
 .scribble-rules p { max-width: 70ch; line-height: 1.65; }

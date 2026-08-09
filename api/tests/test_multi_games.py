@@ -242,10 +242,13 @@ def test_scribble_hides_word_from_guesser_and_scores_correct_guess() -> None:
     state = new_state("scribble", player_count=2, bot_players=(1,))
     match = UniversalMatch(id="scribble-test", room_id=1, game_type="scribble", state=state, player_ids={1: 0, 2: 1})
     assert match.snapshot(2)["state"].get("word") is None
+    state = apply_action(state, 0, {"action": "choose_word", "word": state["word_choices"][0]})
     state = apply_action(state, 0, {"action": "stroke", "points": [{"x": 0.1, "y": 0.1}, {"x": 0.8, "y": 0.8}]})
     state = apply_action(state, 0, {"action": "end_turn"})
     state = apply_action(state, 1, {"action": "guess", "text": state["word"]})
     assert state["scores"] == [50, 100]
+    assert state["phase"] == "round_result"
+    state = apply_action(state, 0, {"action": "continue"})
     assert state["round"] == 2
     assert state["current_drawer"] == 1
     assert state["word"] in WORDS
@@ -253,6 +256,8 @@ def test_scribble_hides_word_from_guesser_and_scores_correct_guess() -> None:
 
 def test_scribble_bot_can_draw_after_human_guesses() -> None:
     state = new_state("scribble", player_count=2, bot_players=(1,))
+    state = apply_action(state, 0, {"action": "choose_word", "word": state["word_choices"][0]})
+    state = apply_action(state, 0, {"action": "end_turn"})
     state = apply_action(state, 1, {"action": "guess", "text": "wrong"})
     assert state["guesses"][-1]["correct"] is False
     state["round"] = 2
@@ -264,6 +269,22 @@ def test_scribble_bot_can_draw_after_human_guesses() -> None:
     assert state["strokes"]
 
 
+def test_scribble_word_choice_preview_warm_guess_and_timeout() -> None:
+    state = new_state("scribble", player_count=2, bot_players=())
+    assert len(state["word_choices"]) == 3
+    word = state["word_choices"][0]
+    state = apply_action(state, 0, {"action": "choose_word", "word": word})
+    state = apply_action(state, 0, {"action": "stroke_preview", "points": [{"x": 0.1, "y": 0.1}, {"x": 0.4, "y": 0.4}]})
+    assert state["live_stroke"]["points"]
+    state = apply_action(state, 0, {"action": "end_turn"})
+    state["word"] = "cat"
+    state["guess_deadline"] = 9_999_999_999
+    state = apply_action(state, 1, {"action": "guess", "text": "car"})
+    assert state["guesses"][-1]["warm"] is True
+    state = apply_action(state, 1, {"action": "timeout"})
+    assert state["phase"] == "round_result"
+
+
 def test_play_again_resets_the_board_but_keeps_scores() -> None:
     state = new_state("scribble", player_count=2, bot_players=(1,))
     state["winner"] = 0
@@ -271,7 +292,7 @@ def test_play_again_resets_the_board_but_keeps_scores() -> None:
     state["strokes"] = [{"points": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.2}], "color": "#315542", "size": 5}]
     updated = apply_action(state, 0, {"action": "play_again"})
     assert updated["winner"] is None
-    assert updated["phase"] == "drawing"
+    assert updated["phase"] == "choosing"
     assert updated["strokes"] == []
     assert updated["scores"] == [250, 175]
 
