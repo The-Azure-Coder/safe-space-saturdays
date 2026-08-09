@@ -39,7 +39,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { api, assetUrl } from '../lib/api'
-import type { CheckIn, Quote, Room } from '../lib/api'
+import type { CheckIn, Post, Quote, Room } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -2158,26 +2158,37 @@ function CommunityScreen() {
   })
   const create = useMutation({
     mutationFn: () => api.createPost(draft.trim(), imageFile),
-    onSuccess: () => {
+    onSuccess: (newPost) => {
       setDraft('')
       setImageFile(undefined)
       if (imageInput.current) imageInput.current.value = ''
-      queryClient.invalidateQueries({ queryKey: ['posts'] })
+      if (page === 1) {
+        queryClient.setQueryData<Post[]>(['posts', page], (current = []) => [
+          newPost,
+          ...current.filter((post) => post.id !== newPost.id),
+        ].slice(0, 10))
+      }
+      void queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' })
     },
   })
   const react = useMutation({
     mutationFn: ({ id, kind }: { id: number; kind: 'like' | 'dislike' }) =>
       api.react(id, kind),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['posts'] }),
+    onSuccess: (updatedPost) => {
+      queryClient.setQueryData<Post[]>(['posts', page], (current = []) =>
+        current.map((post) => post.id === updatedPost.id ? updatedPost : post),
+      )
+      void queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' })
+    },
   })
   const reply = useMutation({
     mutationFn: ({ id, text }: { id: number; text: string }) =>
       api.reply(id, text),
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       setReplyDrafts((drafts) => ({ ...drafts, [variables.id]: '' }))
+      await queryClient.refetchQueries({ queryKey: ['posts', page], type: 'active' })
+      void queryClient.invalidateQueries({ queryKey: ['replied-posts'], refetchType: 'active' })
       setOpenReplyPostId(null)
-      queryClient.invalidateQueries({ queryKey: ['posts'] })
-      queryClient.invalidateQueries({ queryKey: ['replied-posts'] })
     },
   })
   const chooseImage = (event: ChangeEvent<HTMLInputElement>) => {
