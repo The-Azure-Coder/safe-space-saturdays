@@ -395,6 +395,7 @@ def _refresh_domino_legal_moves(state: dict[str, Any]) -> None:
 
 def normalise_domino_state(state: dict[str, Any], player_count: int | None = None) -> None:
     requested_count = max(2, min(4, player_count or len(state.get("hands", [])) or 2))
+    old_players = state.get("players", [])
     old_count = len(state.get("hands", []))
     if old_count < requested_count:
         used = {
@@ -414,6 +415,13 @@ def normalise_domino_state(state: dict[str, Any], player_count: int | None = Non
     effective_count = len(state.get("hands", [])) or requested_count
     state["player_count"] = effective_count
     state["players"] = _domino_players(effective_count)
+    if isinstance(old_players, list):
+        for index, old_player in enumerate(old_players[:effective_count]):
+            if isinstance(old_player, dict):
+                if old_player.get("name"):
+                    state["players"][index]["name"] = old_player["name"]
+                if "is_bot" in old_player:
+                    state["players"][index]["is_bot"] = bool(old_player["is_bot"])
     state.setdefault("passes", 0)
     state.setdefault("turn_number", 1)
     state.setdefault("action_count", 0)

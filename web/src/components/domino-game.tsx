@@ -6,6 +6,7 @@ type DominoPlayer = { name: string; is_bot: boolean }
 type DominoMove = { tile_index: number; sides: Array<'left' | 'right'> }
 
 export type DominoState = {
+  seat_index?: number
   game: 'dominoes'
   current_player: number
   player_count: number
@@ -27,6 +28,7 @@ type DominoGameProps = {
   state: Partial<DominoState>
   send: (action: Record<string, unknown>) => void
   error?: string
+  playerIndex?: number
 }
 
 type DominoLayout = { x: number; y: number; vertical: boolean; reverse: boolean }
@@ -94,13 +96,14 @@ function DominoTile({
   </span>
 }
 
-export function DominoGame({ state, send, error = '' }: DominoGameProps) {
+export function DominoGame({ state, send, error = '', playerIndex }: DominoGameProps) {
   const players = state.players?.length ? state.players : DEFAULT_PLAYERS
   const hands = state.hands ?? [[], []]
   const board = state.board ?? []
   const dominoLayout = useMemo(() => createDominoLayout(board), [board])
   const legalMoves = state.legal_moves ?? []
   const currentPlayer = state.current_player ?? 0
+  const localPlayer = playerIndex ?? state.seat_index ?? 0
   const winner = state.winner ?? null
   const draw = state.draw ?? false
   const [selectedTile, setSelectedTile] = useState<number | null>(null)
@@ -130,9 +133,9 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
     [legalMoves],
   )
   const selectedSides = selectedTile === null ? [] : legalByIndex.get(selectedTile) ?? []
-  const canAct = currentPlayer === 0 && winner === null && !draw && !placing
+  const canAct = currentPlayer === localPlayer && winner === null && !draw && !placing
   const activeName = players[currentPlayer]?.name ?? 'A player'
-  const winnerName = winner === null ? 'A bot' : players[winner]?.name ?? 'A bot'
+  const winnerName = winner === null ? 'A player' : players[winner]?.name ?? 'A player'
   const leftEnd = board.length ? board[0][0] : null
   const rightEnd = board.length ? board[board.length - 1][1] : null
 
@@ -161,10 +164,10 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
   }
 
   const turnMessage = winner !== null
-    ? winner === 0 ? 'You cleared your hand!' : `${players[winner]?.name ?? 'A bot'} cleared their hand.`
+    ? winner === localPlayer ? 'You cleared your hand!' : `${players[winner]?.name ?? 'A player'} cleared their hand.`
     : draw ? 'This blocked round ended in a tie.'
       : placing ? 'Your domino is sliding into place…'
-        : currentPlayer === 0
+        : currentPlayer === localPlayer
           ? legalMoves.length ? 'Your turn — choose a glowing domino.' : 'No match available — pass the turn.'
           : `${activeName} is studying the open ends…`
 
@@ -179,8 +182,9 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
     </header>
 
     <div className="domino-opponents" aria-label="Other players">
-      {players.slice(1).map((player, index) => {
-        const playerIndex = index + 1
+      {players.map((player, index) => {
+        if (index === localPlayer) return null
+        const playerIndex = index
         const handCount = state.hand_counts?.[playerIndex] ?? hands[playerIndex].length
         return <article className={`domino-player${currentPlayer === playerIndex && winner === null && !draw ? ' domino-player--active' : ''}`} key={player.name}>
           <span className="domino-player__avatar"><Robot size={20} weight="fill" /></span>
@@ -211,9 +215,9 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
     </div>}
 
     <section className="domino-hand" aria-labelledby="your-dominoes-title">
-      <div className="domino-hand__head"><div><span className="eyebrow">Your hand</span><h3 id="your-dominoes-title">{hands[0]?.length ?? 0} dominoes</h3></div><button className="button button--secondary button--small" type="button" disabled={!canAct || legalMoves.length > 0} onClick={pass}>Pass turn</button></div>
+      <div className="domino-hand__head"><div><span className="eyebrow">Your hand</span><h3 id="your-dominoes-title">{hands[localPlayer]?.length ?? 0} dominoes</h3></div><button className="button button--secondary button--small" type="button" disabled={!canAct || legalMoves.length > 0} onClick={pass}>Pass turn</button></div>
       <div className="domino-hand__tiles">
-        {(hands[0] ?? []).map((tile, index) => {
+        {(hands[localPlayer] ?? []).map((tile, index) => {
           const legal = canAct && legalByIndex.has(index)
           return <button className={`domino-hand-tile${legal ? ' domino-hand-tile--legal' : ''}${selectedTile === index ? ' domino-hand-tile--selected' : ''}`} type="button" disabled={!legal} onClick={() => playTile(index)} aria-label={`Play ${tile[0]}–${tile[1]}${legal ? '' : ', no matching end'}`} key={`${index}-${tile[0]}-${tile[1]}`}>
             <DominoTile tile={tile} />
@@ -222,7 +226,7 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
       </div>
     </section>
 
-    {(winner !== null || draw) && <div className="domino-result" role="status"><Trophy size={26} weight="fill" /><div><strong>{draw ? 'Evenly matched!' : winner === 0 ? 'Beautifully played!' : 'Good round!'}</strong><span>{draw ? 'The chain blocked with equal low pip totals.' : winner === 0 ? 'You placed every domino first.' : `${winnerName} won this round.`}</span></div><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}
+    {(winner !== null || draw) && <div className="domino-result" role="status"><Trophy size={26} weight="fill" /><div><strong>{draw ? 'Evenly matched!' : winner === localPlayer ? 'Beautifully played!' : 'Good round!'}</strong><span>{draw ? 'The chain blocked with equal low pip totals.' : winner === localPlayer ? 'You placed every domino first.' : `${winnerName} won this round.`}</span></div><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}
     <details className="domino-rules"><summary>How Block Dominoes works</summary><div><p>Match either half of a domino to the same number on an open end. If it fits both ends, choose where to place it.</p><p>When no domino matches, pass. The round ends when someone clears their hand or every player passes; on a blocked table, the lowest remaining pip total wins.</p></div></details>
   </section>
 }
