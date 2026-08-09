@@ -8,6 +8,8 @@ import { DominoGame } from '../components/domino-game'
 import type { DominoState } from '../components/domino-game'
 import { TriviaGame } from '../components/trivia-game'
 import type { TriviaState } from '../components/trivia-game'
+import { ScribbleGame } from '../components/scribble-game'
+import type { ScribbleState } from '../components/scribble-game'
 import { API_URL, api } from '../lib/api'
 import type { GameSession } from '../lib/api'
 
@@ -49,7 +51,7 @@ function GameSessionScreen() {
     }
   }
   const state = match?.state
-  const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : 'Trivia Battle'
+  const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
   return <main className="page-content game-play-page">
     <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>
@@ -60,9 +62,11 @@ function GameSessionScreen() {
     {match?.game === 'dominoes' && <DominoGame state={(state ?? {}) as Partial<DominoState>} send={send} error={error} />}
     {match?.game === 'bingo' && <BingoBoard state={state ?? {}} send={send} />}
     {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} playerIndex={Number(state?.seat_index ?? 0)} />}
+    {match?.game === 'scribble' && <ScribbleGame state={(state ?? {}) as Partial<ScribbleState>} send={send} error={error} />}
   </main>
 }
 
 function BingoBoard({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {
-  return <section className="mini-game-card"><div className="bingo-head"><span>Drawn: {state.drawn?.length ?? 0}/75</span><button className="button button--primary button--small" type="button" onClick={() => send({ action: 'draw' })}>Draw ball</button><button className="button button--secondary button--small" type="button" onClick={() => send({ action: 'claim' })}>Claim Bingo</button></div><div className="bingo-card">{state.card?.flatMap((row: Array<number>, rowIndex: number) => row.map((number: number, colIndex: number) => <span className={state.marked?.[rowIndex]?.[colIndex] ? 'bingo-cell bingo-cell--marked' : 'bingo-cell'} key={`${rowIndex}-${colIndex}`}>{number || 'FREE'}</span>))}</div></section>
+  const finished = state.winner !== null && state.winner !== undefined || state.draw
+  return <section className="mini-game-card"><div className="bingo-head"><span>Drawn: {state.drawn?.length ?? 0}/75</span><button className="button button--primary button--small" type="button" disabled={finished} onClick={() => send({ action: 'draw' })}>Draw ball</button><button className="button button--secondary button--small" type="button" disabled={finished} onClick={() => send({ action: 'claim' })}>Claim Bingo</button></div><div className="bingo-card">{state.card?.flatMap((row: Array<number>, rowIndex: number) => row.map((number: number, colIndex: number) => <span className={state.marked?.[rowIndex]?.[colIndex] ? 'bingo-cell bingo-cell--marked' : 'bingo-cell'} key={`${rowIndex}-${colIndex}`}>{number || 'FREE'}</span>))}</div>{finished && <div className="game-result-actions"><strong>{state.draw ? 'The round ended in a draw.' : state.winner === Number(state.seat_index ?? 0) ? 'Bingo! You won.' : 'Bingo claimed.'}</strong><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}</section>
 }

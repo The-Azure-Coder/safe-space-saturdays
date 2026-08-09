@@ -49,6 +49,12 @@ class UniversalMatch:
                 else None
                 for index, answer in enumerate(selected)
             ]
+        if self.game_type == "scribble":
+            drawer = int(public_state.get("current_drawer", 0))
+            if seat != drawer:
+                public_state.pop("word", None)
+            public_state["is_drawer"] = seat == drawer
+            public_state["drawer_name"] = public_state.get("players", [{}])[drawer].get("name", "The drawer")
         return {
             "match_id": self.id,
             "room_id": self.room_id,
@@ -71,7 +77,7 @@ class UniversalMatchManager:
         bot_players: tuple[int, ...] | None = None,
         player_names: dict[int, str] | None = None,
     ) -> UniversalMatch:
-        effective_count = player_count if game_type in {"ludo", "dominoes"} else 2
+        effective_count = player_count if game_type in {"ludo", "dominoes", "scribble"} else 2
         resolved_bot_players = (
             bot_players if bot_players is not None else tuple(range(1, effective_count))
         )
@@ -117,9 +123,11 @@ class UniversalMatchManager:
                 bool(bot_players)
                 and match.state.get("winner") is None
                 and match.state.get("current_player") in bot_players
+                and (match.game_type != "scribble" or match.state.get("bot_draw_pending", False))
             )
             if bot_turn and match.game_type == "ludo":
                 # Continue across every bot seat until play returns to the human.
+                human_moved = payload.get("action") == "move"
                 for _ in range(96):
                     current_bot = int(match.state.get("current_player", 0))
                     if match.state.get("winner") is not None or current_bot not in bot_players:
@@ -128,7 +136,13 @@ class UniversalMatchManager:
                     # roll, and choose a token instead of receiving every state
                     # in a single imperceptible burst.
                     if match.sockets:
-                        await asyncio.sleep(0.95 if match.state.get("phase") == "roll" else 1.15)
+                        # Let the browser finish the human's square-by-square
+                        # animation before the next player receives the die.
+                        if human_moved:
+                            await asyncio.sleep(2.05)
+                            human_moved = False
+                        else:
+                            await asyncio.sleep(0.95 if match.state.get("phase") == "roll" else 1.15)
                     match.state = apply_action(
                         match.state,
                         current_bot,

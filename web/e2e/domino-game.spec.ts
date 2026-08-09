@@ -26,7 +26,7 @@ test('Dominoes launches, plays a full human and bot turn, and fits mobile', asyn
   await expect(game).toBeVisible({ timeout: 110_000 })
   await expect(page.getByText('Block Dominoes · 2 players')).toBeVisible()
   await expect(page.locator('.domino-hand-tile')).toHaveCount(7)
-  await expect(page.locator('.domino-hand-tile--legal')).toHaveCount(7)
+  await expect(page.locator('.domino-hand-tile--legal')).toHaveCount(1)
   await page.screenshot({ path: testInfo.outputPath('domino-desktop-empty.png'), fullPage: true })
 
   await page.locator('.domino-hand-tile--legal').first().click()

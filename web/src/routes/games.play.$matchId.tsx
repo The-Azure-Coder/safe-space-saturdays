@@ -66,6 +66,10 @@ function ConnectFourScreen() {
     }
     void api.move(matchId, column).then(setMatch).catch((reason: Error) => setError(reason.message)).finally(() => setPendingColumn(null))
   }
+  const playAgain = () => {
+    setError('')
+    if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'play_again' }))
+  }
   const endSession = async () => {
     if (!match || !window.confirm('End this game session and delete its room? This cannot be undone.')) return
     setEnding(true)
@@ -104,6 +108,7 @@ function ConnectFourScreen() {
       <div className={`connect-four-status${match?.winner ? ' connect-four-status--winner' : ''}`} aria-live="polite">
         {match?.winner ? <Trophy size={22} weight="fill" /> : <span className="connect-four-status__pulse" aria-hidden="true" />}
         <strong>{status}</strong>
+        {(match?.winner || match?.draw) && <button className="button button--small button--primary game-play-again" type="button" onClick={playAgain}>Play again</button>}
       </div>
 
       <div className="connect-four-stage">

@@ -98,5 +98,16 @@ class MatchManager:
                 )
             return match.snapshot()
 
+    async def play_again(self, match: LiveMatch, user_id: int) -> dict[str, Any]:
+        async with match.lock:
+            if user_id not in match.player_ids:
+                raise IllegalMove("You are not a player in this match")
+            if not match.state.winner and not match.state.draw:
+                raise IllegalMove("Finish the current game before playing again")
+            match.state = initial_state()
+            match.reward_granted = False
+            await self.broadcast(match, {"type": "state", "state": match.snapshot()})
+            return match.snapshot()
+
 
 match_manager = MatchManager()

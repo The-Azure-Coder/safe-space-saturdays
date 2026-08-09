@@ -39,16 +39,19 @@ const TRACK: ReadonlyArray<Coordinate> = [
 ]
 
 const HOME_PATHS: Record<LudoColor, ReadonlyArray<Coordinate>> = {
-  blue: [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],
-  green: [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],
-  yellow: [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]],
-  red: [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]],
+  // The sixth coordinate is the shared centre. Position 57 is the finished
+  // home state; keeping it on the lane made a token look stranded after a
+  // legal final step.
+  red: [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5], [7, 7]],
+  green: [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7], [7, 7]],
+  yellow: [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9], [7, 7]],
+  blue: [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7], [7, 7]],
 }
 
 const YARD_SPOTS: Record<LudoColor, ReadonlyArray<Coordinate>> = {
-  blue: [[1.95, 1.95], [1.95, 3.15], [3.15, 1.95], [3.15, 3.15]],
+  red: [[1.95, 1.95], [1.95, 3.15], [3.15, 1.95], [3.15, 3.15]],
   green: [[1.95, 10.95], [1.95, 12.15], [3.15, 10.95], [3.15, 12.15]],
-  red: [[10.95, 1.95], [10.95, 3.15], [12.15, 1.95], [12.15, 3.15]],
+  blue: [[10.95, 1.95], [10.95, 3.15], [12.15, 1.95], [12.15, 3.15]],
   yellow: [[10.95, 10.95], [10.95, 12.15], [12.15, 10.95], [12.15, 12.15]],
 }
 
@@ -74,16 +77,19 @@ function tokenCoordinate(player: LudoPlayer, token: number, position: number): C
 function tokenLabel(player: LudoPlayer, token: number, position: number): string {
   const owner = player.is_bot ? `${player.name}'s` : 'Your'
   if (position < 0) return `${owner} token ${token + 1}, in the yard`
-  if (position >= 56) return `${owner} token ${token + 1}, home`
+  if (position >= 57) return `${owner} token ${token + 1}, home`
   if (position >= 52) return `${owner} token ${token + 1}, in the home lane`
   return `${owner} token ${token + 1}, on track space ${position + 1}`
 }
 
-function Die({ face, rolling, label }: { face: number; rolling: boolean; label: string }) {
-  return <span className={rolling ? 'ludo-die ludo-die--rolling' : 'ludo-die'} aria-label={`${label}: ${face}`} role="img">
-    <span className={`ludo-die__face ludo-die__face--${face}`} aria-hidden="true">
-      {Array.from({ length: 9 }, (_, index) => <i key={index} />)}
-    </span>
+function Die({ face, rolling, label, onClick }: { face: number; rolling: boolean; label: string; onClick?: () => void }) {
+  const className = rolling ? 'ludo-die ludo-die--rolling' : 'ludo-die'
+  const faceMarkup = <span className={`ludo-die__face ludo-die__face--${face}`} aria-hidden="true">
+    {Array.from({ length: 9 }, (_, index) => <i key={index} />)}
+  </span>
+  if (onClick) return <button className={`${className} ludo-die--tap`} type="button" aria-label={`${label}: ${face}. Tap to roll`} onClick={onClick}>{faceMarkup}</button>
+  return <span className={className} aria-label={`${label}: ${face}`} role="img">
+    {faceMarkup}
   </span>
 }
 
@@ -104,6 +110,7 @@ export function LudoGame({ state, send }: LudoGameProps) {
   const movementTimer = useRef<number | null>(null)
   const [isAnimatingMove, setIsAnimatingMove] = useState(false)
   const [rolling, setRolling] = useState(false)
+  const [homeFlash, setHomeFlash] = useState(false)
   const [diceFace, setDiceFace] = useState(state.last_rolls?.[0] ?? 1)
   const diceTimer = useRef<number | null>(null)
   const rollFallbackTimer = useRef<number | null>(null)
@@ -137,12 +144,22 @@ export function LudoGame({ state, send }: LudoGameProps) {
         movementTimer.current = null
         setIsAnimatingMove(false)
       }
-    }, 190)
+    }, 310)
     return () => {
       if (movementTimer.current !== null) window.clearInterval(movementTimer.current)
       movementTimer.current = null
     }
   }, [targetSignature])
+
+  const homeMoveSignature = state.last_move?.to === 57
+    ? `${state.last_move.player}-${state.last_move.token}-${state.last_move.to}`
+    : ''
+  useEffect(() => {
+    if (!homeMoveSignature) return undefined
+    setHomeFlash(true)
+    const timer = window.setTimeout(() => setHomeFlash(false), 950)
+    return () => window.clearTimeout(timer)
+  }, [homeMoveSignature])
 
   useEffect(() => {
     if (!rolling || rollStartedAt.current === null || (state.action_count ?? 0) <= rollStartedAt.current) return undefined
@@ -214,12 +231,12 @@ export function LudoGame({ state, send }: LudoGameProps) {
           const playerIndex = players.findIndex((player) => player.color === color)
           if (playerIndex < 0) return <span className={`ludo-player-space ludo-player-space--${color}`} aria-hidden="true" key={color} />
           const player = players[playerIndex]
-          const home = targetPositions[playerIndex].filter((position) => position === 56).length
+          const home = targetPositions[playerIndex].filter((position) => position === 57).length
           const isRolling = playerIndex === 0 ? rolling : botRolling && currentPlayer === playerIndex
-          return <article className={`ludo-player-card ludo-player-card--${color}${currentPlayer === playerIndex && winner === null ? ' ludo-player-card--active' : ''}`} key={color}>
+          return <article className={`ludo-player-card ludo-player-card--${color}${currentPlayer === playerIndex && winner === null ? ' ludo-player-card--active' : ''}`} aria-label={`${player.name} player summary`} key={color}>
             <span className="ludo-player-avatar">{player.is_bot ? <Robot size={22} weight="fill" /> : 'YOU'}</span>
-            <span><strong>{player.name}</strong><small>{home}/4 home · {state.captures?.[playerIndex] ?? 0} captures</small></span>
-            <Die face={state.last_rolls?.[playerIndex] ?? (playerIndex === 0 ? diceFace : 1)} rolling={isRolling} label={`${player.name}'s last roll`} />
+            <span><small>{home}/4 home · {state.captures?.[playerIndex] ?? 0} captures</small></span>
+            <Die face={state.last_rolls?.[playerIndex] ?? (playerIndex === 0 ? diceFace : 1)} rolling={isRolling} label={`${player.name}'s last roll`} onClick={playerIndex === 0 && currentPlayer === 0 && canRoll ? rollDice : undefined} />
           </article>
         })}
       </div>
@@ -227,7 +244,13 @@ export function LudoGame({ state, send }: LudoGameProps) {
 
     <div className="ludo-board-frame">
       <div className="ludo-classic-board" role="grid" aria-label="Classic fifteen by fifteen Ludo board">
-        {COLORS.map((color) => <div className={`ludo-yard ludo-yard--${color}`} aria-hidden="true" key={color}><span>{players.find((player) => player.color === color)?.name.toUpperCase() ?? color.toUpperCase()}</span><div className="ludo-yard__inner">{Array.from({ length: 4 }, (_, index) => <i key={index} />)}</div></div>)}
+        {COLORS.map((color) => {
+          const playerIndex = players.findIndex((player) => player.color === color)
+          const playerName = playerIndex >= 0 ? players[playerIndex].name : color
+          const active = playerIndex >= 0 && currentPlayer === playerIndex && winner === null
+          const playerRolling = playerIndex === 0 ? rolling : botRolling && currentPlayer === playerIndex
+          return <div className={`ludo-yard ludo-yard--${color}${active ? ' ludo-yard--active' : ''}`} aria-label={`${playerName} yard${active ? ', current turn' : ''}`} key={color}><span>{playerName}</span>{active && <><small className="ludo-yard__turn">{phase === 'roll' ? 'ROLL' : 'MOVE'}</small><span className="ludo-yard__die"><Die face={state.last_rolls?.[playerIndex] ?? (playerIndex === 0 ? diceFace : 1)} rolling={playerRolling} label={`${playerName} die`} onClick={playerIndex === 0 && canRoll ? rollDice : undefined} /></span></>}<div className="ludo-yard__inner">{Array.from({ length: 4 }, (_, index) => <i key={index} />)}</div></div>
+        })}
 
         {TRACK.map(([row, column], index) => <span
           className={`ludo-track-square${SAFE_CELLS.has(index) ? ' ludo-track-square--safe' : ''}${START_CELLS.has(index) ? ` ludo-track-square--start ludo-track-square--start-${index}` : ''}`}
@@ -238,9 +261,10 @@ export function LudoGame({ state, send }: LudoGameProps) {
         >{SAFE_CELLS.has(index) && <ShieldStar size={13} weight="fill" aria-hidden="true" />}</span>)}
 
         {COLORS.flatMap((color) => HOME_PATHS[color].map(([row, column], index) => <span className={`ludo-home-square ludo-home-square--${color}`} style={{ gridRow: row + 1, gridColumn: column + 1 }} key={`${color}-home-${index}`} />))}
-        <div className="ludo-finish" aria-label="Home"><Sparkle size={30} weight="fill" /><span>HOME</span></div>
+        <div className={`ludo-finish${homeFlash ? ' ludo-finish--sparkle' : ''}`} aria-label="Home"><Sparkle size={30} weight="fill" /><span>HOME</span></div>
 
         {displayPositions.flatMap((tokens, player) => tokens.map((position, token) => {
+          if (position >= 57) return null
           const playerDetails = players[player]
           const [row, column] = tokenCoordinate(playerDetails, token, position)
           const occupants = displayPositions.flatMap((otherTokens, otherPlayer) => otherTokens.map((otherPosition, otherToken) => {
@@ -266,7 +290,7 @@ export function LudoGame({ state, send }: LudoGameProps) {
     </div>
 
     <div className="ludo-action-dock">
-      <Die face={diceFace} rolling={rolling} label="Dice" />
+      <Die face={diceFace} rolling={rolling} label="Dice" onClick={canRoll ? rollDice : undefined} />
       <div className="ludo-action-copy">
         <strong>{turnMessage}</strong>
         <small>{state.last_event ?? 'Roll a six to bring a token out of your yard.'}</small>
@@ -276,7 +300,7 @@ export function LudoGame({ state, send }: LudoGameProps) {
       </button>
     </div>
 
-    {winner !== null && <div className="ludo-winner-banner" role="status"><Trophy size={26} weight="fill" /><div><strong>{winner === 0 ? 'Beautiful win!' : 'Good game!'}</strong><span>{winner === 0 ? 'All four tokens made it safely home.' : `${players[winner]?.name ?? 'A bot'} won this round. Ready for a rematch?`}</span></div></div>}
+    {winner !== null && <div className="ludo-winner-banner" role="status"><Trophy size={26} weight="fill" /><div><strong>{winner === 0 ? 'Beautiful win!' : 'Good game!'}</strong><span>{winner === 0 ? 'All four tokens made it safely home.' : `${players[winner]?.name ?? 'A bot'} won this round.`}</span></div><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}
     <details className="ludo-rules"><summary>How this Ludo match works</summary><div><p>Roll a six to leave the yard. Choose any glowing token, move by the exact dice value, and bring all four tokens home.</p><p>Shield spaces are safe. Landing on another player elsewhere sends that token back to its yard. A six, capture, or finished token earns another roll; three sixes ends the turn.</p></div></details>
   </section>
 }

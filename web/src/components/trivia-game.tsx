@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { CheckCircle, Clock, Fire, Robot, SpeakerHigh, SpeakerSlash, Sparkle, Trophy, UserCircle, XCircle } from '@phosphor-icons/react'
 
 type TriviaPlayer = { name: string; is_bot: boolean }
@@ -123,7 +122,7 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
     </div>
 
     {phase === 'complete' ? <div className="trivia-finale" aria-live="polite">
-      <span><Trophy size={42} weight="fill" /></span><p className="eyebrow">Round complete</p><h2>{resultText}</h2><p>Final score: {scores[0] ?? 0} to {scores[1] ?? 0}. Every question was a chance to learn something new.</p><LinkToGames />
+      <span><Trophy size={42} weight="fill" /></span><p className="eyebrow">Round complete</p><h2>{resultText}</h2><p>Final score: {scores[0] ?? 0} to {scores[1] ?? 0}. Every question was a chance to learn something new.</p><LinkToGames send={send} />
     </div> : <>
       <div className={`trivia-timer${secondsLeft <= 5 && phase === 'question' ? ' trivia-timer--urgent' : ''}`} aria-label={`${secondsLeft} seconds remaining`}>
         <Clock size={18} weight="fill" /><strong>{phase === 'question' ? `${secondsLeft}s` : phase === 'bot' ? 'Milo is choosing…' : 'Answer reveal'}</strong>
@@ -152,6 +151,6 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
   </section>
 }
 
-function LinkToGames() {
-  return <Link className="button button--primary" to="/games">Play another game</Link>
+function LinkToGames({ send }: { send: (action: Record<string, unknown>) => void }) {
+  return <button className="button button--primary" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button>
 }

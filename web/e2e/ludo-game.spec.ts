@@ -26,7 +26,7 @@ test('Ludo launches, rolls, moves a legal token, and fits mobile screens', async
   await expect(board).toBeVisible()
   await expect(board.getByRole('gridcell')).toHaveCount(52)
   await expect(page.getByRole('button', { name: 'Roll dice' })).toBeEnabled()
-  await expect(page.getByText('Maya Bot', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('Maya Bot yard')).toContainText('Maya Bot')
   await page.screenshot({ path: testInfo.outputPath('ludo-desktop.png'), fullPage: true })
 
   let movedToken = false

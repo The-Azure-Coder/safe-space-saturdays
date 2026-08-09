@@ -79,6 +79,8 @@ const games: Array<GameDefinition> = [
   { name: 'Dominoes', players: '2–4 players', icon: '/assets/game-dominoes.png', color: 'peach' },
   { name: 'Trivia Battle', players: '2+ players', icon: '/assets/game-trivia.png', color: 'lilac' },
   { name: 'Connect Four', players: '2 players', icon: '/assets/game-connect-four.png', color: 'blue' },
+  { name: 'Scribble', players: '2–4 players', icon: '/assets/game-scribble.png', color: 'coral' },
+  { name: 'Bingo', players: '2–8 players', icon: '/assets/game-bingo.png', color: 'peach' },
 ]
 
 function Logo({ compact = false }: { compact?: boolean }) {
@@ -382,6 +384,7 @@ function GameTile({ game, compact = false, onPlay }: { game: GameDefinition; com
     Dominoes: '/assets/game-dominoes.png',
     'Trivia Battle': '/assets/game-trivia.png',
     'Connect Four': '/assets/game-connect-four.png',
+    Scribble: '/assets/game-scribble.png',
     Bingo: '/assets/game-bingo.png',
   }[game.name] ?? null)
   return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__icon" aria-hidden="true">{generatedIcon ? <img src={generatedIcon} alt="" /> : GameIcon ? <GameIcon size={compact ? 34 : 48} weight="duotone" /> : null}</span><h3>{game.name}</h3>{onPlay ? <button className="button button--small button--primary" type="button" onClick={onPlay}>Play</button> : <Link className="button button--small button--primary" to="/games">Play</Link>}{!compact && <small>{game.players}</small>}</article>
@@ -516,7 +519,7 @@ function PromoCard({
 
 function GamesScreen() {
   const navigate = useNavigate()
-  const [gamesPage, setGamesPage] = useState(1)
+  const [showAllGames, setShowAllGames] = useState(false)
   const [roomsPage, setRoomsPage] = useState(1)
   const [showCreateRoom, setShowCreateRoom] = useState(false)
   const [roomName, setRoomName] = useState('A gentle game night')
@@ -524,8 +527,8 @@ function GamesScreen() {
   const [roomPlayers, setRoomPlayers] = useState(4)
   const [roomFillBots, setRoomFillBots] = useState(true)
   const gamesQuery = useQuery({
-    queryKey: ['games', gamesPage],
-    queryFn: () => api.games(gamesPage, 4),
+    queryKey: ['games', 'featured'],
+    queryFn: () => api.games(1, 50),
   })
   const roomsQuery = useQuery({
     queryKey: ['rooms', roomsPage],
@@ -630,18 +633,12 @@ function GamesScreen() {
               <GameController size={24} weight="fill" />
               <span>Featured Games</span>
             </div>
-            <div className="game-grid">
-              {availableGames.map((game) => (
+            <div className={showAllGames ? 'game-grid game-grid--games-expanded' : 'game-grid game-grid--games-list'}>
+              {(showAllGames ? availableGames : availableGames.slice(0, 4)).map((game) => (
                 <GameTile game={game} key={game.id} onPlay={() => playGame.mutate(game)} />
               ))}
             </div>
-            <PaginationControls
-              page={gamesPage}
-              itemCount={gamesQuery.data?.length ?? 0}
-              pageSize={4}
-              onPageChange={setGamesPage}
-              label="Games"
-            />
+            {availableGames.length > 4 && <button className="button button--secondary button--small games-view-more" type="button" onClick={() => setShowAllGames((visible) => !visible)}>{showAllGames ? 'Show featured' : 'View more games'}</button>}
           </section>
           <section className="rooms-panel" id="live-rooms">
             <div className="section-row">
@@ -655,27 +652,25 @@ function GamesScreen() {
                 <span className="room-icon" aria-hidden="true">
                   🎲
                 </span>
-                <div>
-                  <strong>{room.name}</strong>
+                <div className="room-row__details">
+                  <strong className="room-row__name" title={room.name}>{room.name}</strong>
                   <small>
                     {room.players} / {room.max_players} players
                   </small>
                 </div>
-                <button
-                  className="button button--small button--primary"
+                {room.joined ? <span className="room-status-pill" aria-label="You joined this room">Joined</span> : <button
+                  className="button button--small button--primary room-action-button"
                   type="button"
-                  disabled={room.joined || join.isPending}
+                  disabled={join.isPending}
                   onClick={() => join.mutate(room.id)}
-                >
-                  {room.joined ? 'Joined' : 'Join'}
-                </button>
+                >Join</button>}
                 {room.joined && room.status === 'open' && !room.is_host && (
                   <button className="button button--small button--secondary" type="button" disabled={ready.isPending} onClick={() => ready.mutate(room.id)}>
                     {room.ready ? 'Ready ✓' : 'Ready'}
                   </button>
                 )}
                 {room.joined && room.status === 'open' && room.is_host && (
-                  <button className="button button--small button--secondary" type="button" disabled={createMatch.isPending || createGameSession.isPending} onClick={() => startRoom(room)}>
+                  <button className="button button--small button--secondary room-action-button" type="button" disabled={createMatch.isPending || createGameSession.isPending} onClick={() => startRoom(room)}>
                     {createMatch.isPending || createGameSession.isPending ? 'Opening…' : room.fill_with_bots ? 'Start with bots' : 'Start game'}
                   </button>
                 )}

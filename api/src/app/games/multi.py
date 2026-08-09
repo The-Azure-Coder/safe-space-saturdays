@@ -10,17 +10,19 @@ import random
 from typing import Any
 
 from app.games.connect_four import IllegalMove
+from app.games.scribble import apply_scribble_action, bot_draw_action, new_scribble_state
 from app.games.trivia import apply_trivia_action, new_trivia_state, trivia_bot_action
 
-GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia"}
+GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble"}
 _RNG = random.Random()
-LUDO_FINISH = 56
+# 52-56 are the five coloured home-lane squares; 57 is the centre HOME.
+LUDO_FINISH = 57
 LUDO_TRACK_LENGTH = 52
 LUDO_SEATS = {
-    "blue": {"offset": 0, "name": "Milo Bot"},
+    "red": {"offset": 0, "name": "You"},
     "green": {"offset": 13, "name": "Maya Bot"},
     "yellow": {"offset": 26, "name": "Sunny Bot"},
-    "red": {"offset": 39, "name": "You"},
+    "blue": {"offset": 39, "name": "Milo Bot"},
 }
 # Matches the reference game's supported combinations: opposite seats for two,
 # three occupied corners for three, and every yard for four.
@@ -60,6 +62,20 @@ def _domino_players(player_count: int) -> list[dict[str, Any]]:
     ]
 
 
+def _deal_domino_hands(player_count: int, starting_player: int, force_double_six: bool) -> list[list[list[int]]]:
+    deck = [[left, right] for left in range(7) for right in range(left, 7)]
+    _RNG.shuffle(deck)
+    hands = [deck[index * 7 : index * 7 + 7] for index in range(max(2, min(4, player_count)))]
+    if force_double_six:
+        owner = max(0, min(len(hands) - 1, starting_player))
+        current = hands[owner][0]
+        double_six_owner = next((hand for hand in hands if [6, 6] in hand), None)
+        if double_six_owner is not None:
+            double_six_owner[double_six_owner.index([6, 6])] = current
+        hands[owner][0] = [6, 6]
+    return hands
+
+
 def new_state(
     game_type: str, player_count: int = 2, bot_players: tuple[int, ...] | None = None
 ) -> dict[str, Any]:
@@ -87,9 +103,7 @@ def new_state(
         }
     if game_type == "dominoes":
         players = _domino_players(player_count)
-        deck = [[left, right] for left in range(7) for right in range(left, 7)]
-        _RNG.shuffle(deck)
-        hands = [deck[index * 7 : index * 7 + 7] for index in range(len(players))]
+        hands = _deal_domino_hands(len(players), 0, True)
         return {
             "game": "dominoes",
             "current_player": 0,
@@ -103,10 +117,14 @@ def new_state(
             "turn_number": 1,
             "action_count": 0,
             "last_move": None,
-            "last_event": "Your turn. Place any domino to open the round.",
-            "legal_moves": [
-                {"tile_index": index, "sides": ["right"]} for index in range(len(hands[0]))
-            ],
+            "round": 1,
+            "rounds": 6,
+            "round_wins": [0 for _ in players],
+            "round_winner": None,
+            "starting_player": 0,
+            "opening_tile_required": True,
+            "last_event": "Double six opens round one.",
+            "legal_moves": [{"tile_index": 0, "sides": ["right"]}],
         }
     if game_type == "bingo":
         numbers = list(range(1, 76))
@@ -138,6 +156,8 @@ def new_state(
             "drawn": [],
             "remaining": list(range(1, 76)),
         }
+    if game_type == "scribble":
+        return new_scribble_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
     return new_trivia_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
 
 
@@ -354,7 +374,15 @@ def _refresh_domino_legal_moves(state: dict[str, Any]) -> None:
     if state.get("winner") is not None or state.get("draw", False):
         state["legal_moves"] = []
         return
-    state["legal_moves"] = _domino_legal_moves(state, int(state["current_player"]))
+    player = int(state["current_player"])
+    if state.get("opening_tile_required"):
+        state["legal_moves"] = [
+            {"tile_index": index, "sides": ["right"]}
+            for index, tile in enumerate(state["hands"][player])
+            if tile == [6, 6]
+        ]
+    else:
+        state["legal_moves"] = _domino_legal_moves(state, player)
 
 
 def normalise_domino_state(state: dict[str, Any], player_count: int | None = None) -> None:
@@ -382,22 +410,70 @@ def normalise_domino_state(state: dict[str, Any], player_count: int | None = Non
     state.setdefault("turn_number", 1)
     state.setdefault("action_count", 0)
     state.setdefault("last_move", None)
+    state.setdefault("round", 1)
+    state.setdefault("rounds", 6)
+    state.setdefault("round_wins", [0 for _ in range(effective_count)])
+    state.setdefault("round_winner", None)
+    state.setdefault("starting_player", 0)
+    state.setdefault("opening_tile_required", not state.get("board"))
+    if state["opening_tile_required"] and not any(
+        tile == [6, 6] for hand in state["hands"] for tile in hand
+    ):
+        state["opening_tile_required"] = False
     state.setdefault("last_event", "Choose a domino that matches either open end.")
     _refresh_domino_legal_moves(state)
+
+
+def _deal_next_domino_round(state: dict[str, Any], starting_player: int, round_number: int) -> None:
+    player_count = int(state["player_count"])
+    state["hands"] = _deal_domino_hands(player_count, starting_player, False)
+    state["board"] = []
+    state["passes"] = 0
+    state["current_player"] = starting_player
+    state["starting_player"] = starting_player
+    state["round"] = round_number
+    state["round_winner"] = None
+    state["winner"] = None
+    state["draw"] = False
+    state["opening_tile_required"] = False
+    state["last_move"] = None
+    _refresh_domino_legal_moves(state)
+
+
+def _finish_domino_round(state: dict[str, Any], round_winner: int | None) -> None:
+    state["round_winner"] = round_winner
+    if round_winner is not None:
+        state["round_wins"][round_winner] += 1
+    round_number = int(state["round"])
+    if round_number >= int(state["rounds"]):
+        wins = state["round_wins"]
+        best = max(wins)
+        winners = [index for index, score in enumerate(wins) if score == best]
+        state["winner"] = winners[0] if len(winners) == 1 else None
+        state["draw"] = len(winners) != 1
+        state["last_event"] = (
+            f"Six rounds complete. {state['players'][state['winner']]['name']} wins the match."
+            if state["winner"] is not None
+            else "Six rounds complete. The match is tied."
+        )
+        _refresh_domino_legal_moves(state)
+        return
+    next_starter = round_winner if round_winner is not None else int(state["starting_player"])
+    _deal_next_domino_round(state, next_starter, round_number + 1)
+    state["round_winner"] = round_winner
+    state["last_event"] = (
+        f"{state['players'][round_winner]['name']} won round {round_number}. "
+        f"They lead round {round_number + 1}."
+        if round_winner is not None
+        else f"Round {round_number} was tied. Round {round_number + 1} begins."
+    )
 
 
 def _finish_blocked_domino_round(state: dict[str, Any]) -> None:
     totals = [sum(sum(tile) for tile in hand) for hand in state["hands"]]
     lowest = min(totals)
     winners = [index for index, total in enumerate(totals) if total == lowest]
-    state["winner"] = winners[0] if len(winners) == 1 else None
-    state["draw"] = len(winners) != 1
-    state["last_event"] = (
-        "The table is blocked. Lowest remaining pip count wins."
-        if len(winners) == 1
-        else "The table is blocked and the lowest pip counts are tied."
-    )
-    _refresh_domino_legal_moves(state)
+    _finish_domino_round(state, winners[0] if len(winners) == 1 else None)
 
 
 def _apply_domino_action(
@@ -456,10 +532,10 @@ def _apply_domino_action(
         "pass": False,
     }
     state["last_event"] = f"{player_name} placed {oriented[0]}–{oriented[1]} on the {side}."
+    if state.get("opening_tile_required"):
+        state["opening_tile_required"] = False
     if not state["hands"][player]:
-        state["winner"] = player
-        state["last_event"] = f"{player_name} played every domino and won the round!"
-        _refresh_domino_legal_moves(state)
+        _finish_domino_round(state, player)
         return state
     _next_player(state)
     state["turn_number"] += 1
@@ -469,6 +545,21 @@ def _apply_domino_action(
 
 def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> dict[str, Any]:
     game = state["game"]
+    if action.get("action") == "play_again":
+        if state.get("winner") is None and not state.get("draw", False):
+            raise IllegalMove("Finish the current game before playing again")
+        old_players = state.get("players", [])
+        player_count = int(state.get("player_count", len(old_players) or 2))
+        bot_players = tuple(index for index, entry in enumerate(old_players) if entry.get("is_bot"))
+        replacement = new_state(game, player_count, bot_players)
+        if old_players and replacement.get("players"):
+            replacement["players"] = old_players
+        for score_key in ("scores", "round_wins"):
+            if score_key in state and score_key in replacement:
+                replacement[score_key] = list(state[score_key])
+        state.clear()
+        state.update(replacement)
+        return state
     if game == "ludo":
         return _apply_ludo_action(state, player, action)
     if game == "dominoes":
@@ -492,6 +583,8 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
             state["winner"] = player
             return state
         raise IllegalMove("Draw a ball before claiming bingo")
+    if game == "scribble":
+        return apply_scribble_action(state, player, action)
     return apply_trivia_action(state, player, action)
 
 
@@ -547,4 +640,6 @@ def bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
         return {"pass": True}
     if game == "bingo":
         return {"action": "draw"}
+    if game == "scribble":
+        return bot_draw_action(state)
     return {"answer": state["correct"] if _RNG.random() > 0.35 else _RNG.randrange(4)}

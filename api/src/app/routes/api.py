@@ -37,6 +37,7 @@ from app.games.multi import (
 )
 from app.games.persistence import create_persisted_match, record_state
 from app.games.realtime import realtime_bus
+from app.games.scribble import normalise_scribble_state
 from app.games.trivia import normalise_trivia_state
 from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
@@ -171,13 +172,15 @@ def restore_universal_match(
         normalise_trivia_state(row.state)
     if row.game_type == "bingo":
         normalise_bingo_state(row.state, player_count)
+    if row.game_type == "scribble":
+        normalise_scribble_state(row.state)
     seat_rows = seats or []
     player_ids = {
         seat.user_id: seat.seat_index for seat in seat_rows if seat.user_id is not None
     } or {row.player_user_id: 0}
     bot_players = tuple(seat.seat_index for seat in seat_rows if seat.player_type == "bot")
     resolved_bot_players = bot_players if seat_rows else tuple(
-        range(1, player_count if row.game_type in {"ludo", "dominoes"} else 2)
+        range(1, player_count if row.game_type in {"ludo", "dominoes", "scribble"} else 2)
     )
     match = UniversalMatch(
         id=row.id,
@@ -210,7 +213,7 @@ async def hydrate_match(match_id: str) -> tuple[LiveMatch | None, UniversalMatch
             return restore_connect_match(row, seats), None
         room = await db.get(GameRoom, row.room_id)
         player_count = (
-            room.max_players if room is not None and row.game_type in {"ludo", "dominoes"} else 2
+            room.max_players if room is not None and row.game_type in {"ludo", "dominoes", "scribble"} else 2
         )
         return None, restore_universal_match(row, player_count, seats)
 
@@ -261,6 +264,8 @@ def game_type_for_name(name: str) -> str | None:
         return "bingo"
     if normalized in {"trivia", "trivia battle"}:
         return "trivia"
+    if normalized in {"scribble", "scribble game", "draw and guess"}:
+        return "scribble"
     return None
 
 
@@ -272,7 +277,7 @@ def game_capacity(game_name: str) -> int:
     normalized = game_name.strip().lower()
     if normalized in {"connect four", "connect-four", "trivia", "trivia battle"}:
         return 2
-    if normalized in {"ludo", "dominoes", "block dominoes"}:
+    if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
         return 4
     if normalized == "bingo":
         return 8
@@ -1174,6 +1179,19 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
     try:
         while True:
             message = await websocket.receive_json()
+            if message.get("type") == "play_again":
+                try:
+                    await match_manager.play_again(match, user.id)
+                except IllegalMove as error:
+                    await websocket.send_json({"type": "error", "detail": str(error)})
+                else:
+                    async with session_factory() as db:
+                        persisted = await db.get(GameMatch, match.id)
+                        if persisted is not None:
+                            await record_state(db, persisted, user.id, {"action": "play_again"}, match.snapshot())
+                            persisted.status = "active"
+                        await db.commit()
+                continue
             if message.get("type") != "move" or not isinstance(message.get("column"), int):
                 await websocket.send_json(
                     {"type": "error", "detail": "Send a move with a numeric column"}
@@ -1277,7 +1295,9 @@ async def game_session_action(
     persisted = await db.get(GameMatch, match.id)
     if persisted is not None:
         await record_state(db, persisted, user.id, payload.action, match.state)
-        if match.state.get("winner") is not None or match.state.get("draw", False):
+        if payload.action.get("action") == "play_again":
+            persisted.status = "active"
+        elif match.state.get("winner") is not None or match.state.get("draw", False):
             persisted.status = "completed"
     if match.state.get("winner") == 0 and not match.reward_granted:
         await grant_game_win_reward(db, user.id, match.id)
@@ -1321,7 +1341,9 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                 persisted = await db.get(GameMatch, match.id)
                 if persisted is not None:
                     await record_state(db, persisted, user.id, message["action"], match.state)
-                    if match.state.get("winner") is not None or match.state.get("draw", False):
+                    if message["action"].get("action") == "play_again":
+                        persisted.status = "active"
+                    elif match.state.get("winner") is not None or match.state.get("draw", False):
                         persisted.status = "completed"
                 if match.state.get("winner") == 0 and not match.reward_granted:
                     await grant_game_win_reward(db, user.id, match.id)

@@ -29,6 +29,35 @@ type DominoGameProps = {
   error?: string
 }
 
+type DominoLayout = { x: number; y: number; vertical: boolean; reverse: boolean }
+
+function createDominoLayout(board: Array<[number, number]>): Array<DominoLayout> {
+  const layout: Array<DominoLayout> = []
+  let row = 0
+  let direction = 1
+  let currentX = 1
+  let lastX = 1
+  let hasHorizontal = false
+
+  for (let index = 0; index < board.length; index += 1) {
+    if (currentX < 1 || currentX > 6) {
+      const turnX = hasHorizontal ? lastX + direction * 0.5 : direction === 1 ? 0.5 : 6.5
+      layout.push({ x: turnX, y: row + 1, vertical: true, reverse: false })
+      row += 1
+      direction *= -1
+      currentX = turnX + direction * 0.5
+      hasHorizontal = false
+      return
+    }
+
+    layout.push({ x: currentX, y: row + 0.5, vertical: false, reverse: direction < 0 })
+    lastX = currentX
+    currentX += direction
+    hasHorizontal = true
+  }
+  return layout
+}
+
 const PIP_CELLS: Record<number, Array<number>> = {
   0: [],
   1: [4],
@@ -69,6 +98,7 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
   const players = state.players?.length ? state.players : DEFAULT_PLAYERS
   const hands = state.hands ?? [[], []]
   const board = state.board ?? []
+  const dominoLayout = useMemo(() => createDominoLayout(board), [board])
   const legalMoves = state.legal_moves ?? []
   const currentPlayer = state.current_player ?? 0
   const winner = state.winner ?? null
@@ -162,16 +192,12 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
 
     <div className="domino-table-wrap">
       <div className="domino-table-2d" aria-label="Domino table" role="region">
-        {board.length === 0 ? <div className="domino-table-empty"><Sparkle size={28} weight="fill" /><strong>The table is open</strong><span>Choose any domino to begin the chain.</span></div> : <div ref={chainRef} className="domino-chain" style={{ '--domino-rows': Math.ceil(board.length / 7) } as CSSProperties}>
+        {board.length === 0 ? <div className="domino-table-empty"><Sparkle size={28} weight="fill" /><strong>The table is open</strong><span>Choose any domino to begin the chain.</span></div> : <div ref={chainRef} className="domino-chain" style={{ '--domino-rows': Math.max(2, Math.ceil(Math.max(...dominoLayout.map(({ y }) => y + 0.5))) ) } as CSSProperties}>
           {board.map((tile, index) => {
-            const row = Math.floor(index / 7)
-            const position = index % 7
-            const column = row % 2 === 0 ? position + 1 : 7 - position
-            const reverse = row % 2 === 1
-            const turn = position === 0 && row > 0
+            const placement = dominoLayout[index]
             const newest = state.last_move?.tile && ((state.last_move.side === 'left' && index === 0) || (state.last_move.side !== 'left' && index === board.length - 1))
-            return <span className={`domino-chain__cell${reverse ? ' domino-chain__cell--reverse' : ''}${turn ? ' domino-chain__cell--turn' : ''}${newest ? ` domino-chain__cell--new domino-chain__cell--from-${state.last_move?.side ?? 'right'}` : ''}`} style={{ gridRow: row + 1, gridColumn: column }} key={`${index}-${tile[0]}-${tile[1]}`}>
-              <DominoTile tile={tile} className={reverse ? 'domino-piece--reverse' : ''} />
+            return <span className={`domino-chain__cell${placement.reverse ? ' domino-chain__cell--reverse' : ''}${placement.vertical ? ' domino-chain__cell--turn' : ''}${newest ? ` domino-chain__cell--new domino-chain__cell--from-${state.last_move?.side ?? 'right'}` : ''}`} style={{ '--domino-x': placement.x, '--domino-y': placement.y } as CSSProperties} key={`${index}-${tile[0]}-${tile[1]}`}>
+              <DominoTile tile={tile} className={placement.reverse ? 'domino-piece--reverse' : ''} />
             </span>
           })}
         </div>}
@@ -196,7 +222,7 @@ export function DominoGame({ state, send, error = '' }: DominoGameProps) {
       </div>
     </section>
 
-    {(winner !== null || draw) && <div className="domino-result" role="status"><Trophy size={26} weight="fill" /><div><strong>{draw ? 'Evenly matched!' : winner === 0 ? 'Beautifully played!' : 'Good round!'}</strong><span>{draw ? 'The chain blocked with equal low pip totals.' : winner === 0 ? 'You placed every domino first.' : `${winnerName} won this round.`}</span></div></div>}
+    {(winner !== null || draw) && <div className="domino-result" role="status"><Trophy size={26} weight="fill" /><div><strong>{draw ? 'Evenly matched!' : winner === 0 ? 'Beautifully played!' : 'Good round!'}</strong><span>{draw ? 'The chain blocked with equal low pip totals.' : winner === 0 ? 'You placed every domino first.' : `${winnerName} won this round.`}</span></div><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}
     <details className="domino-rules"><summary>How Block Dominoes works</summary><div><p>Match either half of a domino to the same number on an open end. If it fits both ends, choose where to place it.</p><p>When no domino matches, pass. The round ends when someone clears their hand or every player passes; on a blocked table, the lowest remaining pip total wins.</p></div></details>
   </section>
 }

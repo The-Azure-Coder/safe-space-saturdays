@@ -2,7 +2,8 @@ import pytest
 
 from app.games import multi
 from app.games.connect_four import IllegalMove
-from app.games.multi import apply_action, new_state, normalise_domino_state
+from app.games.multi import apply_action, bot_action, new_state, normalise_domino_state
+from app.games.scribble import WORDS
 from app.games.universal import UniversalMatch
 
 
@@ -20,7 +21,7 @@ def test_ludo_four_player_state_uses_every_reference_board_seat() -> None:
     state = new_state("ludo", player_count=4)
     assert state["player_count"] == 4
     assert [player["color"] for player in state["players"]] == ["red", "blue", "green", "yellow"]
-    assert [player["offset"] for player in state["players"]] == [39, 0, 13, 26]
+    assert [player["offset"] for player in state["players"]] == [0, 39, 13, 26]
     assert len(state["positions"]) == len(state["captures"]) == len(state["last_rolls"]) == 4
 
 
@@ -53,7 +54,7 @@ def test_ludo_capture_sends_an_opponent_home_and_grants_extra_turn(
     monkeypatch.setattr(multi, "_roll_die", lambda: 3)
     state = new_state("ludo")
     state["positions"][0][0] = 4
-    state["positions"][1][0] = 33  # Bot global cell 7; human lands there from 4 + 3.
+    state["positions"][1][0] = 46  # Green bot global cell 7; human lands there from 4 + 3.
     state = apply_action(state, 0, {"action": "roll"})
     state = apply_action(state, 0, {"action": "move", "token": 0})
     assert state["positions"][0][0] == 7
@@ -102,7 +103,7 @@ def test_ludo_requires_an_exact_finish_and_rejects_unhighlighted_tokens(
 ) -> None:
     monkeypatch.setattr(multi, "_roll_die", lambda: 4)
     state = new_state("ludo")
-    state["positions"][0] = [53, 56, 56, 56]
+    state["positions"][0] = [54, 57, 57, 57]
     state = apply_action(state, 0, {"action": "roll"})
     assert state["legal_tokens"] == []
     assert state["current_player"] == 1
@@ -113,12 +114,24 @@ def test_ludo_requires_an_exact_finish_and_rejects_unhighlighted_tokens(
 def test_ludo_exact_finish_wins(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(multi, "_roll_die", lambda: 3)
     state = new_state("ludo")
-    state["positions"][0] = [53, 56, 56, 56]
+    state["positions"][0] = [54, 57, 57, 57]
     state = apply_action(state, 0, {"action": "roll"})
     state = apply_action(state, 0, {"action": "move", "token": 0})
-    assert state["positions"][0] == [56, 56, 56, 56]
+    assert state["positions"][0] == [57, 57, 57, 57]
     assert state["winner"] == 0
     assert state["phase"] == "finished"
+
+
+def test_ludo_one_enters_home_from_the_last_lane_space(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(multi, "_roll_die", lambda: 1)
+    state = new_state("ludo")
+    state["positions"][0] = [56, 57, 57, 57]
+    state = apply_action(state, 0, {"action": "roll"})
+    assert state["legal_tokens"] == [0]
+    state = apply_action(state, 0, {"action": "move", "token": 0})
+    assert state["positions"][0][0] == multi.LUDO_FINISH
 
 
 def test_dominoes_start_with_valid_hands_and_turn() -> None:
@@ -206,8 +219,48 @@ def test_blocked_domino_round_uses_lowest_pip_total() -> None:
         "passes": 1,
     }
     state = apply_action(state, 0, {"pass": True})
-    assert state["winner"] == 1
+    assert state["round_winner"] == 1
+    assert state["round"] == 2
+    assert state["starting_player"] == 1
     assert state["draw"] is False
+
+
+def test_scribble_hides_word_from_guesser_and_scores_correct_guess() -> None:
+    state = new_state("scribble", player_count=2, bot_players=(1,))
+    match = UniversalMatch(id="scribble-test", room_id=1, game_type="scribble", state=state, player_ids={1: 0, 2: 1})
+    assert match.snapshot(2)["state"].get("word") is None
+    state = apply_action(state, 0, {"action": "stroke", "points": [{"x": 0.1, "y": 0.1}, {"x": 0.8, "y": 0.8}]})
+    state = apply_action(state, 0, {"action": "end_turn"})
+    state = apply_action(state, 1, {"action": "guess", "text": state["word"]})
+    assert state["scores"] == [50, 100]
+    assert state["round"] == 2
+    assert state["current_drawer"] == 1
+    assert state["word"] in WORDS
+
+
+def test_scribble_bot_can_draw_after_human_guesses() -> None:
+    state = new_state("scribble", player_count=2, bot_players=(1,))
+    state = apply_action(state, 1, {"action": "guess", "text": "wrong"})
+    assert state["guesses"][-1]["correct"] is False
+    state["round"] = 2
+    state["current_drawer"] = 1
+    state["current_player"] = 1
+    state["bot_draw_pending"] = True
+    state = apply_action(state, 1, bot_action(state, 1))
+    assert state["phase"] == "guessing"
+    assert state["strokes"]
+
+
+def test_play_again_resets_the_board_but_keeps_scores() -> None:
+    state = new_state("scribble", player_count=2, bot_players=(1,))
+    state["winner"] = 0
+    state["scores"] = [250, 175]
+    state["strokes"] = [{"points": [{"x": 0.1, "y": 0.1}, {"x": 0.2, "y": 0.2}], "color": "#315542", "size": 5}]
+    updated = apply_action(state, 0, {"action": "play_again"})
+    assert updated["winner"] is None
+    assert updated["phase"] == "drawing"
+    assert updated["strokes"] == []
+    assert updated["scores"] == [250, 175]
 
 
 def test_bingo_marks_drawn_numbers_and_trivia_scores() -> None:
