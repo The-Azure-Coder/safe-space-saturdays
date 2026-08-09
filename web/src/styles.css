@@ -1405,3 +1405,7 @@ html[data-theme='crimson'] .welcome-carousel p,
 html[data-theme='crimson'] .support-card p { color: #f0d7d1; }
 html[data-theme='crimson'] .section-heading .eyebrow,
 html[data-theme='crimson'] .eyebrow { color: #f0a18d; }
+html[data-theme='sage'] .app-nav__link--active { border-color: rgb(86 105 70 / 30%); background: #e1e8d5; color: #435631; box-shadow: 0 0 0 2px rgb(86 105 70 / 10%); }
+html[data-theme='night'] .app-nav__link--active { border-color: rgb(185 216 181 / 35%); background: #385542; color: #e8f4e4; box-shadow: 0 0 0 2px rgb(185 216 181 / 12%); }
+html[data-theme='purple'] .app-nav__link--active { border-color: rgb(90 71 126 / 35%); background: #e1d5ef; color: #493765; box-shadow: 0 0 0 2px rgb(118 99 154 / 14%); }
+html[data-theme='high-contrast'] .app-nav__link--active { border-color: #102019; background: #f2c27b; color: #102019; box-shadow: 0 0 0 2px #102019; }
