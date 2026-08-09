@@ -18,17 +18,29 @@ export const Route = createFileRoute('/games/session/$matchId')({ component: Gam
 function GameSessionScreen() {
   const { matchId } = useParams({ from: '/games/session/$matchId' })
   const [match, setMatch] = useState<GameSession | null>(null)
+  const viewerSeat = useRef(0)
   const [error, setError] = useState('')
   const [ending, setEnding] = useState(false)
   const socket = useRef<WebSocket | null>(null)
   useEffect(() => {
     let active = true
-    void api.gameSession(matchId).then((value) => { if (active) setMatch(value) }).catch((reason: Error) => setError(reason.message))
+    void api.gameSession(matchId).then((value) => {
+      viewerSeat.current = Number(value.state.seat_index ?? 0)
+      if (active) setMatch(value)
+    }).catch((reason: Error) => setError(reason.message))
     const connection = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/api/games/sessions/${matchId}/ws`)
     socket.current = connection
     connection.onmessage = (event) => {
       const message = JSON.parse(event.data) as { type: string; match?: GameSession; detail?: string }
-      if (message.type === 'state' && message.match) setMatch(message.match)
+      if (message.type === 'state' && message.match) {
+        const nextMatch = message.match
+        if (nextMatch.state.seat_index === undefined) {
+          nextMatch.state.seat_index = viewerSeat.current
+        } else {
+          viewerSeat.current = Number(nextMatch.state.seat_index)
+        }
+        setMatch(nextMatch)
+      }
       if (message.type === 'session_ended') window.location.href = '/games'
       if (message.type === 'error') setError(message.detail ?? 'That action was not accepted')
     }
@@ -65,7 +77,7 @@ function GameSessionScreen() {
     <section className="game-play-header"><div><span className="eyebrow">Friendly match · {title}</span><h1>{isTrivia ? 'Think fast. Stay curious.' : 'Play at your own pace'}</h1><p>{isTrivia ? 'Five bright questions, kind competition, and something new to learn.' : 'Kind competition, clear rules, and a little room to breathe.'}</p></div><div className="game-play-badge"><Sparkle size={22} /> {isTrivia ? '15 seconds per question' : `Playing with ${opponentLabel}`}</div></section>
     {error && <p className="form-error" role="alert">{error}</p>}
     {match?.game !== 'ludo' && match?.game !== 'dominoes' && match?.game !== 'trivia' && state?.winner !== null && state?.winner !== undefined && <div className="game-result"><Trophy size={22} /> {state.winner === seat ? 'You won this round!' : `${players[state.winner]?.name ?? 'Your opponent'} won this round.`}</div>}
-    {match?.game === 'ludo' && <LudoGame state={(state ?? {}) as Partial<LudoState>} send={send} />}
+    {match?.game === 'ludo' && <LudoGame state={(state ?? {}) as Partial<LudoState>} send={send} playerIndex={viewerSeat.current} />}
     {match?.game === 'dominoes' && <DominoGame state={(state ?? {}) as Partial<DominoState>} send={send} error={error} />}
     {match?.game === 'bingo' && <BingoBoard state={state ?? {}} send={send} />}
     {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} playerIndex={Number(state?.seat_index ?? 0)} />}

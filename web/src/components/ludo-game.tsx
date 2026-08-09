@@ -22,6 +22,7 @@ export type LudoState = {
 type LudoGameProps = {
   state: Partial<LudoState>
   send: (action: Record<string, unknown>) => void
+  playerIndex?: number
 }
 
 type Coordinate = readonly [number, number]
@@ -102,7 +103,7 @@ function vibrate(duration: number) {
   }
 }
 
-export function LudoGame({ state, send }: LudoGameProps) {
+export function LudoGame({ state, send, playerIndex }: LudoGameProps) {
   const players = state.players?.length ? state.players : DEFAULT_PLAYERS
   const targetPositions = useMemo(() => normalisePositions(state.positions, players.length), [state.positions, players.length])
   const targetSignature = JSON.stringify(targetPositions)
@@ -184,7 +185,7 @@ export function LudoGame({ state, send }: LudoGameProps) {
 
   const winner = state.winner ?? null
   const currentPlayer = state.current_player ?? 0
-  const localPlayer = state.seat_index ?? 0
+  const localPlayer = playerIndex ?? state.seat_index ?? 0
   const phase = state.phase ?? 'roll'
   const legalTokens = state.legal_tokens ?? []
   const canRoll = currentPlayer === localPlayer && phase === 'roll' && winner === null && !rolling && !isAnimatingMove
