@@ -1456,6 +1456,10 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
             except IllegalMove as error:
                 await websocket.send_json({"type": "error", "detail": str(error)})
                 continue
+            # Broadcast updates the other players. Send the acting player's
+            # authoritative snapshot directly as well so their own token
+            # animation cannot be lost in websocket/realtime timing.
+            await websocket.send_json({"type": "state", "match": match.snapshot(user.id)})
             async with session_factory() as db:
                 persisted = await db.get(GameMatch, match.id)
                 if persisted is not None:
