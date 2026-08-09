@@ -3,6 +3,7 @@ from dataclasses import replace
 import pytest
 
 from app.games.connect_four import IllegalMove, apply_move, choose_bot_column, initial_state
+from app.games.manager import MatchManager
 
 
 def test_vertical_win_and_draw_state() -> None:
@@ -44,3 +45,11 @@ def test_thoughtful_bot_takes_a_win_and_blocks_the_player() -> None:
         block_state = apply_move(block_state, block_state.current_player, column)
     block_state = replace(block_state, current_player=2)
     assert choose_bot_column(block_state, 2, "thoughtful") == 3
+
+
+def test_bot_filling_does_not_replace_a_second_human() -> None:
+    manager = MatchManager()
+    match = manager.create(1, 101, True, "friendly", {101: 0, 202: 1})
+
+    assert match.bot_player is None
+    assert match.player_ids == {101: 1, 202: 2}
