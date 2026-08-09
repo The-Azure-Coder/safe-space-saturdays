@@ -30,6 +30,7 @@ function ConnectFourScreen() {
           setMatch((current) => ({ ...message.state!, player: message.state!.player ?? current?.player ?? 1 }))
           setPendingColumn(null)
         }
+        if (message.type === 'session_ended') window.location.href = '/games'
         if (message.type === 'error') {
           setError(message.detail ?? 'That move was not accepted')
           setPendingColumn(null)

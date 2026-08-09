@@ -29,6 +29,7 @@ function GameSessionScreen() {
     connection.onmessage = (event) => {
       const message = JSON.parse(event.data) as { type: string; match?: GameSession; detail?: string }
       if (message.type === 'state' && message.match) setMatch(message.match)
+      if (message.type === 'session_ended') window.location.href = '/games'
       if (message.type === 'error') setError(message.detail ?? 'That action was not accepted')
     }
     connection.onerror = () => setError('Connection lost. Refresh to reconnect.')

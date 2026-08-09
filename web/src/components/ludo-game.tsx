@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DiceFive, Robot, ShieldStar, Sparkle, Trophy } from '@phosphor-icons/react'
+import { ShieldStar, Sparkle, Trophy } from '@phosphor-icons/react'
 
 export type LudoState = {
   game: 'ludo'
@@ -226,20 +226,6 @@ export function LudoGame({ state, send }: LudoGameProps) {
         <span className="eyebrow">Friendly Ludo · {players.length} players</span>
         <strong>{turnMessage}</strong>
       </div>
-      <div className="ludo-player-grid">
-        {COLORS.map((color) => {
-          const playerIndex = players.findIndex((player) => player.color === color)
-          if (playerIndex < 0) return <span className={`ludo-player-space ludo-player-space--${color}`} aria-hidden="true" key={color} />
-          const player = players[playerIndex]
-          const home = targetPositions[playerIndex].filter((position) => position === 57).length
-          const isRolling = playerIndex === 0 ? rolling : botRolling && currentPlayer === playerIndex
-          return <article className={`ludo-player-card ludo-player-card--${color}${currentPlayer === playerIndex && winner === null ? ' ludo-player-card--active' : ''}`} aria-label={`${player.name} player summary`} key={color}>
-            <span className="ludo-player-avatar">{player.is_bot ? <Robot size={22} weight="fill" /> : 'YOU'}</span>
-            <span><small>{home}/4 home · {state.captures?.[playerIndex] ?? 0} captures</small></span>
-            <Die face={state.last_rolls?.[playerIndex] ?? (playerIndex === 0 ? diceFace : 1)} rolling={isRolling} label={`${player.name}'s last roll`} onClick={playerIndex === 0 && currentPlayer === 0 && canRoll ? rollDice : undefined} />
-          </article>
-        })}
-      </div>
     </div>
 
     <div className="ludo-board-frame">
@@ -287,17 +273,6 @@ export function LudoGame({ state, send }: LudoGameProps) {
           </span>
         }))}
       </div>
-    </div>
-
-    <div className="ludo-action-dock">
-      <Die face={diceFace} rolling={rolling} label="Dice" onClick={canRoll ? rollDice : undefined} />
-      <div className="ludo-action-copy">
-        <strong>{turnMessage}</strong>
-        <small>{state.last_event ?? 'Roll a six to bring a token out of your yard.'}</small>
-      </div>
-      <button className="button button--primary ludo-roll-button" type="button" disabled={!canRoll} onClick={rollDice}>
-        <DiceFive size={20} weight="fill" /> {rolling ? 'Rolling…' : phase === 'move' ? 'Choose a token' : currentPlayer !== 0 ? `${activePlayer.name} is playing` : 'Roll dice'}
-      </button>
     </div>
 
     {winner !== null && <div className="ludo-winner-banner" role="status"><Trophy size={26} weight="fill" /><div><strong>{winner === 0 ? 'Beautiful win!' : 'Good game!'}</strong><span>{winner === 0 ? 'All four tokens made it safely home.' : `${players[winner]?.name ?? 'A bot'} won this round.`}</span></div><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}

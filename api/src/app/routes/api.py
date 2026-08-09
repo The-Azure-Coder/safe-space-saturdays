@@ -1111,6 +1111,25 @@ async def end_game_room(room_id: int, user: CurrentUser, db: DbSession) -> Respo
         select(GameMatch.id).where(GameMatch.room_id == room_id).limit(1)
     )
     if match_id is not None:
+        live_match = match_manager.get(match_id) or universal_matches.get(match_id)
+        if live_match is not None:
+            for socket in list(live_match.sockets):
+                try:
+                    await socket.send_json(
+                        {"type": "session_ended", "detail": "The host ended this game session."}
+                    )
+                except Exception:
+                    live_match.sockets.pop(socket, None)
+        await realtime_bus.publish(
+            match_channel(match_id),
+            {
+                "origin": get_settings().realtime_node_id,
+                "payload": {
+                    "type": "session_ended",
+                    "detail": "The host ended this game session.",
+                },
+            },
+        )
         match_manager.matches.pop(match_id, None)
         universal_matches.matches.pop(match_id, None)
         if match_manager.room_matches.get(room_id) == match_id:
