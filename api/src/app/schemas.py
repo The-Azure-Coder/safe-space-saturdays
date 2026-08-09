@@ -184,12 +184,66 @@ class RoomResponse(BaseModel):
     max_players: int
     status: str
     joined: bool
+    is_host: bool = False
+    match_id: str | None = None
+    ready: bool = False
+    fill_with_bots: bool = True
+
+
+class RoomParticipantResponse(BaseModel):
+    user_id: int
+    name: str
+    avatar_url: str | None
+    seat_index: int | None
+    ready: bool
+    is_host: bool
 
 
 class RoomCreateRequest(BaseModel):
     game_id: int
     name: str = Field(min_length=2, max_length=100)
     max_players: int = Field(default=4, ge=2, le=8)
+    fill_with_bots: bool = True
+    bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
+
+
+class MatchCreateRequest(BaseModel):
+    room_id: int
+    with_bot: bool = True
+    bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
+
+
+class MatchResponse(BaseModel):
+    match_id: str
+    room_id: int
+    game: str
+    board: list[list[int]]
+    current_player: Literal[1, 2]
+    winner: Literal[1, 2] | None
+    draw: bool
+    move_count: int
+    last_move: tuple[int, int] | None = None
+    winning_cells: list[tuple[int, int]] = Field(default_factory=list)
+
+
+class MoveRequest(BaseModel):
+    column: int = Field(ge=0, le=6)
+
+
+class GameSessionCreateRequest(BaseModel):
+    room_id: int
+    fill_with_bots: bool = True
+
+
+class GameActionRequest(BaseModel):
+    action: dict[str, object] = Field(default_factory=dict)
+
+
+class GameSessionResponse(BaseModel):
+    match_id: str
+    room_id: int
+    game: str
+    state: dict[str, object]
 
 
 class LeaderboardEntry(BaseModel):

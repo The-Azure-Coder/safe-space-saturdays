@@ -39,7 +39,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { api, assetUrl } from '../lib/api'
-import type { CheckIn } from '../lib/api'
+import type { CheckIn, Room } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -72,6 +72,16 @@ const moods = [
   { label: 'Struggling', icon: '😔' },
 ]
 
+type GameDefinition = { id?: number; name: string; players: string; icon: Icon | string; color: string }
+
+const games: Array<GameDefinition> = [
+  { name: 'Ludo', players: '2–4 players', icon: '/assets/game-ludo.png', color: 'sage' },
+  { name: 'Dominoes', players: '2–4 players', icon: '/assets/game-dominoes.png', color: 'peach' },
+  { name: 'Trivia Battle', players: '2+ players', icon: '/assets/game-trivia.png', color: 'lilac' },
+  { name: 'Connect Four', players: '2 players', icon: '/assets/game-connect-four.png', color: 'blue' },
+  { name: 'Scribble', players: '2–4 players', icon: '/assets/game-scribble.png', color: 'coral' },
+  { name: 'Bingo', players: '2–8 players', icon: '/assets/game-bingo.png', color: 'peach' },
+]
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
@@ -90,21 +100,29 @@ function PageHeader({ screen }: { screen: Screen }) {
   const logout = useMutation({ mutationFn: api.logout, onSuccess: () => { queryClient.clear(); window.location.href = '/login' } })
   const displayName = currentUser.data?.name
   useEffect(() => {
-    if (!menuOpen) return
+    setMenuOpen(false)
+    setMobileNavOpen(false)
+  }, [screen])
+  useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false)
-      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) setMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false)
     }
     document.addEventListener('pointerdown', closeOnOutsideClick)
-    return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
-  }, [menuOpen])
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
   return (
     <header className="app-header">
       <Logo compact />
       <nav id="main-navigation" className={mobileNavOpen ? 'app-nav app-nav--mobile-open' : 'app-nav'} aria-label="Main navigation">
         {navItems.map(({ href, label, icon: NavIcon }) => (
-          <Link onClick={() => setMobileNavOpen(false)} className={isActive(screen, href) ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to={href} key={href}>
+          <Link onClick={() => { setMobileNavOpen(false); setMenuOpen(false) }} className={isActive(screen, href) ? 'app-nav__link app-nav__link--active' : 'app-nav__link'} to={href} key={href}>
             <NavIcon size={22} weight={isActive(screen, href) ? 'fill' : 'regular'} aria-hidden="true" />
             <span>{label}</span>
           </Link>
@@ -270,7 +288,7 @@ function HomeScreen() {
         <article className="check-card"><div className="card-title"><Smiley size={22} weight="fill" /> <span>How are you feeling today?</span></div><p>Your check-in helps us support you better.</p><div className="mood-row">{moods.map((mood) => <Link className="mood-option" key={mood.label} to="/check-in"><span>{mood.icon}</span><small>{mood.label}</small></Link>)}</div><Link className="button button--primary" to="/check-in">Check In</Link></article>
         <article className="community-card"><div className="card-title"><UsersThree size={22} weight="fill" /> <span>Community Corner</span></div><h3>You are not alone.</h3><p>Join a space that listens, encourages, and grows together.</p><Link className="button button--lilac" to="/community">Explore Community <ArrowRight size={16} /></Link></article>
       </section>
-      <ComingSoonBanner />
+      {/* <ComingSoonBanner /> */}
     </main>
     <PageFooter />
   </>
@@ -298,12 +316,78 @@ function ComingSoonBanner() {
   return <section className="coming-soon-banner" aria-labelledby="coming-soon-title"><div className="coming-soon-banner__mark" aria-hidden="true">✦</div><div><span className="eyebrow">Game night is on its way</span><h2 id="coming-soon-title">A little more play is coming soon <span className="heart-doodle">♡</span></h2><p>We’re thoughtfully building the rooms, rules, and friendly bot experience. Until then, there is always space to check in, connect, and grow together.</p></div><Link className="button button--small button--primary" to="/community">Stay connected <ArrowRight size={16} /></Link></section>
 }
 
+void ComingSoonBanner
+
+function GameStrip() {
+  const navigate = useNavigate()
+  const catalog = useQuery({ queryKey: ['games', 'home'], queryFn: () => api.games(1, 20), retry: false })
+  const launch = useMutation({
+    mutationFn: async (game: GameDefinition) => {
+      const catalogGame = catalog.data?.find((item) => item.name.toLowerCase() === game.name.toLowerCase() || item.name.toLowerCase().includes(game.name.toLowerCase().split(' ')[0]))
+      if (!catalogGame) throw new Error('Open Games to load this game')
+      const room = await api.createRoom({ game_id: catalogGame.id, name: `${catalogGame.name} · Friendly bot`, max_players: 2 })
+      if (catalogGame.name === 'Connect Four') {
+        const match = await api.createMatch({ room_id: room.id, with_bot: true, bot_difficulty: 'friendly' })
+        return { kind: 'connect-four' as const, id: match.match_id }
+      }
+      const match = await api.createGameSession(room.id)
+      return { kind: 'session' as const, id: match.match_id }
+    },
+    onSuccess: (match) => {
+      if (match.kind === 'connect-four') navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
+      else navigate({ to: '/games/session/$matchId', params: { matchId: match.id } })
+    },
+    onError: () => navigate({ to: '/games' }),
+  })
+  const featured = games.concat({ name: 'Bingo', players: '2+ players', icon: '/assets/game-bingo.png', color: 'peach' })
+  return <section className="game-strip"><div className="section-row"><div className="card-title"><GameController size={22} weight="fill" /> <span>Featured Games</span></div><Link to="/games">View all games <ArrowRight size={16} /></Link></div><div className="game-strip__items">{featured.map((game) => <GameTile game={game} key={game.name} compact onPlay={() => launch.mutate(game)} />)}</div></section>
+}
+
+void GameStrip
+
 function formatCooldown(milliseconds: number) {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
   const hours = Math.floor(totalSeconds / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function AdminScreen() {
+  const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const [tab, setTab] = useState<'reports' | 'users' | 'quotes'>('reports')
+  const [reportStatus, setReportStatus] = useState('')
+  const [search, setSearch] = useState('')
+  const [quoteText, setQuoteText] = useState('')
+  const [quoteAuthor, setQuoteAuthor] = useState('Safe Space Saturdays')
+  const [quoteCategory, setQuoteCategory] = useState('Encouragement')
+  const reports = useQuery({ queryKey: ['admin-reports', reportStatus], queryFn: () => api.adminBugReports(1, 50, reportStatus || undefined), enabled: profile.data?.role === 'admin' })
+  const users = useQuery({ queryKey: ['admin-users', search], queryFn: () => api.adminUsers(1, 50, search), enabled: profile.data?.role === 'admin' })
+  const quotes = useQuery({ queryKey: ['admin-quotes'], queryFn: () => api.adminQuotes(1, 100), enabled: profile.data?.role === 'admin' })
+  const reportUpdate = useMutation({ mutationFn: ({ id, status, admin_note }: { id: number; status: string; admin_note?: string }) => api.updateBugReport(id, { status, admin_note }), onSuccess: () => reports.refetch() })
+  const roleUpdate = useMutation({ mutationFn: ({ id, role }: { id: number; role: 'member' | 'admin' }) => api.updateAdminUser(id, role), onSuccess: () => users.refetch() })
+  const reset = useMutation({ mutationFn: ({ id, password }: { id: number; password: string }) => api.resetUserPassword(id, password) })
+  const createQuote = useMutation({ mutationFn: api.createAdminQuote, onSuccess: () => { setQuoteText(''); quotes.refetch() } })
+  if (profile.isLoading) return <><PageHeader screen="admin" /><main className="page-content"><ApiLoader label="Loading admin workspace…" /></main></>
+  if (profile.isError || profile.data?.role !== 'admin') return <><PageHeader screen="admin" /><main className="page-content"><section className="empty-state-card"><ShieldCheck size={34} /><h1>Admin access required</h1><p>This workspace is restricted to approved administrators.</p><Link className="button button--secondary" to="/">Return home</Link></section></main><PageFooter /></>
+  return <><PageHeader screen="admin" /><main className="page-content admin-page"><SectionHeading eyebrow="Steward workspace" title="Admin portal" description="Review member feedback, protect accounts, and keep the community content thoughtful." /><div className="admin-tabs" role="tablist" aria-label="Admin sections"><button className={tab === 'reports' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'reports'} onClick={() => setTab('reports')} type="button"><Bug size={18} /> Bug reports</button><button className={tab === 'users' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'users'} onClick={() => setTab('users')} type="button"><UsersThree size={18} /> Users</button><button className={tab === 'quotes' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'quotes'} onClick={() => setTab('quotes')} type="button"><Quotes size={18} /> Quotes</button></div>
+    {tab === 'reports' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>Bug reports</h2><p>Keep a clear trail from report to resolution.</p></div><select aria-label="Filter bug reports" value={reportStatus} onChange={(event) => setReportStatus(event.target.value)}><option value="">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>{reports.isLoading && <ContentSkeleton rows={4} />}{reports.data?.length ? <div className="admin-list">{reports.data.map((report) => <article className="admin-list-item" key={report.id}><div className="admin-list-item__top"><div><span className={`severity-badge severity-badge--${report.severity}`}>{report.severity}</span><h3>{report.title}</h3><small>{report.reporter_name} · {report.reporter_email} · {new Date(report.created_at).toLocaleString()}</small></div><select aria-label={`Update status for ${report.title}`} value={report.status} onChange={(event) => reportUpdate.mutate({ id: report.id, status: event.target.value, admin_note: report.admin_note ?? undefined })}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div><p>{report.description}</p><small className="admin-list-item__meta">Reported from {report.page_url || 'unknown page'}</small></article>)}</div> : !reports.isLoading && <div className="admin-empty"><Bug size={28} /><p>No bug reports in this view.</p></div>}</section>}
+    {tab === 'users' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>User management</h2><p>Manage roles and issue a secure password reset.</p></div><input aria-label="Search users" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email" /></div>{users.data?.length ? <div className="admin-list">{users.data.map((member) => <article className="admin-list-item admin-user-row" key={member.id}><div><h3>{member.name}</h3><small>{member.email} · {member.role}</small></div><div className="admin-user-actions"><select aria-label={`Role for ${member.email}`} value={member.role} onChange={(event) => roleUpdate.mutate({ id: member.id, role: event.target.value as 'member' | 'admin' })}><option value="member">Member</option><option value="admin">Admin</option></select><button className="button button--secondary button--small" type="button" onClick={() => { const password = window.prompt(`New password for ${member.email} (10+ characters)`); if (password) reset.mutate({ id: member.id, password }) }}>Reset password</button></div></article>)}</div> : <div className="admin-empty"><UsersThree size={28} /><p>No users match this search.</p></div>}</section>}
+    {tab === 'quotes' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>Quote library</h2><p>Add and curate the words members see across the app.</p></div></div><form className="admin-quote-form" onSubmit={(event) => { event.preventDefault(); createQuote.mutate({ text: quoteText.trim(), author: quoteAuthor.trim(), category: quoteCategory, is_featured: false }) }}><label>Quote<textarea value={quoteText} onChange={(event) => setQuoteText(event.target.value)} minLength={3} maxLength={2000} required placeholder="Write something encouraging…" /></label><label>Author<input value={quoteAuthor} onChange={(event) => setQuoteAuthor(event.target.value)} maxLength={120} required /></label><label>Category<select value={quoteCategory} onChange={(event) => setQuoteCategory(event.target.value)}><option>Encouragement</option><option>Rest</option><option>Growth</option><option>Connection</option></select></label><button className="button button--primary" type="submit" disabled={createQuote.isPending}>{createQuote.isPending ? 'Adding…' : 'Add quote'}</button></form><div className="admin-list">{quotes.data?.map((quote) => <article className="admin-list-item" key={quote.id}><div><h3>{quote.text}</h3><small>— {quote.author} · {quote.category}{quote.is_featured ? ' · Featured' : ''}</small></div></article>)}</div></section>}
+  </main><PageFooter /></>
+}
+
+function GameTile({ game, compact = false, onPlay }: { game: GameDefinition; compact?: boolean; onPlay?: () => void }) {
+  const GameIcon = typeof game.icon === 'string' ? null : game.icon
+  const generatedIcon = typeof game.icon === 'string' && game.icon.startsWith('/') ? game.icon : ({
+    Ludo: '/assets/game-ludo.png',
+    Dominoes: '/assets/game-dominoes.png',
+    'Trivia Battle': '/assets/game-trivia.png',
+    'Connect Four': '/assets/game-connect-four.png',
+    Scribble: '/assets/game-scribble.png',
+    Bingo: '/assets/game-bingo.png',
+  }[game.name] ?? null)
+  return <article className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}><span className="game-tile__icon" aria-hidden="true">{generatedIcon ? <img src={generatedIcon} alt="" /> : GameIcon ? <GameIcon size={compact ? 34 : 48} weight="duotone" /> : null}</span><h3>{game.name}</h3>{onPlay ? <button className="button button--small button--primary" type="button" onClick={onPlay}>Play</button> : <Link className="button button--small button--primary" to="/games">Play</Link>}{!compact && <small>{game.players}</small>}</article>
 }
 
 function CheckInScreen() {
@@ -434,85 +518,76 @@ function PromoCard({
 }
 
 function GamesScreen() {
-  return <ComingSoonScreen />
-}
-
-function BugReportWidget() {
-  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
-  const [open, setOpen] = useState(false)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [severity, setSeverity] = useState('normal')
-  const report = useMutation({
-    mutationFn: api.createBugReport,
-    onSuccess: () => {
-      setTitle('')
-      setDescription('')
-      setSeverity('normal')
-    },
-  })
-  if (currentUser.isError || !currentUser.data) return null
-  return <div className="bug-report-widget">
-    {open && <section className="bug-report-popover" aria-labelledby="bug-report-title">
-      <div className="bug-report-popover__header"><div><span className="eyebrow">Help us improve</span><h2 id="bug-report-title">Report a bug</h2></div><button className="icon-button" type="button" aria-label="Close bug report form" onClick={() => setOpen(false)}><X size={18} /></button></div>
-      <p>Tell us what went wrong and where you noticed it. Please do not include private journal details.</p>
-      {report.isSuccess ? <div className="form-success" role="status">Thanks — your report is with the team.</div> : <form onSubmit={(event) => { event.preventDefault(); report.mutate({ title: title.trim(), description: description.trim(), severity, page_url: window.location.pathname }) }}>
-        <label>Short title<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={3} maxLength={160} required placeholder="What went wrong?" /></label>
-        <label>Details<textarea value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={5000} required placeholder="What did you expect, and what happened instead?" /></label>
-        <label>Severity<select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label>
-        {report.isError && <p className="form-error" role="alert">{report.error.message}</p>}
-        <button className="button button--primary button--wide" type="submit" disabled={report.isPending}>{report.isPending ? 'Sending…' : 'Send bug report'}</button>
-      </form>}
-    </section>}
-    <button className="bug-report-launcher" type="button" aria-label={open ? 'Close bug report form' : 'Report a bug'} aria-expanded={open} onClick={() => { setOpen((value) => !value); report.reset() }}><Bug size={23} weight="duotone" /><span>{open ? 'Close' : 'Report a bug'}</span></button>
-  </div>
-}
-
-function AdminScreen() {
-  const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
-  const [tab, setTab] = useState<'reports' | 'users' | 'quotes'>('reports')
-  const [reportStatus, setReportStatus] = useState('')
-  const [search, setSearch] = useState('')
-  const [quoteText, setQuoteText] = useState('')
-  const [quoteAuthor, setQuoteAuthor] = useState('Safe Space Saturdays')
-  const [quoteCategory, setQuoteCategory] = useState('Encouragement')
-  const reports = useQuery({ queryKey: ['admin-reports', reportStatus], queryFn: () => api.adminBugReports(1, 50, reportStatus || undefined), enabled: profile.data?.role === 'admin' })
-  const users = useQuery({ queryKey: ['admin-users', search], queryFn: () => api.adminUsers(1, 50, search), enabled: profile.data?.role === 'admin' })
-  const quotes = useQuery({ queryKey: ['admin-quotes'], queryFn: () => api.adminQuotes(1, 100), enabled: profile.data?.role === 'admin' })
-  const reportUpdate = useMutation({ mutationFn: ({ id, status, admin_note }: { id: number; status: string; admin_note?: string }) => api.updateBugReport(id, { status, admin_note }), onSuccess: () => reports.refetch() })
-  const roleUpdate = useMutation({ mutationFn: ({ id, role }: { id: number; role: 'member' | 'admin' }) => api.updateAdminUser(id, role), onSuccess: () => users.refetch() })
-  const reset = useMutation({ mutationFn: ({ id, password }: { id: number; password: string }) => api.resetUserPassword(id, password) })
-  const createQuote = useMutation({ mutationFn: api.createAdminQuote, onSuccess: () => { setQuoteText(''); quotes.refetch() } })
-  if (profile.isLoading) return <><PageHeader screen="admin" /><main className="page-content"><ApiLoader label="Loading admin workspace…" /></main></>
-  if (profile.isError || profile.data?.role !== 'admin') return <><PageHeader screen="admin" /><main className="page-content"><section className="empty-state-card"><ShieldCheck size={34} /><h1>Admin access required</h1><p>This workspace is restricted to approved administrators.</p><Link className="button button--secondary" to="/">Return home</Link></section></main><PageFooter /></>
-  return <><PageHeader screen="admin" /><main className="page-content admin-page"><SectionHeading eyebrow="Steward workspace" title="Admin portal" description="Review member feedback, protect accounts, and keep the community content thoughtful." /><div className="admin-tabs" role="tablist" aria-label="Admin sections"><button className={tab === 'reports' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'reports'} onClick={() => setTab('reports')} type="button"><Bug size={18} /> Bug reports</button><button className={tab === 'users' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'users'} onClick={() => setTab('users')} type="button"><UsersThree size={18} /> Users</button><button className={tab === 'quotes' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'quotes'} onClick={() => setTab('quotes')} type="button"><Quotes size={18} /> Quotes</button></div>
-    {tab === 'reports' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>Bug reports</h2><p>Keep a clear trail from report to resolution.</p></div><select aria-label="Filter bug reports" value={reportStatus} onChange={(event) => setReportStatus(event.target.value)}><option value="">All statuses</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div>{reports.isLoading && <ContentSkeleton rows={4} />}{reports.data?.length ? <div className="admin-list">{reports.data.map((report) => <article className="admin-list-item" key={report.id}><div className="admin-list-item__top"><div><span className={`severity-badge severity-badge--${report.severity}`}>{report.severity}</span><h3>{report.title}</h3><small>{report.reporter_name} · {report.reporter_email} · {new Date(report.created_at).toLocaleString()}</small></div><select aria-label={`Update status for ${report.title}`} value={report.status} onChange={(event) => reportUpdate.mutate({ id: report.id, status: event.target.value, admin_note: report.admin_note ?? undefined })}><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></div><p>{report.description}</p><small className="admin-list-item__meta">Reported from {report.page_url || 'unknown page'}</small><button className="text-link" type="button" onClick={() => { const note = window.prompt('Add an internal note', report.admin_note ?? '') ; if (note !== null) reportUpdate.mutate({ id: report.id, status: report.status, admin_note: note }) }}>Add internal note</button>{report.admin_note && <p className="admin-note">Internal note: {report.admin_note}</p>}</article>)}</div> : !reports.isLoading && <div className="admin-empty"><Bug size={28} /><p>No bug reports in this view.</p></div>}</section>}
-    {tab === 'users' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>User management</h2><p>Manage roles and issue a secure password reset.</p></div><input aria-label="Search users" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name or email" /></div>{users.data?.length ? <div className="admin-list">{users.data.map((member) => <article className="admin-list-item admin-user-row" key={member.id}><div><h3>{member.name}</h3><small>{member.email} · {member.role}</small></div><div className="admin-user-actions"><select aria-label={`Role for ${member.email}`} value={member.role} onChange={(event) => roleUpdate.mutate({ id: member.id, role: event.target.value as 'member' | 'admin' })}><option value="member">Member</option><option value="admin">Admin</option></select><button className="button button--secondary button--small" type="button" onClick={() => { const password = window.prompt(`New password for ${member.email} (10+ characters)`); if (password) reset.mutate({ id: member.id, password }) }}>Reset password</button></div></article>)}</div> : <div className="admin-empty"><UsersThree size={28} /><p>No users match this search.</p></div>}</section>}
-    {tab === 'quotes' && <section className="admin-panel"><div className="admin-panel__toolbar"><div><h2>Quote library</h2><p>Add and curate the words members see across the app.</p></div></div><form className="admin-quote-form" onSubmit={(event) => { event.preventDefault(); createQuote.mutate({ text: quoteText.trim(), author: quoteAuthor.trim(), category: quoteCategory, is_featured: false }) }}><label>Quote<textarea value={quoteText} onChange={(event) => setQuoteText(event.target.value)} minLength={3} maxLength={2000} required placeholder="Write something encouraging…" /></label><label>Author<input value={quoteAuthor} onChange={(event) => setQuoteAuthor(event.target.value)} maxLength={120} required /></label><label>Category<select value={quoteCategory} onChange={(event) => setQuoteCategory(event.target.value)}><option>Encouragement</option><option>Rest</option><option>Growth</option><option>Connection</option></select></label><button className="button button--primary" type="submit" disabled={createQuote.isPending}>{createQuote.isPending ? 'Adding…' : 'Add quote'}</button></form><div className="admin-list">{quotes.data?.map((quote) => <article className="admin-list-item" key={quote.id}><div><h3>{quote.text}</h3><small>— {quote.author} · {quote.category}{quote.is_featured ? ' · Featured' : ''}</small></div>{!quote.is_featured && <button className="text-link admin-delete-link" type="button" onClick={() => { if (window.confirm('Delete this quote?')) api.deleteAdminQuote(quote.id).then(() => quotes.refetch()) }}>Delete</button>}</article>)}</div></section>}
-  </main><PageFooter /></>
-}
-
-function ComingSoonScreen() {
-  return <><PageHeader screen="games" /><main className="page-content coming-soon-page"><section className="coming-soon-card" aria-labelledby="games-coming-soon-title"><div className="coming-soon-card__art" aria-hidden="true">🎲</div><span className="eyebrow">A little more time to play</span><h1 id="games-coming-soon-title">Games are coming soon <span className="heart-doodle">♡</span></h1><p>We’re carefully building the rooms, rules, bots, and gentle game-night experience. The rest of Safe Space Saturdays is ready for you now.</p><Link className="button button--primary" to="/community">Stay connected <ArrowRight size={16} /></Link></section></main><PageFooter /></>
-}
-
-/* Full games implementation stays isolated on feat/games-persistence until it is ready for pre-production.
-function GamesScreenLegacy() {
-  const [gamesPage, setGamesPage] = useState(1)
+  const navigate = useNavigate()
+  const [showAllGames, setShowAllGames] = useState(false)
   const [roomsPage, setRoomsPage] = useState(1)
+  const [showCreateRoom, setShowCreateRoom] = useState(false)
+  const [roomName, setRoomName] = useState('A gentle game night')
+  const [roomGameId, setRoomGameId] = useState<number | null>(null)
+  const [roomPlayers, setRoomPlayers] = useState(4)
+  const [roomFillBots, setRoomFillBots] = useState(true)
   const gamesQuery = useQuery({
-    queryKey: ['games', gamesPage],
-    queryFn: () => api.games(gamesPage, 4),
+    queryKey: ['games', 'featured'],
+    queryFn: () => api.games(1, 50),
   })
   const roomsQuery = useQuery({
     queryKey: ['rooms', roomsPage],
     queryFn: () => api.rooms(roomsPage, 5),
+    refetchInterval: 2500,
   })
   const queryClient = useQueryClient()
   const join = useMutation({
     mutationFn: api.joinRoom,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
   })
+  const ready = useMutation({
+    mutationFn: api.setRoomReady,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+  })
+  const createMatch = useMutation({
+    mutationFn: api.createMatch,
+    onSuccess: (match) => navigate({ to: '/games/play/$matchId', params: { matchId: match.match_id } }),
+  })
+  const createGameSession = useMutation({
+    mutationFn: (input: { room_id: number; fill_with_bots: boolean }) => api.createGameSession(input.room_id, input.fill_with_bots),
+    onSuccess: (match) => navigate({ to: '/games/session/$matchId', params: { matchId: match.match_id } }),
+  })
+  const playGame = useMutation({
+    mutationFn: async (game: GameDefinition) => {
+      if (!game.id) throw new Error('This game is not available yet')
+      const room = await api.createRoom({ game_id: game.id, name: `${game.name} · Friendly bot`, max_players: 2 })
+      if (game.name === 'Connect Four') {
+        const match = await api.createMatch({ room_id: room.id, with_bot: true, bot_difficulty: 'friendly' })
+        return { kind: 'connect-four' as const, id: match.match_id }
+      }
+      const match = await api.createGameSession(room.id)
+      return { kind: 'session' as const, id: match.match_id }
+    },
+    onSuccess: (match) => {
+      if (match.kind === 'connect-four') navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
+      else navigate({ to: '/games/session/$matchId', params: { matchId: match.id } })
+    },
+  })
+  const createRoom = useMutation({
+    mutationFn: api.createRoom,
+    onSuccess: () => {
+      setShowCreateRoom(false)
+      setRoomName('A gentle game night')
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+    },
+  })
+  const startRoom = (room: Room) => {
+    if (room.game === 'Connect Four') {
+      createMatch.mutate({ room_id: room.id, with_bot: room.fill_with_bots, bot_difficulty: 'friendly' })
+    } else {
+      createGameSession.mutate({ room_id: room.id, fill_with_bots: room.fill_with_bots })
+    }
+  }
+  const availableGames: Array<GameDefinition> = gamesQuery.data?.length
+    ? gamesQuery.data.map((game) => ({ ...game, color: game.color }))
+    : games.map((game, index) => ({ ...game, id: index + 1 }))
+  const rooms = roomsQuery.data ?? []
+  const firstGameId = availableGames[0]?.id ?? null
   return (
     <>
       <PageHeader screen="games" />
@@ -535,58 +610,81 @@ function GamesScreenLegacy() {
             </h2>
             <p>Join friends for fun, connection, and friendly competition.</p>
           </div>
-          <button className="button button--orange" type="button">
+          <button className="button button--orange" type="button" onClick={() => document.getElementById('live-rooms')?.scrollIntoView({ behavior: 'smooth' })}>
             Join Game Night
           </button>
-          <button className="button button--ghost" type="button">
+          <button className="button button--ghost" type="button" onClick={() => { setRoomGameId((current) => current ?? firstGameId); setShowCreateRoom(true) }}>
             Create Room
           </button>
         </section>
+        {showCreateRoom && <form className="room-create-card" onSubmit={(event) => { event.preventDefault(); if (roomGameId && roomName.trim()) createRoom.mutate({ game_id: roomGameId, name: roomName.trim(), max_players: roomPlayers, fill_with_bots: roomFillBots }) }}>
+          <div><span className="eyebrow">Make space for play</span><h2>Create a room</h2><p>Choose a game, invite friends, and keep it friendly.</p></div>
+          <label className="field-label">Room name<input value={roomName} onChange={(event) => setRoomName(event.target.value)} maxLength={100} required /></label>
+          <label className="field-label">Game<select value={roomGameId ?? ''} onChange={(event) => setRoomGameId(Number(event.target.value))} required>{availableGames.map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}</select></label>
+          <label className="field-label">Players<select value={roomPlayers} onChange={(event) => setRoomPlayers(Number(event.target.value))}><option value={2}>2 players</option><option value={3}>3 players</option><option value={4}>4 players</option></select></label>
+          <label className="field-label">Open seats<select value={roomFillBots ? 'bots' : 'humans'} onChange={(event) => setRoomFillBots(event.target.value === 'bots')}><option value="bots">Fill remaining seats with bots</option><option value="humans">Humans only</option></select></label>
+          <div className="room-create-actions"><button className="button button--primary" type="submit" disabled={createRoom.isPending || !roomGameId}>{createRoom.isPending ? 'Creating…' : 'Create room'}</button><button className="button button--secondary" type="button" onClick={() => setShowCreateRoom(false)}>Cancel</button></div>
+        </form>}
+        {playGame.error && <p className="form-error" role="alert">{playGame.error.message}</p>}
+        {(createMatch.error || createGameSession.error || ready.error || join.error) && <p className="form-error" role="alert">{(createMatch.error || createGameSession.error || ready.error || join.error)?.message}</p>}
         <div className="games-layout">
           <section className="games-panel">
             <div className="card-title">
               <GameController size={24} weight="fill" />
               <span>Featured Games</span>
             </div>
-            <div className="game-grid">
-              {gamesQuery.data && gamesQuery.data.length === 0 && !gamesQuery.isLoading ? <EmptyState title="Games are coming soon" message="We are preparing friendly games for the community." /> : (gamesQuery.data ?? []).map((game) => (
-                <GameTile game={{ ...game, color: game.color }} key={game.id} />
+            <div className={showAllGames ? 'game-grid game-grid--games-expanded' : 'game-grid game-grid--games-list'}>
+              {(showAllGames ? availableGames : availableGames.slice(0, 4)).map((game) => (
+                <GameTile game={game} key={game.id} onPlay={() => playGame.mutate(game)} />
               ))}
             </div>
-            <PaginationControls
-              page={gamesPage}
-              itemCount={gamesQuery.data?.length ?? 0}
-              pageSize={4}
-              onPageChange={setGamesPage}
-              label="Games"
-            />
+            {availableGames.length > 4 && <button className="button button--secondary button--small games-view-more" type="button" onClick={() => setShowAllGames((visible) => !visible)}>{showAllGames ? 'Show featured' : 'View more games'}</button>}
           </section>
-          <section className="rooms-panel">
+          <section className="rooms-panel" id="live-rooms">
             <div className="section-row">
               <div className="card-title">
                 <UsersThree size={24} weight="fill" />
                 <span>Live Rooms</span>
               </div>
             </div>
-            {roomsQuery.data && roomsQuery.data.length === 0 && !roomsQuery.isLoading ? <EmptyState title="No live rooms yet" message="Create a room when you are ready to play with the community." /> : (roomsQuery.data ?? []).map((room) => (
+            {rooms.length === 0 && !roomsQuery.isLoading ? <EmptyState title="No live rooms yet" message="Create a room when you are ready to play with the community." /> : rooms.map((room) => (
               <div className="room-row" key={room.id}>
                 <span className="room-icon" aria-hidden="true">
                   🎲
                 </span>
-                <div>
-                  <strong>{room.name}</strong>
+                <div className="room-row__details">
+                  <strong className="room-row__name" title={room.name}>{room.name}</strong>
                   <small>
                     {room.players} / {room.max_players} players
                   </small>
                 </div>
-                <button
-                  className="button button--small button--primary"
+                {room.joined ? <span className="room-status-pill" aria-label="You joined this room">Joined</span> : <button
+                  className="button button--small button--primary room-action-button"
                   type="button"
-                  disabled={room.joined || join.isPending}
+                  disabled={join.isPending}
                   onClick={() => join.mutate(room.id)}
-                >
-                  {room.joined ? 'Joined' : 'Join'}
-                </button>
+                >Join</button>}
+                {room.joined && room.status === 'open' && !room.is_host && (
+                  <button className="button button--small button--secondary" type="button" disabled={ready.isPending} onClick={() => ready.mutate(room.id)}>
+                    {room.ready ? 'Ready ✓' : 'Ready'}
+                  </button>
+                )}
+                {room.joined && room.status === 'open' && room.is_host && (
+                  <button className="button button--small button--secondary room-action-button" type="button" disabled={createMatch.isPending || createGameSession.isPending} onClick={() => startRoom(room)}>
+                    {createMatch.isPending || createGameSession.isPending ? 'Opening…' : room.fill_with_bots ? 'Start with bots' : 'Start game'}
+                  </button>
+                )}
+                {room.joined && room.status === 'open' && room.is_host && !room.fill_with_bots && (
+                  <button className="button button--small button--ghost" type="button" disabled={ready.isPending} onClick={() => ready.mutate(room.id)}>
+                    {room.ready ? 'Ready ✓' : 'Ready'}
+                  </button>
+                )}
+                {room.joined && room.status === 'open' && !room.is_host && <small className="room-waiting">Waiting for host…</small>}
+                {room.joined && room.status === 'active' && room.match_id && (
+                  <button className="button button--small button--secondary" type="button" onClick={() => room.game === 'Connect Four' ? navigate({ to: '/games/play/$matchId', params: { matchId: room.match_id! } }) : navigate({ to: '/games/session/$matchId', params: { matchId: room.match_id! } })}>
+                    Enter game
+                  </button>
+                )}
               </div>
             ))}
             <PaginationControls
@@ -622,8 +720,32 @@ function GamesScreenLegacy() {
   )
 }
 
+function BugReportWidget() {
+  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const [open, setOpen] = useState(false)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [severity, setSeverity] = useState('normal')
+  const report = useMutation({
+    mutationFn: api.createBugReport,
+    onSuccess: () => { setTitle(''); setDescription(''); setSeverity('normal') },
+  })
+  if (currentUser.isError || !currentUser.data) return null
+  return <div className="bug-report-widget">
+    {open && <section className="bug-report-popover" aria-labelledby="bug-report-title">
+      <div className="bug-report-popover__header"><div><span className="eyebrow">Help us improve</span><h2 id="bug-report-title">Report a bug</h2></div><button className="icon-button" type="button" aria-label="Close bug report form" onClick={() => setOpen(false)}><X size={18} /></button></div>
+      <p>Tell us what went wrong and where you noticed it. Please do not include private journal details.</p>
+      {report.isSuccess ? <div className="form-success" role="status">Thanks — your report is with the team.</div> : <form onSubmit={(event) => { event.preventDefault(); report.mutate({ title: title.trim(), description: description.trim(), severity, page_url: window.location.pathname }) }}>
+        <label>Short title<input value={title} onChange={(event) => setTitle(event.target.value)} minLength={3} maxLength={160} required placeholder="What went wrong?" /></label>
+        <label>Details<textarea value={description} onChange={(event) => setDescription(event.target.value)} minLength={10} maxLength={5000} required placeholder="What did you expect, and what happened instead?" /></label>
+        <label>Severity<select value={severity} onChange={(event) => setSeverity(event.target.value)}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="critical">Critical</option></select></label>
+        {report.isError && <p className="form-error" role="alert">{report.error.message}</p>}
+        <button className="button button--primary button--wide" type="submit" disabled={report.isPending}>{report.isPending ? 'Sending…' : 'Send bug report'}</button>
+      </form>}
+    </section>}
+    <button className="bug-report-launcher" type="button" aria-label={open ? 'Close bug report form' : 'Report a bug'} aria-expanded={open} onClick={() => { setOpen((value) => !value); report.reset() }}><Bug size={23} weight="duotone" /><span>{open ? 'Close' : 'Report a bug'}</span></button>
+  </div>
 }
-*/
 
 function LeaderboardScreen() {
   const [period, setPeriod] = useState('week')
@@ -1339,11 +1461,12 @@ export function SafeSpaceApp({ screen }: { screen: Screen }) {
 
 function ProtectedApp({ screen }: { screen: Exclude<Screen, 'login' | 'registration'> }) {
   const navigate = useNavigate()
-  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const isBrowser = typeof window !== 'undefined'
+  const currentUser = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false, enabled: isBrowser })
   useEffect(() => {
     if (currentUser.isError) navigate({ to: '/login', replace: true })
   }, [currentUser.isError, navigate])
-  if (currentUser.isLoading) return <main className="page-content auth-gate"><ApiLoader label="Checking your safe space session…" /></main>
+  if (!isBrowser || currentUser.isLoading) return <main className="page-content auth-gate"><ApiLoader label="Checking your safe space session…" /></main>
   if (currentUser.isError || !currentUser.data) return null
   const content = screen === 'admin' ? <AdminScreen /> : screen === 'profile' ? <ProfileScreen /> : screen === 'check-in' ? <CheckInScreen /> : screen === 'quotes' ? <QuotesScreen /> : screen === 'community' ? <CommunityScreen /> : screen === 'games' ? <GamesScreen /> : screen === 'leaderboard' ? <LeaderboardScreen /> : <HomeScreen />
   return <>{content}<BugReportWidget /></>

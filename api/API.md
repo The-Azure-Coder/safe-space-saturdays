@@ -52,3 +52,35 @@ uv run uvicorn app.main:app --app-dir src --reload
 ```
 
 The initial migration seeds the supplied quote and game data. Production deployments should set a strong database password, `COOKIE_SECURE=true`, and a narrow `API_CORS_ORIGINS` value.
+# Games
+
+The games foundation provides an authoritative Connect Four match with a friendly or thoughtful bot. The room must be joined before starting a match.
+
+```text
+POST /api/games/matches
+{ "room_id": 12, "with_bot": true, "bot_difficulty": "friendly" }
+
+GET  /api/games/matches/{match_id}
+POST /api/games/matches/{match_id}/moves
+{ "column": 3 }
+
+WS   /api/games/matches/{match_id}/ws
+{ "type": "move", "column": 3 }
+```
+
+The server owns the board, turn, legal move validation, bot move, winner, and XP reward. A human win grants 50 XP once; clients cannot submit board state, scores, or rewards. Connect Four follows the classic 7-column, 6-row, four-in-a-row rules.
+
+The remaining session games use the same authenticated REST/WS transport:
+
+```text
+POST /api/games/sessions
+{ "room_id": 12 }
+
+POST /api/games/sessions/{match_id}/actions
+{ "action": { "token": 0 } }                    # Ludo
+{ "action": { "tile_index": 2, "side": "right" } } # Dominoes
+{ "action": { "action": "draw" } }             # Bingo
+{ "action": { "answer": 1 } }                  # Trivia
+```
+
+Ludo uses exact-home movement and six-to-leave-base rules; Dominoes uses a double-six block line with pass/block resolution; Bingo uses a server-drawn 75-ball card with a free centre and line claim; Trivia uses five multiple-choice questions with server-side scoring. PostgreSQL stores snapshots, events, and rewards, while Redis distributes live state updates between API replicas. If Redis is unavailable, the local WebSocket still works.

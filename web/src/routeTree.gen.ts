@@ -19,6 +19,9 @@ import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CheckInRouteImport } from './routes/check-in'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as GamesIndexRouteImport } from './routes/games.index'
+import { Route as GamesSessionMatchIdRouteImport } from './routes/games.session.$matchId'
+import { Route as GamesPlayMatchIdRouteImport } from './routes/games.play.$matchId'
 
 const RegistrationRoute = RegistrationRouteImport.update({
   id: '/registration',
@@ -70,30 +73,50 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GamesIndexRoute = GamesIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => GamesRoute,
+} as any)
+const GamesSessionMatchIdRoute = GamesSessionMatchIdRouteImport.update({
+  id: '/session/$matchId',
+  path: '/session/$matchId',
+  getParentRoute: () => GamesRoute,
+} as any)
+const GamesPlayMatchIdRoute = GamesPlayMatchIdRouteImport.update({
+  id: '/play/$matchId',
+  path: '/play/$matchId',
+  getParentRoute: () => GamesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
-  '/games': typeof GamesRoute
+  '/games': typeof GamesRouteWithChildren
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/quotes': typeof QuotesRoute
   '/registration': typeof RegistrationRoute
+  '/games/': typeof GamesIndexRoute
+  '/games/play/$matchId': typeof GamesPlayMatchIdRoute
+  '/games/session/$matchId': typeof GamesSessionMatchIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
-  '/games': typeof GamesRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/quotes': typeof QuotesRoute
   '/registration': typeof RegistrationRoute
+  '/games': typeof GamesIndexRoute
+  '/games/play/$matchId': typeof GamesPlayMatchIdRoute
+  '/games/session/$matchId': typeof GamesSessionMatchIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -101,12 +124,15 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
-  '/games': typeof GamesRoute
+  '/games': typeof GamesRouteWithChildren
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/quotes': typeof QuotesRoute
   '/registration': typeof RegistrationRoute
+  '/games/': typeof GamesIndexRoute
+  '/games/play/$matchId': typeof GamesPlayMatchIdRoute
+  '/games/session/$matchId': typeof GamesSessionMatchIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,18 +147,23 @@ export interface FileRouteTypes {
     | '/profile'
     | '/quotes'
     | '/registration'
+    | '/games/'
+    | '/games/play/$matchId'
+    | '/games/session/$matchId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/admin'
     | '/check-in'
     | '/community'
-    | '/games'
     | '/leaderboard'
     | '/login'
     | '/profile'
     | '/quotes'
     | '/registration'
+    | '/games'
+    | '/games/play/$matchId'
+    | '/games/session/$matchId'
   id:
     | '__root__'
     | '/'
@@ -145,6 +176,9 @@ export interface FileRouteTypes {
     | '/profile'
     | '/quotes'
     | '/registration'
+    | '/games/'
+    | '/games/play/$matchId'
+    | '/games/session/$matchId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -152,7 +186,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   CheckInRoute: typeof CheckInRoute
   CommunityRoute: typeof CommunityRoute
-  GamesRoute: typeof GamesRoute
+  GamesRoute: typeof GamesRouteWithChildren
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
@@ -232,15 +266,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/games/': {
+      id: '/games/'
+      path: '/'
+      fullPath: '/games/'
+      preLoaderRoute: typeof GamesIndexRouteImport
+      parentRoute: typeof GamesRoute
+    }
+    '/games/session/$matchId': {
+      id: '/games/session/$matchId'
+      path: '/session/$matchId'
+      fullPath: '/games/session/$matchId'
+      preLoaderRoute: typeof GamesSessionMatchIdRouteImport
+      parentRoute: typeof GamesRoute
+    }
+    '/games/play/$matchId': {
+      id: '/games/play/$matchId'
+      path: '/play/$matchId'
+      fullPath: '/games/play/$matchId'
+      preLoaderRoute: typeof GamesPlayMatchIdRouteImport
+      parentRoute: typeof GamesRoute
+    }
   }
 }
+
+interface GamesRouteChildren {
+  GamesIndexRoute: typeof GamesIndexRoute
+  GamesPlayMatchIdRoute: typeof GamesPlayMatchIdRoute
+  GamesSessionMatchIdRoute: typeof GamesSessionMatchIdRoute
+}
+
+const GamesRouteChildren: GamesRouteChildren = {
+  GamesIndexRoute: GamesIndexRoute,
+  GamesPlayMatchIdRoute: GamesPlayMatchIdRoute,
+  GamesSessionMatchIdRoute: GamesSessionMatchIdRoute,
+}
+
+const GamesRouteWithChildren = GamesRoute._addFileChildren(GamesRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   CheckInRoute: CheckInRoute,
   CommunityRoute: CommunityRoute,
-  GamesRoute: GamesRoute,
+  GamesRoute: GamesRouteWithChildren,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,

@@ -2,18 +2,33 @@ services:
   db:
     image: postgres:18.4-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      # Keep local Docker credentials isolated from the production .env file.
+      # The API below connects with these same values.
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
       interval: 5s
       timeout: 5s
       retries: 10
     volumes:
       - postgres-data:/var/lib/postgresql
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - redis-data:/data
 
   api:
     build:
@@ -21,6 +36,7 @@ services:
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
+      REDIS_URL: redis://redis:6379/0
       API_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
       COOKIE_SECURE: "false"
       PORT: "8000"
@@ -32,6 +48,8 @@ services:
       - api-venv:/app/.venv
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')"]
@@ -64,6 +82,7 @@ services:
 
 volumes:
   postgres-data:
+  redis-data:
   api-venv:
   web-node-modules:
   api-uploads:

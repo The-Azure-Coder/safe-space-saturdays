@@ -1,0 +1,176 @@
+import asyncio
+from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import Any
+from uuid import uuid4
+
+from fastapi import WebSocket
+
+from app.games.connect_four import IllegalMove
+from app.games.multi import apply_action, bot_action, new_state
+
+
+@dataclass
+class UniversalMatch:
+    id: str
+    room_id: int
+    game_type: str
+    state: dict[str, Any]
+    player_ids: dict[int, int]
+    bot_player: int | None = 1
+    bot_players: tuple[int, ...] = ()
+    sockets: dict[WebSocket, int] = field(default_factory=dict)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    reward_granted: bool = False
+
+    def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
+        public_state = deepcopy(self.state)
+        seat = self.player_ids.get(user_id, 0) if user_id is not None else 0
+        public_state["seat_index"] = seat
+        if self.game_type == "dominoes":
+            hands = public_state.get("hands", [])
+            public_state["hand_counts"] = [len(hand) for hand in hands]
+            public_state["hands"] = [
+                hands[seat] if index == seat else [] for index in range(len(hands))
+            ]
+        if self.game_type == "bingo":
+            cards = public_state.pop("cards", [])
+            marked_cards = public_state.pop("marked_cards", [])
+            public_state["card"] = cards[seat] if seat < len(cards) else []
+            public_state["marked"] = marked_cards[seat] if seat < len(marked_cards) else []
+        if self.game_type == "trivia":
+            correct = public_state.pop("correct", None)
+            if public_state.get("phase") in {"reveal", "complete"}:
+                public_state["correct_answer"] = correct
+            selected = public_state.get("selected_answers", [])
+            public_state["selected_answers"] = [
+                answer
+                if index == seat or public_state.get("phase") in {"reveal", "complete"}
+                else None
+                for index, answer in enumerate(selected)
+            ]
+        if self.game_type == "scribble":
+            drawer = int(public_state.get("current_drawer", 0))
+            if seat != drawer:
+                public_state.pop("word", None)
+            public_state["is_drawer"] = seat == drawer
+            public_state["drawer_name"] = public_state.get("players", [{}])[drawer].get("name", "The drawer")
+        return {
+            "match_id": self.id,
+            "room_id": self.room_id,
+            "game": self.game_type,
+            "state": public_state,
+        }
+
+
+class UniversalMatchManager:
+    def __init__(self) -> None:
+        self.matches: dict[str, UniversalMatch] = {}
+
+    def create(
+        self,
+        room_id: int,
+        user_id: int,
+        game_type: str,
+        player_count: int = 2,
+        player_ids: dict[int, int] | None = None,
+        bot_players: tuple[int, ...] | None = None,
+        player_names: dict[int, str] | None = None,
+    ) -> UniversalMatch:
+        effective_count = player_count if game_type in {"ludo", "dominoes", "scribble"} else 2
+        resolved_bot_players = (
+            bot_players if bot_players is not None else tuple(range(1, effective_count))
+        )
+        state = new_state(game_type, effective_count, resolved_bot_players)
+        for seat, name in (player_names or {}).items():
+            if seat < len(state.get("players", [])):
+                state["players"][seat]["name"] = name
+                state["players"][seat]["is_bot"] = seat in resolved_bot_players
+        match = UniversalMatch(
+            id=str(uuid4()),
+            room_id=room_id,
+            game_type=game_type,
+            state=state,
+            player_ids=player_ids or {user_id: 0},
+            bot_player=resolved_bot_players[0] if resolved_bot_players else None,
+            bot_players=resolved_bot_players,
+        )
+        self.matches[match.id] = match
+        return match
+
+    def get(self, match_id: str) -> UniversalMatch | None:
+        return self.matches.get(match_id)
+
+    async def broadcast(self, match: UniversalMatch) -> None:
+        for socket, user_id in list(match.sockets.items()):
+            try:
+                await socket.send_json({"type": "state", "match": match.snapshot(user_id)})
+            except Exception:
+                match.sockets.pop(socket, None)
+
+    async def action(
+        self, match: UniversalMatch, user_id: int, payload: dict[str, Any]
+    ) -> UniversalMatch:
+        async with match.lock:
+            player = match.player_ids.get(user_id)
+            if player is None:
+                raise IllegalMove("You are not a player in this match")
+            match.state = apply_action(match.state, player, payload)
+            await self.broadcast(match)
+            bot_player = match.bot_player
+            bot_players = match.bot_players or ((bot_player,) if bot_player is not None else ())
+            bot_turn = (
+                bool(bot_players)
+                and match.state.get("winner") is None
+                and match.state.get("current_player") in bot_players
+                and (match.game_type != "scribble" or match.state.get("bot_draw_pending", False))
+            )
+            if bot_turn and match.game_type == "ludo":
+                # Continue across every bot seat until play returns to the human.
+                human_moved = payload.get("action") == "move"
+                for _ in range(96):
+                    current_bot = int(match.state.get("current_player", 0))
+                    if match.state.get("winner") is not None or current_bot not in bot_players:
+                        break
+                    # Give connected players enough time to see the bot think,
+                    # roll, and choose a token instead of receiving every state
+                    # in a single imperceptible burst.
+                    if match.sockets:
+                        # Let the browser finish the human's square-by-square
+                        # animation before the next player receives the die.
+                        if human_moved:
+                            await asyncio.sleep(2.05)
+                            human_moved = False
+                        else:
+                            await asyncio.sleep(0.95 if match.state.get("phase") == "roll" else 1.15)
+                    match.state = apply_action(
+                        match.state,
+                        current_bot,
+                        bot_action(match.state, current_bot),
+                    )
+                    await self.broadcast(match)
+                else:
+                    raise IllegalMove("The bot turn could not be completed")
+            elif bot_turn:
+                for _ in range(12):
+                    current_bot = int(match.state.get("current_player", 0))
+                    if (
+                        match.state.get("winner") is not None
+                        or match.state.get("draw", False)
+                        or current_bot not in bot_players
+                    ):
+                        break
+                    if match.sockets:
+                        await asyncio.sleep(0.7)
+                    match.state = apply_action(
+                        match.state,
+                        current_bot,
+                        bot_action(match.state, current_bot),
+                    )
+                    await self.broadcast(match)
+                else:
+                    raise IllegalMove("The bot turns could not be completed")
+            return match
+
+
+universal_matches = UniversalMatchManager()
