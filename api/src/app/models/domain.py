@@ -27,6 +27,7 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(512))
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     role: Mapped[str] = mapped_column(String(20), default="member", server_default="member")
     is_approved: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")

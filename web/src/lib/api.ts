@@ -62,6 +62,7 @@ export type User = {
   name: string
   email: string
   avatar_url: string | null
+  is_online: boolean
   role: string
   xp: number
   streak: number
@@ -103,6 +104,7 @@ export type Comment = {
   author: string
   initials: string
   avatar_url: string | null
+  is_online: boolean
   text: string
   created_at: string
 }
@@ -111,6 +113,7 @@ export type Post = {
   author: string
   initials: string
   avatar_url: string | null
+  is_online: boolean
   text: string
   image_url: string | null
   created_at: string

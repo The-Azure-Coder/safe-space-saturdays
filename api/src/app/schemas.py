@@ -10,6 +10,7 @@ class UserResponse(BaseModel):
     name: str
     email: EmailStr
     avatar_url: str | None = None
+    is_online: bool = False
     role: str
     is_approved: bool
     xp: int
@@ -146,6 +147,7 @@ class PostResponse(BaseModel):
     author: str
     initials: str
     avatar_url: str | None = None
+    is_online: bool = False
     text: str
     image_url: str | None
     created_at: datetime
@@ -177,6 +179,7 @@ class CommentResponse(BaseModel):
     author: str
     initials: str
     avatar_url: str | None = None
+    is_online: bool = False
     text: str
     created_at: datetime
 

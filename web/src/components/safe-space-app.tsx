@@ -153,6 +153,7 @@ function PageHeader({ screen }: { screen: Screen }) {
     queryKey: ['me'],
     queryFn: api.me,
     retry: false,
+    refetchInterval: 60_000,
   })
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -507,14 +508,22 @@ function Avatar({
   initials,
   color = 'sage',
   imageUrl,
+  online = false,
 }: {
   initials: string
   color?: string
   imageUrl?: string | null
+  online?: boolean
 }) {
   return (
     <span className={`avatar avatar--${color}`}>
       {imageUrl ? <img src={assetUrl(imageUrl)} alt="" /> : initials}
+      <span
+        className={`avatar__presence${online ? ' avatar__presence--online' : ''}`}
+        role="img"
+        aria-label={online ? 'Online now' : 'Offline'}
+        title={online ? 'Online now' : 'Offline'}
+      />
     </span>
   )
 }
@@ -2322,6 +2331,7 @@ function CommunityScreen() {
                     initials={post.initials}
                     color="sage"
                     imageUrl={post.avatar_url}
+                    online={post.is_online}
                   />
                   <div className="post-row__body">
                     <div className="post-row__meta">
@@ -2398,6 +2408,7 @@ function CommunityScreen() {
                                 initials={comment.initials}
                                 color="lilac"
                                 imageUrl={comment.avatar_url}
+                                online={comment.is_online}
                               />
                               <div>
                                 <strong>{comment.author}</strong>
@@ -3181,6 +3192,7 @@ function LeaderboardScreen() {
                     initials={entry.user.name[0]}
                     color="sage"
                     imageUrl={entry.user.avatar_url}
+                    online={entry.user.is_online}
                   />
                   <strong>{entry.user.name}</strong>
                   <span>{entry.user.xp.toLocaleString()} XP</span>
@@ -3253,6 +3265,7 @@ function LeaderboardScreen() {
                     initials={entry.user.name[0]}
                     color="sage"
                     imageUrl={entry.user.avatar_url}
+                    online={entry.user.is_online}
                   />
                   <span>
                     {entry.user.name} <Leaf size={16} weight="fill" />

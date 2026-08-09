@@ -307,8 +307,20 @@ def game_type_for_name(name: str) -> str | None:
     return None
 
 
+def is_user_online(user: User) -> bool:
+    if user.last_seen_at is None:
+        return False
+    last_seen = user.last_seen_at
+    if last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=UTC)
+    return datetime.now(UTC) - last_seen <= timedelta(minutes=5)
+
+
 def user_response(user: User) -> UserResponse:
-    return UserResponse.model_validate(user)
+    return UserResponse.model_validate({
+        **{field: getattr(user, field) for field in UserResponse.model_fields if field != "is_online"},
+        "is_online": is_user_online(user),
+    })
 
 
 def game_capacity(game_name: str) -> int:
@@ -438,6 +450,7 @@ def current_checkin_streak(checkin_dates: Iterable[date], today: date) -> int:
 async def set_session(
     response: Response, db: AsyncSession, user: User, remember_me: bool = True
 ) -> None:
+    user.last_seen_at = datetime.now(UTC)
     token, token_hash = new_session_token()
     db.add(Session(user_id=user.id, token_hash=token_hash, expires_at=session_expiry(remember_me)))
     await db.commit()
@@ -501,7 +514,9 @@ async def logout(request: Request, response: Response, db: DbSession) -> None:
 
 
 @router.get("/auth/me", response_model=UserResponse)
-async def me(user: CurrentUser) -> UserResponse:
+async def me(user: CurrentUser, db: DbSession) -> UserResponse:
+    user.last_seen_at = datetime.now(UTC)
+    await db.commit()
     return user_response(user)
 
 
@@ -727,6 +742,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
                 author=comment_author.name if comment_author else "Member",
                 initials=(comment_author.name[0].upper() if comment_author else "M"),
                 avatar_url=comment_author.avatar_url if comment_author else None,
+                is_online=is_user_online(comment_author) if comment_author else False,
                 text=comment.text,
                 created_at=comment.created_at,
             )
@@ -737,6 +753,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
         author=author.name if author else "Member",
         initials=(author.name[0].upper() if author else "M"),
         avatar_url=author.avatar_url if author else None,
+        is_online=is_user_online(author) if author else False,
         text=post.text,
         image_url=post.image_url,
         created_at=post.created_at,
@@ -953,6 +970,7 @@ async def comment_on_post(
         post_id=comment.post_id,
         author=user.name,
         initials=user.name[0].upper(),
+        is_online=True,
         text=comment.text,
         created_at=comment.created_at,
     )
