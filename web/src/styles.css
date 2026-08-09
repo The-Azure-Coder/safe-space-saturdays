@@ -1247,3 +1247,4 @@ html[data-theme='night'] .carousel-dot--active { background: #b9d8b5; }
 .games-panel .game-grid--games-list .game-tile,
 .games-panel .game-grid--games-expanded .game-tile { min-height: 150px; }
 .games-panel .games-view-more { display: flex; margin: 16px auto 0; }
+.quotes-page .quote-actions { margin-top: 28px; }
