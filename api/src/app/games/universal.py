@@ -40,6 +40,7 @@ class UniversalMatch:
             public_state["card"] = cards[seat] if seat < len(cards) else []
             public_state["marked"] = marked_cards[seat] if seat < len(marked_cards) else []
         if self.game_type == "trivia":
+            public_state.pop("clues", None)
             correct = public_state.pop("correct", None)
             if public_state.get("phase") in {"reveal", "complete"}:
                 public_state["correct_answer"] = correct

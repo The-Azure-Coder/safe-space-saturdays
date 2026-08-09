@@ -7,11 +7,15 @@ export type TriviaState = {
   current_player: number
   winner: number | null
   draw: boolean
-  phase: 'question' | 'bot' | 'reveal' | 'complete'
+  phase: 'board' | 'question' | 'bot' | 'reveal' | 'complete'
   question_index: number
   question_count: number
   question: string
-  category: string
+  category: string | null
+  value: number | null
+  board?: Array<{ category: string; values: Array<number> }>
+  used_clues?: Array<string>
+  point_values?: Array<number>
   options: Array<string>
   scores: Array<number>
   streaks: Array<number>
@@ -53,7 +57,7 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
   const thinkingPlayer = players[state.current_player ?? 1]?.name ?? 'Your opponent'
   const phase = state.phase ?? 'question'
   const questionIndex = state.question_index ?? 0
-  const questionCount = state.question_count ?? 5
+  const questionCount = state.question_count ?? 15
   const scores = state.scores ?? [0, 0]
   const streaks = state.streaks ?? [0, 0]
   const selectedAnswers = state.selected_answers ?? [null, null]
@@ -102,12 +106,12 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
     send({ answer: index, response_ms: Math.max(0, (15 - secondsLeft) * 1000) })
   }
   const isReveal = phase === 'reveal' || phase === 'complete'
-  const progress = Math.min(100, ((questionIndex + (isReveal ? 1 : 0)) / questionCount) * 100)
+  const progress = Math.min(100, (((state.used_clues?.length ?? questionIndex) + (isReveal ? 0 : 0)) / questionCount) * 100)
   const resultText = state.draw ? 'A perfect tie!' : state.winner === playerIndex ? 'You are the trivia star!' : state.winner !== undefined && state.winner !== null ? `${players[state.winner]?.name ?? 'Your opponent'} wins this round!` : ''
 
   return <section className="trivia-game-shell" aria-label="Trivia arena">
     <div className="trivia-topline">
-      <div><span className="eyebrow">Question {questionIndex + 1} of {questionCount}</span><strong>{state.category ?? 'Quick thinking'}</strong></div>
+      <div><span className="eyebrow">{phase === 'board' ? 'Jeopardy board' : `Clue ${questionIndex} of ${questionCount}`}</span><strong>{state.category ?? 'Choose your category'}</strong></div>
       <button className="trivia-sound" type="button" aria-pressed={soundOn} aria-label={soundOn ? 'Mute game sounds' : 'Turn on game sounds'} onClick={() => { setSoundOn((value) => !value); if (!soundOn) playTone('tap') }}>
         {soundOn ? <SpeakerHigh size={19} weight="fill" /> : <SpeakerSlash size={19} />}<span>{soundOn ? 'Sound on' : 'Sound off'}</span>
       </button>
@@ -122,14 +126,14 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
       </article>)}
     </div>
 
-    {phase === 'complete' ? <div className="trivia-finale" aria-live="polite">
+    {phase === 'board' ? <TriviaBoard state={state} playerIndex={playerIndex} send={send} players={players} /> : phase === 'complete' ? <div className="trivia-finale" aria-live="polite">
       <span><Trophy size={42} weight="fill" /></span><p className="eyebrow">Round complete</p><h2>{resultText}</h2><p>Final score: {scores[0] ?? 0} to {scores[1] ?? 0}. Every question was a chance to learn something new.</p><LinkToGames send={send} />
     </div> : <>
       <div className={`trivia-timer${secondsLeft <= 5 && phase === 'question' ? ' trivia-timer--urgent' : ''}`} aria-label={`${secondsLeft} seconds remaining`}>
         <Clock size={18} weight="fill" /><strong>{phase === 'question' ? `${secondsLeft}s` : phase === 'bot' ? `${thinkingPlayer} is choosing…` : 'Answer reveal'}</strong>
         {phase === 'question' && <span><i style={{ width: `${(secondsLeft / 15) * 100}%` }} /></span>}
       </div>
-      <div className="trivia-question" key={questionIndex}><Sparkle size={22} weight="fill" /><h2>{state.question}</h2></div>
+      <div className="trivia-question" key={`${state.category}-${state.value}`}><Sparkle size={22} weight="fill" /><span className="trivia-question__value">{state.value} points</span><h2>{state.question}</h2></div>
       <div className="trivia-options">
         {(state.options ?? []).map((option, index) => {
           const correct = isReveal && state.correct_answer === index
@@ -145,11 +149,30 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
         {phase === 'reveal' && <div className={selectedAnswers[playerIndex] === state.correct_answer ? 'trivia-feedback__correct' : 'trivia-feedback__wrong'}>
           <span>{selectedAnswers[playerIndex] === state.correct_answer ? <CheckCircle size={25} weight="fill" /> : <Sparkle size={24} weight="fill" />}</span>
           <p><strong>{state.last_event}</strong>{answerPoints[playerIndex] > 0 ? ` +${answerPoints[playerIndex]} points` : ' No points this time — the next one is yours.'}</p>
-          <button className="button button--primary button--small" type="button" onClick={() => send({ action: 'next' })}>{questionIndex + 1 >= questionCount ? 'See final scores' : 'Next question'}</button>
+          <button className="button button--primary button--small" type="button" onClick={() => send({ action: 'next' })}>{questionIndex >= questionCount ? 'See final scores' : 'Back to board'}</button>
         </div>}
       </div>
     </>}
   </section>
+}
+
+function TriviaBoard({ state, playerIndex, send, players }: { state: Partial<TriviaState>; playerIndex: number; send: (action: Record<string, unknown>) => void; players: Array<TriviaPlayer> }) {
+  const activePlayer = state.current_player ?? 0
+  const used = new Set(state.used_clues ?? [])
+  return <div className="trivia-board-wrap">
+    <div className="trivia-board-status"><Sparkle size={18} weight="fill" /><strong>{activePlayer === playerIndex ? 'Your turn — choose a clue' : `${players[activePlayer]?.name ?? 'Your opponent'} is choosing…`}</strong></div>
+    <div className="trivia-board" aria-label="Trivia categories and point values">
+      {(state.board ?? []).map((column) => <div className="trivia-board__column" key={column.category}>
+        <h3>{column.category}</h3>
+        {column.values.map((value) => {
+          const key = `${column.category}:${value}`
+          const claimed = used.has(key)
+          return <button className="trivia-board__tile" type="button" disabled={claimed || activePlayer !== playerIndex} key={key} onClick={() => send({ action: 'select_clue', category: column.category, value })}>{claimed ? '✓' : `${value}`}</button>
+        })}
+      </div>)}
+    </div>
+    <p className="trivia-board-hint">Pick a category, choose your points, then both players answer the clue.</p>
+  </div>
 }
 
 function LinkToGames({ send }: { send: (action: Record<string, unknown>) => void }) {

@@ -684,6 +684,17 @@ html[data-theme='night'] .domino-game-head p, html[data-theme='night'] .domino-p
 .trivia-question { display: grid; justify-items: center; gap: 8px; max-width: 650px; margin: 14px auto 20px; text-align: center; animation: trivia-question-in .42s ease-out both; }
 .trivia-question > svg { color: var(--orange); }
 .trivia-question h2 { margin: 0; font-size: clamp(22px, 3vw, 31px); line-height: 1.22; }
+.trivia-question__value { color: var(--orange); font-size: 13px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+.trivia-board-wrap { display: grid; gap: 16px; margin-top: 18px; }
+.trivia-board-status { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 10px 14px; border-radius: 14px; background: var(--sage-pale); color: var(--sage-dark); text-align: center; }
+.trivia-board-status svg { color: var(--orange); }
+.trivia-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; }
+.trivia-board__column { display: grid; grid-template-rows: minmax(54px, auto) repeat(3, minmax(62px, 1fr)); gap: 8px; }
+.trivia-board__column h3 { display: grid; place-items: center; min-height: 54px; margin: 0; padding: 8px; border-radius: 13px; background: var(--sage-dark); color: var(--paper); font-family: var(--display); font-size: clamp(14px, 2vw, 18px); text-align: center; }
+.trivia-board__tile { min-height: 62px; border: 1px solid color-mix(in srgb, var(--orange) 48%, var(--line)); border-radius: 13px; background: color-mix(in srgb, var(--sage-pale) 72%, var(--surface)); color: var(--orange); font-size: clamp(19px, 3vw, 27px); font-weight: 900; cursor: pointer; transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+.trivia-board__tile:hover:not(:disabled), .trivia-board__tile:focus-visible:not(:disabled) { background: var(--orange); color: #fffaf0; box-shadow: 0 8px 18px rgb(216 121 88 / 22%); transform: translateY(-2px); }
+.trivia-board__tile:disabled { cursor: default; opacity: .42; }
+.trivia-board-hint { margin: 0; color: var(--muted); text-align: center; }
 .trivia-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; max-width: 650px; margin: auto; }
 .trivia-option { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 11px; min-height: 62px; padding: 11px 14px; border: 1px solid var(--line); border-radius: 17px; background: var(--cream); color: var(--ink); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background .18s ease; }
 .trivia-option > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--paper); color: var(--sage-dark); font-size: 12px; font-weight: 850; }
@@ -754,6 +765,9 @@ html[data-theme='night'] .trivia-option--wrong { background: #51332e; color: #f8
   .trivia-player em { grid-column: 1 / -1; justify-self: start; }
   .trivia-player__avatar { width: 34px; height: 34px; }
   .trivia-options { grid-template-columns: 1fr; gap: 8px; }
+  .trivia-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .trivia-board__column h3 { min-height: 46px; }
+  .trivia-board__column { grid-template-rows: minmax(46px, auto) repeat(3, minmax(54px, 1fr)); }
   .trivia-option { min-height: 54px; padding: 9px 11px; }
   .trivia-feedback > div { grid-template-columns: auto 1fr; }
   .trivia-feedback .button { grid-column: 1 / -1; width: 100%; }

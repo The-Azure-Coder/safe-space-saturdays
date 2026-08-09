@@ -310,33 +310,36 @@ def test_bingo_marks_drawn_numbers_and_trivia_scores() -> None:
     bingo = apply_action(bingo, 0, {"action": "draw"})
     assert bingo["marked"][0][0] is True
     trivia = new_state("trivia")
+    trivia = apply_action(trivia, 0, {"action": "select_clue", "category": "Science", "value": 300})
     trivia = apply_action(trivia, 0, {"answer": trivia["correct"], "response_ms": 1500})
-    assert trivia["scores"][0] > 100
+    assert trivia["scores"][0] == 300
     assert trivia["phase"] == "bot"
 
 
 def test_trivia_reveals_only_after_both_players_answer_and_advances() -> None:
     state = new_state("trivia")
+    state = apply_action(state, 0, {"action": "select_clue", "category": "Science", "value": 100})
     correct = state["correct"]
     state = apply_action(state, 0, {"answer": correct, "response_ms": 3000})
     state = apply_action(state, 1, {"answer": correct, "response_ms": 4500})
     assert state["phase"] == "reveal"
     assert state["selected_answers"] == [correct, correct]
     state = apply_action(state, 0, {"action": "next"})
-    assert state["phase"] == "question"
+    assert state["phase"] == "board"
     assert state["question_index"] == 1
     assert state["selected_answers"] == [None, None]
 
 
 def test_trivia_human_second_player_can_advance_reveal() -> None:
     state = new_state("trivia", bot_players=())
+    state = apply_action(state, 0, {"action": "select_clue", "category": "Animals", "value": 200})
     correct = state["correct"]
     state = apply_action(state, 0, {"answer": correct})
     state = apply_action(state, 1, {"answer": correct})
     assert state["phase"] == "reveal"
     assert state["current_player"] == 1
     state = apply_action(state, 1, {"action": "next"})
-    assert state["phase"] == "question"
+    assert state["phase"] == "board"
     assert state["question_index"] == 1
 
 
@@ -351,6 +354,7 @@ def test_trivia_snapshot_keeps_correct_answer_private_until_reveal() -> None:
     )
     assert "correct" not in match.snapshot()["state"]
     assert "correct_answer" not in match.snapshot()["state"]
+    state = apply_action(state, 0, {"action": "select_clue", "category": "Technology", "value": 100})
     state = apply_action(state, 0, {"answer": state["correct"]})
     state = apply_action(state, 1, {"answer": state["correct"]})
     public_state = match.snapshot()["state"]
@@ -358,9 +362,13 @@ def test_trivia_snapshot_keeps_correct_answer_private_until_reveal() -> None:
     assert public_state["correct_answer"] == state["correct"]
 
 
-def test_trivia_completes_all_five_questions_and_selects_a_winner() -> None:
+def test_trivia_board_uses_all_fifteen_clues_and_selects_a_winner() -> None:
     state = new_state("trivia")
-    for index in range(5):
+    for index in range(15):
+        if state["phase"] == "board":
+            category = state["categories"][index % len(state["categories"])]
+            value = next(value for value in state["point_values"] if f"{category}:{value}" not in state["used_clues"])
+            state = apply_action(state, state["current_player"], {"action": "select_clue", "category": category, "value": value})
         correct = state["correct"]
         state = apply_action(state, 0, {"answer": correct})
         state = apply_action(state, 1, {"answer": (correct + 1) % 4})
