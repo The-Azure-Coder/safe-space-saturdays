@@ -28,6 +28,27 @@ def _hint(word: str) -> str:
     return " ".join("_" if char != " " else "/" for char in word)
 
 
+def progressive_hint(word: str, deadline: float | None, now: float | None = None) -> str:
+    """Reveal letters gradually during the guessing window without exposing the word."""
+    if not word:
+        return ""
+    if deadline is None:
+        return _hint(word)
+    remaining = max(0.0, float(deadline) - (now if now is not None else time.time()))
+    reveal_count = len([char for char in word if char != " "]) if remaining <= 0 else int(((GUESS_SECONDS - remaining) / GUESS_SECONDS) * len([char for char in word if char != " "]))
+    revealed = 0
+    output = []
+    for char in word:
+        if char == " ":
+            output.append("/")
+        elif revealed < reveal_count:
+            output.append(char.upper())
+            revealed += 1
+        else:
+            output.append("_")
+    return " ".join(output)
+
+
 def _word_choices(rng: random.Random, answer: str | None = None) -> list[str]:
     choices = rng.sample(list(WORDS), 3)
     if answer and answer not in choices:
@@ -213,6 +234,10 @@ def apply_scribble_action(state: dict[str, Any], player: int, action: dict[str, 
             raise IllegalMove("Finish the current drawing round first")
         state["round"] += 1
         _begin_next_round(state)
+    elif kind == "hint_tick":
+        if player == drawer or state["phase"] != "guessing":
+            raise IllegalMove("Hints are only available during guessing")
+        return state
     elif kind == "guess":
         if player == drawer or state["phase"] not in {"drawing", "guessing"}:
             raise IllegalMove("Drawers cannot guess their own clue")

@@ -8,6 +8,7 @@ from fastapi import WebSocket
 
 from app.games.connect_four import IllegalMove
 from app.games.multi import apply_action, bot_action, new_state
+from app.games.scribble import progressive_hint
 
 
 @dataclass
@@ -54,6 +55,12 @@ class UniversalMatch:
             if seat != drawer:
                 public_state.pop("word", None)
                 public_state.pop("word_choices", None)
+                if public_state.get("phase") in {"guessing", "round_result", "finished"}:
+                    public_state["hint"] = public_state.get("word") or progressive_hint(
+                        self.state.get("word", ""), self.state.get("guess_deadline")
+                    )
+                    if public_state.get("phase") in {"round_result", "finished"}:
+                        public_state["hint"] = str(self.state.get("word", "")).upper()
             public_state["is_drawer"] = seat == drawer
             public_state["drawer_name"] = public_state.get("players", [{}])[drawer].get("name", "The drawer")
         return {

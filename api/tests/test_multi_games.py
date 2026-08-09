@@ -3,7 +3,7 @@ import pytest
 from app.games import multi
 from app.games.connect_four import IllegalMove
 from app.games.multi import apply_action, bot_action, new_state, normalise_domino_state, normalise_ludo_state
-from app.games.scribble import WORDS
+from app.games.scribble import WORDS, progressive_hint
 from app.games.universal import UniversalMatch
 
 
@@ -283,6 +283,12 @@ def test_scribble_word_choice_preview_warm_guess_and_timeout() -> None:
     assert state["guesses"][-1]["warm"] is True
     state = apply_action(state, 1, {"action": "timeout"})
     assert state["phase"] == "round_result"
+
+
+def test_scribble_hint_reveals_letters_as_guess_timer_expires() -> None:
+    assert progressive_hint("cat", 130, now=100) == "_ _ _"
+    assert progressive_hint("cat", 115, now=100) == "C _ _"
+    assert progressive_hint("cat", 100, now=100) == "C A T"
 
 
 def test_play_again_resets_the_board_but_keeps_scores() -> None:

@@ -98,6 +98,12 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
     send({ action: 'timeout' })
   }, [secondsLeft, state.phase, state.action_count, send])
 
+  useEffect(() => {
+    if (state.phase !== 'guessing' || isDrawer) return
+    const ticker = window.setInterval(() => send({ action: 'hint_tick' }), 1000)
+    return () => window.clearInterval(ticker)
+  }, [state.phase, isDrawer, send])
+
   const pointFromEvent = (event: PointerEvent<HTMLCanvasElement>): ScribblePoint => {
     const bounds = event.currentTarget.getBoundingClientRect()
     return { x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)), y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)) }
