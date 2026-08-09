@@ -198,6 +198,15 @@ def restore_universal_match(
         seat.user_id: seat.seat_index for seat in seat_rows if seat.user_id is not None
     } or {row.player_user_id: 0}
     bot_players = tuple(seat.seat_index for seat in seat_rows if seat.player_type == "bot")
+    # Hydration normalises older saved state, so restore the authoritative seat
+    # metadata afterwards. Without this, a second human is renamed to a bot in
+    # Ludo as soon as the match is loaded from PostgreSQL.
+    state_players = row.state.get("players", [])
+    if isinstance(state_players, list):
+        for seat in seat_rows:
+            if 0 <= seat.seat_index < len(state_players) and isinstance(state_players[seat.seat_index], dict):
+                state_players[seat.seat_index]["name"] = seat.display_name
+                state_players[seat.seat_index]["is_bot"] = seat.player_type == "bot"
     resolved_bot_players = bot_players if seat_rows else tuple(
         range(1, player_count if row.game_type in {"ludo", "dominoes", "scribble"} else 2)
     )
