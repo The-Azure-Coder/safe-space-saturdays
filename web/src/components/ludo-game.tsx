@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ShieldStar, Sparkle, Trophy } from '@phosphor-icons/react'
 
 export type LudoState = {
+  seat_index?: number
   game: 'ludo'
   current_player: number
   winner: number | null
@@ -183,12 +184,13 @@ export function LudoGame({ state, send }: LudoGameProps) {
 
   const winner = state.winner ?? null
   const currentPlayer = state.current_player ?? 0
+  const localPlayer = state.seat_index ?? 0
   const phase = state.phase ?? 'roll'
   const legalTokens = state.legal_tokens ?? []
-  const canRoll = currentPlayer === 0 && phase === 'roll' && winner === null && !rolling && !isAnimatingMove
-  const canMove = currentPlayer === 0 && phase === 'move' && winner === null && !rolling && !isAnimatingMove
-  const activePlayer = players[currentPlayer] ?? players[0]
-  const botRolling = currentPlayer !== 0 && phase === 'roll' && winner === null
+  const canRoll = currentPlayer === localPlayer && phase === 'roll' && winner === null && !rolling && !isAnimatingMove
+  const canMove = currentPlayer === localPlayer && phase === 'move' && winner === null && !rolling && !isAnimatingMove
+  const activePlayer = players[currentPlayer] ?? players[localPlayer] ?? players[0]
+  const botRolling = currentPlayer !== localPlayer && Boolean(players[currentPlayer]?.is_bot) && phase === 'roll' && winner === null
 
   const rollDice = () => {
     if (!canRoll) return
@@ -213,10 +215,10 @@ export function LudoGame({ state, send }: LudoGameProps) {
   }
 
   const turnMessage = winner !== null
-    ? winner === 0 ? 'You brought every token home!' : `${players[winner]?.name ?? 'A bot'} brought every token home.`
+    ? winner === localPlayer ? 'You brought every token home!' : `${players[winner]?.name ?? 'A bot'} brought every token home.`
     : rolling ? 'The dice is tumbling…'
       : isAnimatingMove ? 'A token is travelling along the path…'
-        : currentPlayer !== 0 ? `${activePlayer.name} is taking a thoughtful turn…`
+        : currentPlayer !== localPlayer ? `${activePlayer.name} is taking a thoughtful turn…`
           : phase === 'move' ? 'Choose one of the glowing tokens.'
             : 'Your turn — roll the dice.'
 
@@ -234,8 +236,8 @@ export function LudoGame({ state, send }: LudoGameProps) {
           const playerIndex = players.findIndex((player) => player.color === color)
           const playerName = playerIndex >= 0 ? players[playerIndex].name : color
           const active = playerIndex >= 0 && currentPlayer === playerIndex && winner === null
-          const playerRolling = playerIndex === 0 ? rolling : botRolling && currentPlayer === playerIndex
-          return <div className={`ludo-yard ludo-yard--${color}${active ? ' ludo-yard--active' : ''}`} aria-label={`${playerName} yard${active ? ', current turn' : ''}`} key={color}><span>{playerName}</span>{active && <><small className="ludo-yard__turn">{phase === 'roll' ? 'ROLL' : 'MOVE'}</small><span className="ludo-yard__die"><Die face={state.last_rolls?.[playerIndex] ?? (playerIndex === 0 ? diceFace : 1)} rolling={playerRolling} label={`${playerName} die`} onClick={playerIndex === 0 && canRoll ? rollDice : undefined} /></span></>}<div className="ludo-yard__inner">{Array.from({ length: 4 }, (_, index) => <i key={index} />)}</div></div>
+          const playerRolling = playerIndex === localPlayer ? rolling : botRolling && currentPlayer === playerIndex
+          return <div className={`ludo-yard ludo-yard--${color}${active ? ' ludo-yard--active' : ''}`} aria-label={`${playerName} yard${active ? ', current turn' : ''}`} key={color}><span>{playerName}</span>{active && <><small className="ludo-yard__turn">{phase === 'roll' ? 'ROLL' : 'MOVE'}</small><span className="ludo-yard__die"><Die face={state.last_rolls?.[playerIndex] ?? (playerIndex === localPlayer ? diceFace : 1)} rolling={playerRolling} label={`${playerName} die`} onClick={playerIndex === localPlayer && canRoll ? rollDice : undefined} /></span></>}<div className="ludo-yard__inner">{Array.from({ length: 4 }, (_, index) => <i key={index} />)}</div></div>
         })}
 
         {TRACK.map(([row, column], index) => <span
@@ -259,11 +261,11 @@ export function LudoGame({ state, send }: LudoGameProps) {
           })).filter((occupant) => occupant.row === row && occupant.column === column)
           const occupantIndex = occupants.findIndex((occupant) => occupant.key === `${player}-${token}`)
           const [stackX, stackY] = occupants.length > 1 ? STACK_OFFSETS[occupantIndex % STACK_OFFSETS.length] : [0, 0]
-          const legal = player === 0 && canMove && legalTokens.includes(token)
+          const legal = player === localPlayer && canMove && legalTokens.includes(token)
           const hopping = position !== targetPositions[player][token]
           const tokenClass = `ludo-token ludo-token--${playerDetails.color}${position < 0 ? ' ludo-token--yard' : ''}${legal ? ' ludo-token--legal' : ''}`
           return <span className={`ludo-token-slot${hopping ? ' ludo-token-slot--hopping' : ''}`} style={{ left: `${((column + 0.5) / 15) * 100}%`, top: `${((row + 0.5) / 15) * 100}%`, marginLeft: stackX, marginTop: stackY }} key={`${player}-${token}`}>
-            {player === 0 ? <button
+            {player === localPlayer ? <button
               className={tokenClass}
               type="button"
               aria-label={`${tokenLabel(playerDetails, token, position)}${legal ? ', legal move' : ''}`}
@@ -275,7 +277,7 @@ export function LudoGame({ state, send }: LudoGameProps) {
       </div>
     </div>
 
-    {winner !== null && <div className="ludo-winner-banner" role="status"><Trophy size={26} weight="fill" /><div><strong>{winner === 0 ? 'Beautiful win!' : 'Good game!'}</strong><span>{winner === 0 ? 'All four tokens made it safely home.' : `${players[winner]?.name ?? 'A bot'} won this round.`}</span></div><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}
+    {winner !== null && <div className="ludo-winner-banner" role="status"><Trophy size={26} weight="fill" /><div><strong>{winner === localPlayer ? 'Beautiful win!' : 'Good game!'}</strong><span>{winner === localPlayer ? 'All four tokens made it safely home.' : `${players[winner]?.name ?? 'A bot'} won this round.`}</span></div><button className="button button--small button--primary game-play-again" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button></div>}
     <details className="ludo-rules"><summary>How this Ludo match works</summary><div><p>Roll a six to leave the yard. Choose any glowing token, move by the exact dice value, and bring all four tokens home.</p><p>Shield spaces are safe. Landing on another player elsewhere sends that token back to its yard. A six, capture, or finished token earns another roll; three sixes ends the turn.</p></div></details>
   </section>
 }
