@@ -173,7 +173,15 @@ def _roll_die() -> int:
 def normalise_ludo_state(state: dict[str, Any], player_count: int | None = None) -> None:
     """Hydrate fields added after early persisted Ludo matches were created."""
     requested_count = max(2, min(4, player_count or int(state.get("player_count", 2))))
+    old_players = state.get("players", [])
     players = _ludo_players(requested_count)
+    if isinstance(old_players, list):
+        for index, old_player in enumerate(old_players[:requested_count]):
+            if isinstance(old_player, dict):
+                if old_player.get("name"):
+                    players[index]["name"] = old_player["name"]
+                if "is_bot" in old_player:
+                    players[index]["is_bot"] = bool(old_player["is_bot"])
     old_positions = state.get("positions", [])
     old_captures = state.get("captures", [])
     old_rolls = state.get("last_rolls", [])

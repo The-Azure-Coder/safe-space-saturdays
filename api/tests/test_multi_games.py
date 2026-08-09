@@ -2,7 +2,7 @@ import pytest
 
 from app.games import multi
 from app.games.connect_four import IllegalMove
-from app.games.multi import apply_action, bot_action, new_state, normalise_domino_state
+from app.games.multi import apply_action, bot_action, new_state, normalise_domino_state, normalise_ludo_state
 from app.games.scribble import WORDS
 from app.games.universal import UniversalMatch
 
@@ -23,6 +23,19 @@ def test_ludo_four_player_state_uses_every_reference_board_seat() -> None:
     assert [player["color"] for player in state["players"]] == ["red", "blue", "green", "yellow"]
     assert [player["offset"] for player in state["players"]] == [0, 39, 13, 26]
     assert len(state["positions"]) == len(state["captures"]) == len(state["last_rolls"]) == 4
+
+
+def test_ludo_normalisation_preserves_human_player_metadata_after_an_action() -> None:
+    state = new_state("ludo", player_count=2, bot_players=())
+    state["players"][0]["name"] = "Jack"
+    state["players"][0]["is_bot"] = False
+    state["players"][1]["name"] = "Tatty"
+    state["players"][1]["is_bot"] = False
+    normalise_ludo_state(state)
+    assert [(player["name"], player["is_bot"]) for player in state["players"]] == [
+        ("Jack", False),
+        ("Tatty", False),
+    ]
 
 
 def test_ludo_four_player_turn_visits_each_bot_then_returns_to_human(
