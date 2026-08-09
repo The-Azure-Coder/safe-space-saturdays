@@ -142,9 +142,9 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
       </div>
       <div className="trivia-feedback" aria-live="polite">
         {phase === 'bot' && <p><span className="trivia-thinking" aria-hidden="true"><i /><i /><i /></span> Answer locked. {thinkingPlayer} is thinking.</p>}
-        {phase === 'reveal' && <div className={selectedAnswers[0] === state.correct_answer ? 'trivia-feedback__correct' : 'trivia-feedback__wrong'}>
-          <span>{selectedAnswers[0] === state.correct_answer ? <CheckCircle size={25} weight="fill" /> : <Sparkle size={24} weight="fill" />}</span>
-          <p><strong>{state.last_event}</strong>{answerPoints[0] > 0 ? ` +${answerPoints[0]} points` : ' No points this time — the next one is yours.'}</p>
+        {phase === 'reveal' && <div className={selectedAnswers[playerIndex] === state.correct_answer ? 'trivia-feedback__correct' : 'trivia-feedback__wrong'}>
+          <span>{selectedAnswers[playerIndex] === state.correct_answer ? <CheckCircle size={25} weight="fill" /> : <Sparkle size={24} weight="fill" />}</span>
+          <p><strong>{state.last_event}</strong>{answerPoints[playerIndex] > 0 ? ` +${answerPoints[playerIndex]} points` : ' No points this time — the next one is yours.'}</p>
           <button className="button button--primary button--small" type="button" onClick={() => send({ action: 'next' })}>{questionIndex + 1 >= questionCount ? 'See final scores' : 'Next question'}</button>
         </div>}
       </div>

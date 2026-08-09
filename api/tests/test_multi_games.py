@@ -301,6 +301,18 @@ def test_trivia_reveals_only_after_both_players_answer_and_advances() -> None:
     assert state["selected_answers"] == [None, None]
 
 
+def test_trivia_human_second_player_can_advance_reveal() -> None:
+    state = new_state("trivia", bot_players=())
+    correct = state["correct"]
+    state = apply_action(state, 0, {"answer": correct})
+    state = apply_action(state, 1, {"answer": correct})
+    assert state["phase"] == "reveal"
+    assert state["current_player"] == 1
+    state = apply_action(state, 1, {"action": "next"})
+    assert state["phase"] == "question"
+    assert state["question_index"] == 1
+
+
 def test_trivia_snapshot_keeps_correct_answer_private_until_reveal() -> None:
     state = new_state("trivia")
     match = UniversalMatch(

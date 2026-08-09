@@ -121,7 +121,9 @@ def apply_trivia_action(
         raise IllegalMove("The trivia round is already finished")
 
     if state["phase"] == "reveal":
-        if player != 0 or action.get("action") != "next":
+        # Either human may advance the shared reveal. The first request wins
+        # under the match lock, which keeps human-vs-human rooms responsive.
+        if action.get("action") != "next":
             raise IllegalMove("Continue when you are ready")
         next_index = int(state["question_index"]) + 1
         if next_index >= int(state["question_count"]):
@@ -182,7 +184,7 @@ def apply_trivia_action(
         state["last_event"] = "Answer locked. Your opponent is choosing…"
     else:
         state["phase"] = "reveal"
-        state["current_player"] = 0
+        state["current_player"] = player
         state["last_event"] = (
             "Correct!"
             if state["selected_answers"][0] == state["correct"]
