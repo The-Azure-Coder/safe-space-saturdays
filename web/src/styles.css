@@ -1046,6 +1046,12 @@ html[data-theme='night'] .check-card > p,
 html[data-theme='night'] .support-card p,
 html[data-theme='night'] .announcement-item p { color: var(--muted); }
 html[data-theme='night'] .support-card { border-color: var(--line); background: #332f40; color: var(--ink); }
+html[data-theme='night'] .announcement-card {
+  border-color: rgb(242 179 154 / 24%);
+  background: linear-gradient(145deg, #3d2e29, #263d30);
+  color: var(--ink);
+}
+html[data-theme='night'] .announcement-item { border-color: rgb(242 179 154 / 18%); }
 html[data-theme='night'] .announcement-item a,
 html[data-theme='night'] .view-replies-button,
 html[data-theme='night'] .text-link,

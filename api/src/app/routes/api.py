@@ -233,26 +233,36 @@ async def relay_remote_universal_events(
             await websocket.send_json({"type": "state", "match": match.snapshot(user_id)})
 
 
-async def grant_game_win_reward(db: AsyncSession, user_id: int, match_id: str) -> bool:
-    key = f"game-win:{match_id}:{user_id}"
+async def grant_game_reward(
+    db: AsyncSession, user_id: int, match_id: str, kind: str, xp: int
+) -> bool:
+    key = f"game-{kind}:{match_id}:{user_id}"
     existing = await db.scalar(select(RewardLedger).where(RewardLedger.idempotency_key == key))
     if existing is not None:
         return False
     user = await db.get(User, user_id)
     if user is None:
         return False
-    user.xp += 50
+    user.xp += xp
     user.level = max(1, user.xp // 250 + 1)
     db.add(
         RewardLedger(
             user_id=user_id,
             match_id=match_id,
-            kind="game_win",
-            xp=50,
+            kind=f"game_{kind}",
+            xp=xp,
             idempotency_key=key,
         )
     )
     return True
+
+
+async def grant_game_participation_reward(db: AsyncSession, user_id: int, match_id: str) -> bool:
+    return await grant_game_reward(db, user_id, match_id, "participation", 5)
+
+
+async def grant_game_win_reward(db: AsyncSession, user_id: int, match_id: str) -> bool:
+    return await grant_game_reward(db, user_id, match_id, "win", 10)
 
 
 def game_type_for_name(name: str) -> str | None:
@@ -1126,6 +1136,7 @@ async def play_move(
     persisted = await db.get(GameMatch, match.id)
     if persisted is not None:
         await record_state(db, persisted, user.id, {"column": payload.column}, match.snapshot())
+    await grant_game_participation_reward(db, user.id, match.id)
     if match.state.winner == 1 and not match.reward_granted:
         await grant_game_win_reward(db, user.id, match.id)
         match.reward_granted = True
@@ -1206,7 +1217,8 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                     await record_state(
                         db, persisted, user.id, {"column": message["column"]}, match.snapshot()
                     )
-                    await db.commit()
+                await grant_game_participation_reward(db, user.id, match.id)
+                await db.commit()
             await realtime_bus.publish(
                 match_channel(match.id),
                 {
@@ -1297,6 +1309,7 @@ async def game_session_action(
             persisted.status = "active"
         elif match.state.get("winner") is not None or match.state.get("draw", False):
             persisted.status = "completed"
+    await grant_game_participation_reward(db, user.id, match.id)
     if match.state.get("winner") == 0 and not match.reward_granted:
         await grant_game_win_reward(db, user.id, match.id)
         match.reward_granted = True
@@ -1343,6 +1356,7 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                         persisted.status = "active"
                     elif match.state.get("winner") is not None or match.state.get("draw", False):
                         persisted.status = "completed"
+                await grant_game_participation_reward(db, user.id, match.id)
                 if match.state.get("winner") == 0 and not match.reward_granted:
                     await grant_game_win_reward(db, user.id, match.id)
                     match.reward_granted = True
