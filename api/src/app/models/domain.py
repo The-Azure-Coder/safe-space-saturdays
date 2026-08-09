@@ -28,6 +28,7 @@ class User(TimestampMixin, Base):
     password_hash: Mapped[str] = mapped_column(String(512))
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     role: Mapped[str] = mapped_column(String(20), default="member", server_default="member")
+    is_approved: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
@@ -67,6 +68,8 @@ class Quote(TimestampMixin, Base):
     author: Mapped[str] = mapped_column(String(120), default="Unknown", server_default="Unknown")
     category: Mapped[str] = mapped_column(String(40), index=True)
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    approval_status: Mapped[str] = mapped_column(String(20), default="approved", server_default="approved", index=True)
+    submitted_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
 
 class SavedQuote(Base):
@@ -102,6 +105,8 @@ class Post(TimestampMixin, Base):
     text: Mapped[str] = mapped_column(Text)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    post_type: Mapped[str] = mapped_column(String(30), default="original", server_default="original")
+    quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id", ondelete="SET NULL"), nullable=True, index=True)
 
 
 class PostReaction(Base):

@@ -87,6 +87,7 @@ from app.schemas import (
     PostResponse,
     ProfileUpdateRequest,
     QuoteResponse,
+    QuoteSubmissionRequest,
     ReactionRequest,
     RegisterRequest,
     RoomCreateRequest,
@@ -107,6 +108,16 @@ router = APIRouter(prefix="/api", tags=["application"])
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin)]
+
+STAFF_ROLES = {"admin", "super_admin", "manager", "moderator"}
+
+
+def can_manage_roles(user: User) -> bool:
+    return user.role in {"admin", "super_admin"}
+
+
+def can_manage_content(user: User) -> bool:
+    return user.role in {"admin", "super_admin", "manager"}
 
 
 def match_response(match: LiveMatch) -> MatchResponse:
@@ -430,16 +441,22 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
     existing = await db.scalar(select(User).where(User.email == email))
     if existing:
         raise HTTPException(status_code=409, detail="An account with this email already exists")
+    registered_count = await db.scalar(select(func.count(User.id))) or 0
+    is_approved = registered_count < 20
     user = User(
         name=payload.name.strip(),
         email=email,
         password_hash=hash_password(payload.password),
         level=1,
+        is_approved=is_approved,
     )
     db.add(user)
     await db.flush()
-    await set_session(response, db, user)
-    return AuthResponse(user=user_response(user))
+    if is_approved:
+        await set_session(response, db, user)
+        return AuthResponse(user=user_response(user))
+    await db.commit()
+    return AuthResponse(user=user_response(user), pending_approval=True, message="Your account is awaiting approval before you can sign in.")
 
 
 @router.post("/auth/login", response_model=AuthResponse)
@@ -448,6 +465,8 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Aut
     user = await db.scalar(select(User).where(User.email == email))
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.is_approved:
+        raise HTTPException(status_code=403, detail="Your account is awaiting approval before you can sign in")
     await set_session(response, db, user, payload.remember_me)
     return AuthResponse(user=user_response(user))
 
@@ -601,6 +620,8 @@ def quote_out(quote: Quote, saved_ids: set[int]) -> QuoteResponse:
         category=quote.category,
         is_featured=quote.is_featured,
         saved=quote.id in saved_ids,
+        approval_status=quote.approval_status,
+        submitted_by_user_id=quote.submitted_by_user_id,
     )
 
 
@@ -615,7 +636,7 @@ async def list_quotes(
 ) -> list[QuoteResponse]:
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    query = select(Quote).order_by(Quote.is_featured.desc(), Quote.id)
+    query = select(Quote).where(Quote.approval_status == "approved").order_by(Quote.is_featured.desc(), Quote.id)
     if category and category != "All":
         query = query.where(Quote.category == category)
     if saved_only:
@@ -632,7 +653,7 @@ async def list_quotes(
 @router.post("/quotes/{quote_id}/save", response_model=QuoteResponse)
 async def save_quote(quote_id: int, user: CurrentUser, db: DbSession) -> QuoteResponse:
     quote = await db.get(Quote, quote_id)
-    if quote is None:
+    if quote is None or quote.approval_status != "approved":
         raise HTTPException(status_code=404, detail="Quote not found")
     saved = await db.scalar(
         select(SavedQuote).where(SavedQuote.user_id == user.id, SavedQuote.quote_id == quote_id)
@@ -645,6 +666,21 @@ async def save_quote(quote_id: int, user: CurrentUser, db: DbSession) -> QuoteRe
         is_saved = True
     await db.commit()
     return quote_out(quote, {quote_id} if is_saved else set())
+
+
+@router.post("/quotes/submissions", response_model=QuoteResponse, status_code=status.HTTP_201_CREATED)
+async def submit_quote(payload: QuoteSubmissionRequest, user: CurrentUser, db: DbSession) -> QuoteResponse:
+    quote = Quote(
+        text=payload.text.strip(),
+        author=payload.author.strip(),
+        category=payload.category,
+        approval_status="pending",
+        submitted_by_user_id=user.id,
+    )
+    db.add(quote)
+    await db.commit()
+    await db.refresh(quote)
+    return quote_out(quote, set())
 
 
 async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
@@ -694,6 +730,8 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
         my_reaction=my_reaction,
         comments=comment_responses,
         mine=post.user_id == user_id,
+        post_type=post.post_type,
+        shared_quote_id=post.quote_id,
     )
 
 
@@ -817,6 +855,23 @@ async def replied_posts(
 @router.post("/community/posts", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 async def create_post(payload: PostCreateRequest, user: CurrentUser, db: DbSession) -> PostResponse:
     post = Post(user_id=user.id, text=payload.text.strip())
+    db.add(post)
+    await db.commit()
+    await db.refresh(post)
+    return await post_out(post, user.id, db)
+
+
+@router.post("/community/posts/from-quote/{quote_id}", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
+async def share_quote_to_community(quote_id: int, user: CurrentUser, db: DbSession) -> PostResponse:
+    quote = await db.get(Quote, quote_id)
+    if quote is None or quote.approval_status != "approved":
+        raise HTTPException(status_code=404, detail="Quote not found")
+    post = Post(
+        user_id=user.id,
+        text=f'“{quote.text}” — {quote.author}',
+        post_type="shared_quote",
+        quote_id=quote.id,
+    )
     db.add(post)
     await db.commit()
     await db.refresh(post)
@@ -1506,12 +1561,19 @@ async def update_admin_user(
     admin: CurrentAdmin,
     db: DbSession,
 ) -> UserResponse:
+    if not can_manage_roles(admin):
+        raise HTTPException(status_code=403, detail="Only super administrators can manage roles and approvals")
     member = await db.get(User, user_id)
     if member is None:
         raise HTTPException(status_code=404, detail="User not found")
-    if member.id == admin.id and payload.role != "admin":
+    if payload.role is None and payload.is_approved is None:
+        raise HTTPException(status_code=422, detail="Provide a role or approval change")
+    if member.id == admin.id and payload.role not in {None, "admin", "super_admin"}:
         raise HTTPException(status_code=400, detail="You cannot remove your own admin access")
-    member.role = payload.role
+    if payload.role is not None:
+        member.role = payload.role
+    if payload.is_approved is not None:
+        member.is_approved = payload.is_approved
     await db.commit()
     await db.refresh(member)
     return user_response(member)
@@ -1541,7 +1603,8 @@ async def admin_quotes(
     limit: int = 20,
     category: str | None = None,
 ) -> list[QuoteResponse]:
-    del admin
+    if not can_manage_content(admin) and admin.role != "moderator":
+        raise HTTPException(status_code=403, detail="Content moderation access required")
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
     query = select(Quote).order_by(Quote.created_at.desc())
@@ -1555,6 +1618,8 @@ async def admin_quotes(
 async def admin_create_quote(
     payload: AdminQuoteCreateRequest, admin: CurrentAdmin, db: DbSession
 ) -> QuoteResponse:
+    if not can_manage_content(admin):
+        raise HTTPException(status_code=403, detail="Content management access required")
     if payload.is_featured:
         await db.execute(update(Quote).values(is_featured=False))
     quote = Quote(**payload.model_dump())
@@ -1571,6 +1636,8 @@ async def admin_update_quote(
     admin: CurrentAdmin,
     db: DbSession,
 ) -> QuoteResponse:
+    if not can_manage_content(admin) and admin.role != "moderator":
+        raise HTTPException(status_code=403, detail="Content moderation access required")
     quote = await db.get(Quote, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Quote not found")
@@ -1585,7 +1652,8 @@ async def admin_update_quote(
 
 @router.delete("/admin/quotes/{quote_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def admin_delete_quote(quote_id: int, admin: CurrentAdmin, db: DbSession) -> None:
-    del admin
+    if not can_manage_content(admin):
+        raise HTTPException(status_code=403, detail="Content management access required")
     quote = await db.get(Quote, quote_id)
     if quote is None:
         raise HTTPException(status_code=404, detail="Quote not found")

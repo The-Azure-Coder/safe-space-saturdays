@@ -147,6 +147,8 @@ main { min-height: 100vh; }
 .theme-option small { color: var(--muted); font-size: 11px; line-height: 1.3; }
 .theme-swatch { width: 28px; height: 28px; border-radius: 50%; background: var(--sage-dark); box-shadow: inset 0 0 0 4px var(--paper); }
 .theme-swatch--night { background: #20352c; }
+.theme-swatch--purple { background: #6d5a91; }
+.theme-swatch--crimson { background: #8e3f48; }
 .theme-swatch--high-contrast { background: #14231d; box-shadow: inset 0 0 0 4px #f2c27b; }
 html[data-theme='night'] {
   --ink: #f5f1e8;
@@ -226,6 +228,123 @@ html[data-theme='night'] .profile-dropdown a,
 html[data-theme='night'] .profile-dropdown button { color: var(--ink); }
 html[data-theme='night'] .page-footer { background: #21382b; color: #e5eadc; }
 html[data-theme='night'] .privacy-badge { background: #385542; color: #e4f2df; }
+html[data-theme='purple'] {
+  --ink: #30243e;
+  --muted: #6f617a;
+  --paper: #fffaff;
+  --cream: #f7f0fa;
+  --sage: #76639a;
+  --sage-dark: #5a477e;
+  --sage-pale: #eee7f5;
+  --orange: #bd6f63;
+  --orange-pale: #f8e8e4;
+  --lilac: #8c79b6;
+  --lilac-pale: #e9e1f3;
+  --line: #ded3e6;
+  --shadow: 0 12px 32px rgb(85 61 105 / 10%);
+}
+html[data-theme='purple'] body { background: #f7f0fa; color: var(--ink); }
+html[data-theme='purple'] .app-header,
+html[data-theme='purple'] .profile-card,
+html[data-theme='purple'] .profile-tabs,
+html[data-theme='purple'] .conversation-card,
+html[data-theme='purple'] .guidelines-card,
+html[data-theme='purple'] .games-panel,
+html[data-theme='purple'] .rooms-panel,
+html[data-theme='purple'] .winner-panel,
+html[data-theme='purple'] .leaderboard-table,
+html[data-theme='purple'] .form-card,
+html[data-theme='purple'] .featured-quote { border-color: var(--line); background: var(--paper); color: var(--ink); }
+html[data-theme='purple'] .app-nav__link,
+html[data-theme='purple'] .profile-menu,
+html[data-theme='purple'] .button--secondary,
+html[data-theme='purple'] .choice-chip,
+html[data-theme='purple'] .filter-chip,
+html[data-theme='purple'] .mood-option,
+html[data-theme='purple'] .game-tile,
+html[data-theme='purple'] .theme-option { border-color: var(--line); background: var(--paper); color: var(--ink); }
+html[data-theme='purple'] .app-nav__link:hover,
+html[data-theme='purple'] .profile-menu:hover,
+html[data-theme='purple'] .theme-option:hover,
+html[data-theme='purple'] .theme-option--selected { background: var(--lilac-pale); color: var(--ink); }
+html[data-theme='purple'] .profile-card--identity,
+html[data-theme='purple'] .stat-card,
+html[data-theme='purple'] .check-card,
+html[data-theme='purple'] .quote-card,
+html[data-theme='purple'] .community-card,
+html[data-theme='purple'] .promo-card,
+html[data-theme='purple'] .featured-quote,
+html[data-theme='purple'] .game-strip { background: #f0eaf6; color: var(--ink); }
+html[data-theme='purple'] .promo-card--peach { background: #faece8; }
+html[data-theme='purple'] .promo-card--lilac { background: #e9e1f3; }
+html[data-theme='purple'] .promo-card--sage { background: #e8f0e7; }
+html[data-theme='purple'] .page-footer { background: #e3d8ee; color: var(--ink); }
+html[data-theme='purple'] .auth-panel input,
+html[data-theme='purple'] .auth-panel textarea,
+html[data-theme='purple'] .input-wrap,
+html[data-theme='purple'] .form-card input,
+html[data-theme='purple'] .form-card textarea,
+html[data-theme='purple'] .post-composer textarea,
+html[data-theme='purple'] .profile-card form input { border-color: var(--line); background: #fffaff; color: var(--ink); }
+html[data-theme='crimson'] {
+  --ink: #f8e9e5;
+  --muted: #d4b4ae;
+  --paper: #3a2026;
+  --cream: #241619;
+  --sage: #a9575e;
+  --sage-dark: #d7827e;
+  --sage-pale: #583036;
+  --orange: #ef9a72;
+  --orange-pale: #5d382f;
+  --lilac: #b5809a;
+  --lilac-pale: #4c3041;
+  --line: rgb(248 224 218 / 20%);
+  --shadow: 0 14px 34px rgb(0 0 0 / 30%);
+}
+html[data-theme='crimson'] body { background: #241619; color: var(--ink); }
+html[data-theme='crimson'] .app-header,
+html[data-theme='crimson'] .profile-card,
+html[data-theme='crimson'] .profile-tabs,
+html[data-theme='crimson'] .conversation-card,
+html[data-theme='crimson'] .guidelines-card,
+html[data-theme='crimson'] .games-panel,
+html[data-theme='crimson'] .rooms-panel,
+html[data-theme='crimson'] .winner-panel,
+html[data-theme='crimson'] .leaderboard-table,
+html[data-theme='crimson'] .form-card,
+html[data-theme='crimson'] .featured-quote { border-color: var(--line); background: var(--paper); color: var(--ink); }
+html[data-theme='crimson'] .app-nav__link,
+html[data-theme='crimson'] .profile-menu,
+html[data-theme='crimson'] .button--secondary,
+html[data-theme='crimson'] .choice-chip,
+html[data-theme='crimson'] .filter-chip,
+html[data-theme='crimson'] .mood-option,
+html[data-theme='crimson'] .game-tile,
+html[data-theme='crimson'] .theme-option { border-color: var(--line); background: var(--paper); color: var(--ink); }
+html[data-theme='crimson'] .app-nav__link:hover,
+html[data-theme='crimson'] .profile-menu:hover,
+html[data-theme='crimson'] .theme-option:hover,
+html[data-theme='crimson'] .theme-option--selected { background: #5a3037; color: #fff4f0; }
+html[data-theme='crimson'] .profile-card--identity,
+html[data-theme='crimson'] .stat-card,
+html[data-theme='crimson'] .check-card,
+html[data-theme='crimson'] .quote-card,
+html[data-theme='crimson'] .community-card,
+html[data-theme='crimson'] .promo-card,
+html[data-theme='crimson'] .featured-quote,
+html[data-theme='crimson'] .game-strip { background: #42252b; color: var(--ink); }
+html[data-theme='crimson'] .promo-card--peach { background: #513027; }
+html[data-theme='crimson'] .promo-card--lilac { background: #493044; }
+html[data-theme='crimson'] .promo-card--sage { background: #303b31; }
+html[data-theme='crimson'] .page-footer { background: #3a2026; color: #f8e9e5; }
+html[data-theme='crimson'] .auth-panel input,
+html[data-theme='crimson'] .auth-panel textarea,
+html[data-theme='crimson'] .input-wrap,
+html[data-theme='crimson'] .form-card input,
+html[data-theme='crimson'] .form-card textarea,
+html[data-theme='crimson'] .post-composer textarea,
+html[data-theme='crimson'] .profile-card form input { border-color: var(--line); background: #2c1b20; color: var(--ink); }
+.shared-quote-badge { display: inline-flex; align-items: center; gap: 5px; margin: 2px 0 8px; padding: 5px 9px; border-radius: 999px; background: var(--lilac-pale); color: var(--sage-dark); font-size: 12px; font-weight: 700; }
 html[data-theme='high-contrast'] body { background: #f8f6ef; color: #102019; }
 html[data-theme='high-contrast'] .app-header, html[data-theme='high-contrast'] .profile-card { border-color: #102019; }
 .profile-card form .button { justify-self: start; margin-top: 8px; }

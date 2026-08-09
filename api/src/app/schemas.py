@@ -11,6 +11,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     avatar_url: str | None = None
     role: str
+    is_approved: bool
     xp: int
     streak: int
     level: int
@@ -37,6 +38,8 @@ class LoginRequest(BaseModel):
 
 class AuthResponse(BaseModel):
     user: UserResponse
+    pending_approval: bool = False
+    message: str | None = None
 
 
 class BugReportCreateRequest(BaseModel):
@@ -68,7 +71,8 @@ class BugReportResponse(BaseModel):
 
 
 class AdminUserUpdateRequest(BaseModel):
-    role: Literal["member", "admin"]
+    role: Literal["member", "moderator", "manager", "admin", "super_admin"] | None = None
+    is_approved: bool | None = None
 
 
 class AdminPasswordResetRequest(BaseModel):
@@ -80,10 +84,17 @@ class AdminQuoteCreateRequest(BaseModel):
     author: str = Field(default="Safe Space Saturdays", min_length=2, max_length=120)
     category: Literal["Encouragement", "Rest", "Growth", "Connection"]
     is_featured: bool = False
+    approval_status: Literal["pending", "approved", "rejected"] = "approved"
 
 
 class AdminQuoteUpdateRequest(AdminQuoteCreateRequest):
     pass
+
+
+class QuoteSubmissionRequest(BaseModel):
+    text: str = Field(min_length=3, max_length=2000)
+    author: str = Field(default="A Safe Space member", min_length=2, max_length=120)
+    category: Literal["Encouragement", "Rest", "Growth", "Connection"]
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -110,6 +121,8 @@ class QuoteResponse(BaseModel):
     category: str
     is_featured: bool
     saved: bool = False
+    approval_status: Literal["pending", "approved", "rejected"] = "approved"
+    submitted_by_user_id: int | None = None
 
 
 class CheckInRequest(BaseModel):
@@ -142,6 +155,8 @@ class PostResponse(BaseModel):
     my_reaction: Literal["like", "dislike", "love"] | None = None
     comments: list["CommentResponse"] = Field(default_factory=list)
     mine: bool
+    post_type: Literal["original", "shared_quote"] = "original"
+    shared_quote_id: int | None = None
 
 
 class PostCreateRequest(BaseModel):
