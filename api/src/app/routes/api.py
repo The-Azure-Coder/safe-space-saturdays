@@ -70,6 +70,7 @@ from app.schemas import (
     ChangePasswordRequest,
     CheckInRequest,
     CheckInResponse,
+    ChangePasswordRequest,
     CommentCreateRequest,
     CommentResponse,
     DashboardResponse,
@@ -492,10 +493,7 @@ async def change_my_password(
     payload: ChangePasswordRequest, user: CurrentUser, db: DbSession
 ) -> None:
     if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Current password is incorrect",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
     user.password_hash = hash_password(payload.new_password)
     await db.commit()
 
