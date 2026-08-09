@@ -50,6 +50,7 @@ function playTone(kind: 'tap' | 'correct' | 'wrong' | 'complete') {
 
 export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Partial<TriviaState>; send: (action: Record<string, unknown>) => void; error?: string; playerIndex?: number }) {
   const players = state.players?.length === 2 ? state.players : DEFAULT_PLAYERS
+  const thinkingPlayer = players[state.current_player ?? 1]?.name ?? 'Your opponent'
   const phase = state.phase ?? 'question'
   const questionIndex = state.question_index ?? 0
   const questionCount = state.question_count ?? 5
@@ -125,7 +126,7 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
       <span><Trophy size={42} weight="fill" /></span><p className="eyebrow">Round complete</p><h2>{resultText}</h2><p>Final score: {scores[0] ?? 0} to {scores[1] ?? 0}. Every question was a chance to learn something new.</p><LinkToGames send={send} />
     </div> : <>
       <div className={`trivia-timer${secondsLeft <= 5 && phase === 'question' ? ' trivia-timer--urgent' : ''}`} aria-label={`${secondsLeft} seconds remaining`}>
-        <Clock size={18} weight="fill" /><strong>{phase === 'question' ? `${secondsLeft}s` : phase === 'bot' ? 'Milo is choosing…' : 'Answer reveal'}</strong>
+        <Clock size={18} weight="fill" /><strong>{phase === 'question' ? `${secondsLeft}s` : phase === 'bot' ? `${thinkingPlayer} is choosing…` : 'Answer reveal'}</strong>
         {phase === 'question' && <span><i style={{ width: `${(secondsLeft / 15) * 100}%` }} /></span>}
       </div>
       <div className="trivia-question" key={questionIndex}><Sparkle size={22} weight="fill" /><h2>{state.question}</h2></div>
@@ -140,7 +141,7 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
         })}
       </div>
       <div className="trivia-feedback" aria-live="polite">
-        {phase === 'bot' && <p><span className="trivia-thinking" aria-hidden="true"><i /><i /><i /></span> Answer locked. Milo is thinking.</p>}
+        {phase === 'bot' && <p><span className="trivia-thinking" aria-hidden="true"><i /><i /><i /></span> Answer locked. {thinkingPlayer} is thinking.</p>}
         {phase === 'reveal' && <div className={selectedAnswers[0] === state.correct_answer ? 'trivia-feedback__correct' : 'trivia-feedback__wrong'}>
           <span>{selectedAnswers[0] === state.correct_answer ? <CheckCircle size={25} weight="fill" /> : <Sparkle size={24} weight="fill" />}</span>
           <p><strong>{state.last_event}</strong>{answerPoints[0] > 0 ? ` +${answerPoints[0]} points` : ' No points this time — the next one is yours.'}</p>

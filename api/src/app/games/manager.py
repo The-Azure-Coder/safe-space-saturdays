@@ -24,16 +24,20 @@ class LiveMatch:
     player_ids: dict[int, int] = field(default_factory=dict)
     bot_player: Player | None = None
     bot_difficulty: str = "friendly"
+    players: list[dict[str, Any]] = field(default_factory=list)
     reward_granted: bool = False
     sockets: dict[WebSocket, int] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    def snapshot(self) -> dict[str, Any]:
+    def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
+        player = self.player_ids.get(user_id, 1) if user_id is not None else None
         return {
             "match_id": self.id,
             "room_id": self.room_id,
             "game": "connect-four",
             **serialize(self.state),
+            "player": player,
+            "players": self.players,
         }
 
 
@@ -49,18 +53,28 @@ class MatchManager:
         with_bot: bool,
         difficulty: str,
         player_ids: dict[int, int] | None = None,
+        player_names: dict[int, str] | None = None,
     ) -> LiveMatch:
         match = LiveMatch(
             id=str(uuid4()),
             room_id=room_id,
             player_ids={user: seat + 1 for user, seat in (player_ids or {user_id: 0}).items()},
         )
+        names = player_names or {}
+        match.players = [
+            {
+                "name": names.get(seat, "You" if seat == 0 else "Milo Bot"),
+                "is_bot": False,
+            }
+            for seat in range(2)
+        ]
         match.bot_player = None
         # Bot filling only occupies an empty seat. Keep seat 2 human when a
         # second participant joined before the host started the room.
         if with_bot and 2 not in match.player_ids.values():
             match.bot_player = 2
             match.bot_difficulty = difficulty
+            match.players[1]["is_bot"] = True
         self.matches[match.id] = match
         self.room_matches[room_id] = match.id
         return match
@@ -98,7 +112,7 @@ class MatchManager:
                 await self.broadcast(
                     match, {"type": "state", "state": match.snapshot(), "bot": True}
                 )
-            return match.snapshot()
+            return match.snapshot(user_id)
 
     async def play_again(self, match: LiveMatch, user_id: int) -> dict[str, Any]:
         async with match.lock:

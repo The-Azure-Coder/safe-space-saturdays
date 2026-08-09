@@ -27,7 +27,7 @@ function ConnectFourScreen() {
       try {
         const message = JSON.parse(String(event.data)) as { type: string; state?: Match; detail?: string }
         if (message.type === 'state' && message.state) {
-          setMatch(message.state)
+          setMatch((current) => ({ ...message.state!, player: message.state!.player ?? current?.player ?? 1 }))
           setPendingColumn(null)
         }
         if (message.type === 'error') {
@@ -50,11 +50,17 @@ function ConnectFourScreen() {
       if (board[row][hoveredColumn] === 0) { previewRow = row; break }
     }
   }
-  const canPlay = Boolean(match && match.current_player === 1 && !match.winner && !match.draw && pendingColumn === null)
+  const playerNumber = match?.player ?? 1
+  const players = match?.players?.length === 2
+    ? match.players
+    : [{ name: 'You', is_bot: false }, { name: 'Milo Bot', is_bot: true }]
+  const opponentNumber = playerNumber === 1 ? 2 : 1
+  const opponent = players[opponentNumber - 1]
+  const canPlay = Boolean(match && match.current_player === playerNumber && !match.winner && !match.draw && pendingColumn === null)
   const status = match?.winner
-    ? match.winner === 1 ? 'Four in a row — you won!' : 'Milo found four this time.'
+    ? match.winner === playerNumber ? 'Four in a row — you won!' : `${players[match.winner - 1]?.name ?? 'Your opponent'} found four this time.`
     : match?.draw ? 'Every space filled. A thoughtful draw.'
-      : match?.current_player === 1 ? 'Your turn — choose a column.' : 'Milo is thinking…'
+      : match?.current_player === playerNumber ? 'Your turn — choose a column.' : `${players[(match?.current_player ?? 1) - 1]?.name ?? 'Your opponent'} is thinking…`
 
   const play = (column: number) => {
     if (!canPlay || board[0][column] !== 0) return
@@ -92,16 +98,16 @@ function ConnectFourScreen() {
 
     <section className="connect-four-shell" aria-label="Connect Four game">
       <div className="connect-four-scoreboard">
-        <article className={`connect-four-player connect-four-player--you${match?.current_player === 1 && !match.winner ? ' connect-four-player--active' : ''}`}>
+        <article className={`connect-four-player connect-four-player--you${match?.current_player === playerNumber && !match.winner ? ' connect-four-player--active' : ''}`}>
           <span className="connect-four-player__avatar"><UserCircle size={28} weight="fill" /></span>
-          <span><small>Coral discs</small><strong>You</strong></span>
+          <span><small>Coral discs</small><strong>{players[playerNumber - 1]?.name ?? 'You'}</strong></span>
           <i aria-hidden="true" />
         </article>
         <div className="connect-four-round"><small>Round one</small><strong>{match?.winner || match?.draw ? 'Complete' : 'Playing'}</strong></div>
-        <article className={`connect-four-player connect-four-player--bot${match?.current_player === 2 && !match.winner ? ' connect-four-player--active' : ''}`}>
+        <article className={`connect-four-player connect-four-player--bot${match?.current_player === opponentNumber && !match.winner ? ' connect-four-player--active' : ''}`}>
           <i aria-hidden="true" />
-          <span><small>Sunshine discs</small><strong>Milo Bot</strong></span>
-          <span className="connect-four-player__avatar"><Robot size={27} weight="fill" /></span>
+          <span><small>Sunshine discs</small><strong>{opponent?.name ?? 'Your opponent'}</strong></span>
+          <span className="connect-four-player__avatar">{opponent?.is_bot ? <Robot size={27} weight="fill" /> : <UserCircle size={27} weight="fill" />}</span>
         </article>
       </div>
 

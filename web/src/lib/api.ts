@@ -155,6 +155,8 @@ export type Match = {
   move_count: number
   last_move: [number, number] | null
   winning_cells: Array<[number, number]>
+  player: 1 | 2 | null
+  players: Array<{ name: string; is_bot: boolean }>
 }
 export type GameSession = {
   match_id: string

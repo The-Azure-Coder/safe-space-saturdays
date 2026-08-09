@@ -53,11 +53,17 @@ function GameSessionScreen() {
   const state = match?.state
   const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
+  const players = state?.players ?? []
+  const seat = Number(state?.seat_index ?? 0)
+  const opponents = players.filter((_player: { name: string; is_bot: boolean }, index: number) => index !== seat)
+  const opponentLabel = opponents.length
+    ? opponents.map((player: { name: string; is_bot: boolean }) => player.name).join(', ')
+    : 'a friendly opponent'
   return <main className="page-content game-play-page">
     <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>
-    <section className="game-play-header"><div><span className="eyebrow">Friendly match · {title}</span><h1>{isTrivia ? 'Think fast. Stay curious.' : 'Play at your own pace'}</h1><p>{isTrivia ? 'Five bright questions, kind competition, and something new to learn.' : 'Kind competition, clear rules, and a little room to breathe.'}</p></div><div className="game-play-badge"><Sparkle size={22} /> {isTrivia ? '15 seconds per question' : `Playing with ${(state?.player_count ?? 2) > 2 ? `${(state?.player_count ?? 2) - 1} friendly bots` : 'a friendly bot'}`}</div></section>
+    <section className="game-play-header"><div><span className="eyebrow">Friendly match · {title}</span><h1>{isTrivia ? 'Think fast. Stay curious.' : 'Play at your own pace'}</h1><p>{isTrivia ? 'Five bright questions, kind competition, and something new to learn.' : 'Kind competition, clear rules, and a little room to breathe.'}</p></div><div className="game-play-badge"><Sparkle size={22} /> {isTrivia ? '15 seconds per question' : `Playing with ${opponentLabel}`}</div></section>
     {error && <p className="form-error" role="alert">{error}</p>}
-    {match?.game !== 'ludo' && match?.game !== 'dominoes' && match?.game !== 'trivia' && state?.winner !== null && state?.winner !== undefined && <div className="game-result"><Trophy size={22} /> {state.winner === 0 ? 'You won this round!' : 'The bot won this round.'}</div>}
+    {match?.game !== 'ludo' && match?.game !== 'dominoes' && match?.game !== 'trivia' && state?.winner !== null && state?.winner !== undefined && <div className="game-result"><Trophy size={22} /> {state.winner === seat ? 'You won this round!' : `${players[state.winner]?.name ?? 'Your opponent'} won this round.`}</div>}
     {match?.game === 'ludo' && <LudoGame state={(state ?? {}) as Partial<LudoState>} send={send} />}
     {match?.game === 'dominoes' && <DominoGame state={(state ?? {}) as Partial<DominoState>} send={send} error={error} />}
     {match?.game === 'bingo' && <BingoBoard state={state ?? {}} send={send} />}

@@ -120,8 +120,8 @@ def can_manage_content(user: User) -> bool:
     return user.role in {"admin", "super_admin", "manager"}
 
 
-def match_response(match: LiveMatch) -> MatchResponse:
-    return MatchResponse.model_validate(match.snapshot())
+def match_response(match: LiveMatch, user_id: int | None = None) -> MatchResponse:
+    return MatchResponse.model_validate(match.snapshot(user_id))
 
 
 def universal_response(match: UniversalMatch, user_id: int | None = None) -> GameSessionResponse:
@@ -167,6 +167,13 @@ def restore_connect_match(row: GameMatch, seats: list[GameMatchPlayer] | None = 
         state=state,
         player_ids=player_ids,
         bot_player=bot_player,
+        players=[
+            {
+                "name": seat.display_name,
+                "is_bot": seat.player_type == "bot",
+            }
+            for seat in seat_rows
+        ] or [{"name": "You", "is_bot": False}, {"name": "Milo Bot", "is_bot": True}],
     )
     match_manager.matches[row.id] = match
     match_manager.room_matches[row.room_id] = row.id
@@ -1150,19 +1157,19 @@ async def create_match(
     existing_id = match_manager.room_matches.get(room.id)
     existing_match = match_manager.get(existing_id) if existing_id else None
     if existing_match:
-        return match_response(existing_match)
+        return match_response(existing_match, user.id)
     seats, player_ids, bot_players, player_names = await build_match_seats(
         room, "connect-four", user.id, db, payload.with_bot
     )
     match = match_manager.create(
-        room.id, user.id, payload.with_bot, payload.bot_difficulty, player_ids
+        room.id, user.id, payload.with_bot, payload.bot_difficulty, player_ids, player_names
     )
     room.status = "active"
     await create_persisted_match(
         db, match.id, room.id, "connect-four", user.id, match.snapshot(), seats
     )
     await db.commit()
-    return match_response(match)
+    return match_response(match, user.id)
 
 
 @router.get("/games/matches/{match_id}", response_model=MatchResponse)
@@ -1174,7 +1181,7 @@ async def get_match(match_id: str, user: CurrentUser) -> MatchResponse:
         raise HTTPException(status_code=404, detail="Match not found")
     if user.id not in match.player_ids:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
-    return match_response(match)
+    return match_response(match, user.id)
 
 
 @router.post("/games/matches/{match_id}/moves", response_model=MatchResponse)
@@ -1207,7 +1214,7 @@ async def play_move(
             "payload": {"type": "state", "state": match.snapshot()},
         },
     )
-    return match_response(match)
+    return match_response(match, user.id)
 
 
 async def websocket_user(websocket: WebSocket) -> User | None:
@@ -1239,7 +1246,7 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
     await websocket.accept()
     match.sockets[websocket] = user.id
     relay_task = asyncio.create_task(relay_remote_events(websocket, match.id))
-    await websocket.send_json({"type": "state", "state": match.snapshot()})
+    await websocket.send_json({"type": "state", "state": match.snapshot(user.id)})
     try:
         while True:
             message = await websocket.receive_json()

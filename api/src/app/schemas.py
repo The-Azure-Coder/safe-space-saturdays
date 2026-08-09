@@ -239,6 +239,8 @@ class MatchResponse(BaseModel):
     move_count: int
     last_move: tuple[int, int] | None = None
     winning_cells: list[tuple[int, int]] = Field(default_factory=list)
+    player: Literal[1, 2] | None = None
+    players: list[dict[str, object]] = Field(default_factory=list)
 
 
 class MoveRequest(BaseModel):
