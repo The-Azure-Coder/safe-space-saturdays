@@ -41,6 +41,9 @@ main { min-height: 100vh; }
 .quotes-page > .section-heading { margin: 10px auto 28px; text-align: center; }.quotes-page > .section-heading p { margin-inline: auto; }.featured-quote { position: relative; width: min(760px, 100%); margin: 0 auto; padding: 33px 70px 26px; border: 1px solid var(--line); border-radius: 20px; background: #fcf7ef; box-shadow: var(--shadow); text-align: center; }.featured-quote::before, .featured-quote::after { position: absolute; color: rgb(170 178 147 / 48%); font-family: Georgia, serif; font-size: 100px; line-height: 1; }.featured-quote::before { top: 1px; left: 18px; content: '❧'; transform: rotate(-25deg); }.featured-quote::after { right: 18px; bottom: 1px; content: '❧'; transform: rotate(25deg) scaleX(-1); }.quote-mark { display: grid; width: 38px; height: 38px; place-items: center; margin: 0 auto; border-radius: 50%; background: var(--sage); color: white; }.featured-quote__content { min-height: 130px; display: grid; align-content: center; animation: quote-slide-in .28s ease both; }.featured-quote blockquote { position: relative; z-index: 1; margin: 18px 0 10px; font-family: 'Playfair Display', serif; font-size: clamp(25px, 3vw, 38px); line-height: 1.3; }.featured-quote cite { color: var(--orange); font-style: normal; }.quote-slider-controls { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 20px; }.quote-slider-arrow { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--sage-dark); cursor: pointer; transition: background .2s ease, transform .2s ease; }.quote-slider-arrow:hover:not(:disabled), .quote-slider-arrow:focus-visible { background: var(--sage-pale); transform: translateY(-1px); }.quote-slider-arrow:disabled { opacity: .45; cursor: not-allowed; }.carousel-dots { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 0; }.carousel-dot { width: 9px; height: 9px; padding: 0; border: 0; border-radius: 50%; background: #e7dfd4; cursor: pointer; transition: width .2s ease, background .2s ease, transform .2s ease; }.carousel-dot:hover, .carousel-dot:focus-visible { transform: scale(1.2); }.carousel-dot--active { width: 24px; border-radius: 99px; background: var(--sage); }.quote-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: min(760px, 100%); margin: 0 auto 19px; }.filter-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }.filter-chip--active { border-color: var(--sage); background: var(--sage); color: white; }
 .quote-share-card { width: min(760px, 100%); margin: 0 auto 22px; padding: 22px 25px; border: 1px solid var(--line); border-radius: 20px; background: rgb(255 253 248 / 90%); box-shadow: var(--shadow); }
 .quote-share-card > p { margin: 8px 0 15px; color: var(--muted); }
+.quote-author-field { display: grid; gap: 7px; margin-bottom: 12px; color: var(--ink); font-size: 14px; font-weight: 700; }
+.quote-author-field span { color: var(--muted); font-size: 12px; font-weight: 400; }
+.quote-author-field input { width: 100%; min-height: 44px; padding: 0 13px; border: 1px solid var(--line); border-radius: 12px; background: #fffaf3; color: var(--ink); }
 .quote-share-card textarea { width: 100%; min-height: 105px; resize: vertical; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fffaf3; color: var(--ink); }
 .quote-share-card__footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
 .quote-share-card__footer small { color: var(--muted); }
@@ -1200,7 +1203,8 @@ html[data-theme='night'] .quote-share-card {
   color: #e5f0e5 !important;
 }
 html[data-theme='night'] .quote-share-card textarea,
-html[data-theme='night'] .quote-share-card textarea:focus {
+html[data-theme='night'] .quote-share-card textarea:focus,
+html[data-theme='night'] .quote-author-field input {
   border-color: #526b5b !important;
   background: #17271f !important;
   color: #f1f7ef !important;
@@ -1393,7 +1397,8 @@ html[data-theme='crimson'] .leaderboard-table__head { border-color: var(--line);
 html[data-theme='crimson'] .leaderboard-row,
 html[data-theme='crimson'] .leaderboard-row--you { border-color: var(--line); background: #3a2026; color: var(--ink); }
 html[data-theme='crimson'] .leaderboard-row:hover { background: #5a3037; }
-html[data-theme='crimson'] .quote-share-card textarea { border-color: #80505a; background: #2c1b20; color: #fff2ed; }
+html[data-theme='crimson'] .quote-share-card textarea,
+html[data-theme='crimson'] .quote-author-field input { border-color: #80505a; background: #2c1b20; color: #fff2ed; }
 html[data-theme='crimson'] .quote-share-card textarea::placeholder { color: #d4aaa3; opacity: 1; }
 html[data-theme='crimson'] .announcement-card { background: linear-gradient(145deg, #512d33, #3b2928); }
 html[data-theme='crimson'] .announcement-item { border-color: rgb(248 224 218 / 18%); }

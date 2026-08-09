@@ -1908,6 +1908,7 @@ function QuotesScreen() {
   const [category, setCategory] = useState('All')
   const [activeQuoteIndex, setActiveQuoteIndex] = useState(0)
   const [quoteDraft, setQuoteDraft] = useState('')
+  const [quoteAuthor, setQuoteAuthor] = useState('')
   const [shareStatus, setShareStatus] = useState('')
   const queryClient = useQueryClient()
   const quotes = useQuery({
@@ -1929,6 +1930,7 @@ function QuotesScreen() {
     mutationFn: api.submitQuote,
     onSuccess: () => {
       setQuoteDraft('')
+      setQuoteAuthor('')
       setShareStatus(
         'Submitted for approval. It will appear in the quote library once reviewed.',
       )
@@ -2058,11 +2060,21 @@ function QuotesScreen() {
               if (text)
                 submitQuote.mutate({
                   text,
-                  author: 'A Safe Space member',
+                  author: quoteAuthor.trim() || 'A Safe Space member',
                   category: category === 'All' ? 'Encouragement' : category,
                 })
             }}
           >
+            <label className="quote-author-field">
+              Author <span>(optional)</span>
+              <input
+                value={quoteAuthor}
+                onChange={(event) => setQuoteAuthor(event.target.value)}
+                placeholder="Your name or source"
+                maxLength={120}
+                aria-label="Quote author"
+              />
+            </label>
             <textarea
               value={quoteDraft}
               onChange={(event) => {
