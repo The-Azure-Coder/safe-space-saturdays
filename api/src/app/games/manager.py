@@ -58,7 +58,7 @@ class MatchManager:
         match.bot_player = None
         # Bot filling only occupies an empty seat. Keep seat 2 human when a
         # second participant joined before the host started the room.
-        if with_bot and 1 not in match.player_ids.values():
+        if with_bot and 2 not in match.player_ids.values():
             match.bot_player = 2
             match.bot_difficulty = difficulty
         self.matches[match.id] = match
