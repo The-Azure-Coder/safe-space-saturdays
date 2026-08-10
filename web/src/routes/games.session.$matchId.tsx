@@ -46,6 +46,7 @@ function GameSessionScreen() {
         setMatch(nextMatch)
       }
       if (message.type === 'session_ended') window.location.href = '/games'
+      if (message.type === 'game_changed') window.location.href = '/games'
       if (message.type === 'error') setError(message.detail ?? 'That action was not accepted')
     }
     connection.onerror = () => setError('Connection lost. Refresh to reconnect.')

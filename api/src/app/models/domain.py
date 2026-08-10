@@ -29,6 +29,7 @@ class User(TimestampMixin, Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     role: Mapped[str] = mapped_column(String(20), default="member", server_default="member")
+    is_guest: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_approved: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
@@ -153,6 +154,7 @@ class GameRoom(TimestampMixin, Base):
     max_players: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
     status: Mapped[str] = mapped_column(String(20), default="open", server_default="open")
     fill_with_bots: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    invite_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     bot_difficulty: Mapped[str] = mapped_column(
         String(20), default="friendly", server_default="friendly"
     )

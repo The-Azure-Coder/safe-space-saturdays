@@ -22,6 +22,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as GamesIndexRouteImport } from './routes/games.index'
 import { Route as GamesSessionMatchIdRouteImport } from './routes/games.session.$matchId'
 import { Route as GamesPlayMatchIdRouteImport } from './routes/games.play.$matchId'
+import { Route as GamesRoomsInviteTokenRouteImport } from './routes/games.rooms.invite.$token'
 
 const RegistrationRoute = RegistrationRouteImport.update({
   id: '/registration',
@@ -88,6 +89,11 @@ const GamesPlayMatchIdRoute = GamesPlayMatchIdRouteImport.update({
   path: '/play/$matchId',
   getParentRoute: () => GamesRoute,
 } as any)
+const GamesRoomsInviteTokenRoute = GamesRoomsInviteTokenRouteImport.update({
+  id: '/rooms/invite/$token',
+  path: '/rooms/invite/$token',
+  getParentRoute: () => GamesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/games/': typeof GamesIndexRoute
   '/games/play/$matchId': typeof GamesPlayMatchIdRoute
   '/games/session/$matchId': typeof GamesSessionMatchIdRoute
+  '/games/rooms/invite/$token': typeof GamesRoomsInviteTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/games': typeof GamesIndexRoute
   '/games/play/$matchId': typeof GamesPlayMatchIdRoute
   '/games/session/$matchId': typeof GamesSessionMatchIdRoute
+  '/games/rooms/invite/$token': typeof GamesRoomsInviteTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/games/': typeof GamesIndexRoute
   '/games/play/$matchId': typeof GamesPlayMatchIdRoute
   '/games/session/$matchId': typeof GamesSessionMatchIdRoute
+  '/games/rooms/invite/$token': typeof GamesRoomsInviteTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -150,6 +159,7 @@ export interface FileRouteTypes {
     | '/games/'
     | '/games/play/$matchId'
     | '/games/session/$matchId'
+    | '/games/rooms/invite/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/games'
     | '/games/play/$matchId'
     | '/games/session/$matchId'
+    | '/games/rooms/invite/$token'
   id:
     | '__root__'
     | '/'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/games/'
     | '/games/play/$matchId'
     | '/games/session/$matchId'
+    | '/games/rooms/invite/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -287,6 +299,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GamesPlayMatchIdRouteImport
       parentRoute: typeof GamesRoute
     }
+    '/games/rooms/invite/$token': {
+      id: '/games/rooms/invite/$token'
+      path: '/rooms/invite/$token'
+      fullPath: '/games/rooms/invite/$token'
+      preLoaderRoute: typeof GamesRoomsInviteTokenRouteImport
+      parentRoute: typeof GamesRoute
+    }
   }
 }
 
@@ -294,12 +313,14 @@ interface GamesRouteChildren {
   GamesIndexRoute: typeof GamesIndexRoute
   GamesPlayMatchIdRoute: typeof GamesPlayMatchIdRoute
   GamesSessionMatchIdRoute: typeof GamesSessionMatchIdRoute
+  GamesRoomsInviteTokenRoute: typeof GamesRoomsInviteTokenRoute
 }
 
 const GamesRouteChildren: GamesRouteChildren = {
   GamesIndexRoute: GamesIndexRoute,
   GamesPlayMatchIdRoute: GamesPlayMatchIdRoute,
   GamesSessionMatchIdRoute: GamesSessionMatchIdRoute,
+  GamesRoomsInviteTokenRoute: GamesRoomsInviteTokenRoute,
 }
 
 const GamesRouteWithChildren = GamesRoute._addFileChildren(GamesRouteChildren)

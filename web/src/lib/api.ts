@@ -146,7 +146,9 @@ export type Room = {
   match_id: string | null
   ready: boolean
   fill_with_bots: boolean
+  invite_token?: string | null
 }
+export type RoomInvite = Pick<Room, 'id' | 'name' | 'game' | 'players' | 'max_players' | 'status'> & { invite_token: string }
 export type Match = {
   match_id: string
   room_id: number
@@ -298,6 +300,15 @@ export const api = {
     }),
   joinRoom: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
+  roomInvite: (token: string) =>
+    apiFetch<RoomInvite>(`/api/games/rooms/invite/${encodeURIComponent(token)}`),
+  joinRoomInvite: (token: string) =>
+    apiFetch<Room>(`/api/games/rooms/invite/${encodeURIComponent(token)}/join`, { method: 'POST' }),
+  joinGuestRoom: (token: string, name: string) =>
+    apiFetch<Room>(`/api/games/rooms/invite/${encodeURIComponent(token)}/guest`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
   createMatch: (body: {
     room_id: number
     with_bot: boolean
@@ -320,6 +331,11 @@ export const api = {
     }),
   setRoomReady: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/ready`, { method: 'POST' }),
+  changeRoomGame: (id: number, game_id: number) =>
+    apiFetch<Room>(`/api/games/rooms/${id}/game`, {
+      method: 'POST',
+      body: JSON.stringify({ game_id }),
+    }),
   endRoom: (id: number) =>
     apiFetch<void>(`/api/games/rooms/${id}`, { method: 'DELETE' }),
   gameSession: (id: string) =>

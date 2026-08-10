@@ -31,6 +31,7 @@ function ConnectFourScreen() {
           setPendingColumn(null)
         }
         if (message.type === 'session_ended') window.location.href = '/games'
+        if (message.type === 'game_changed') window.location.href = '/games'
         if (message.type === 'error') {
           setError(message.detail ?? 'That move was not accepted')
           setPendingColumn(null)

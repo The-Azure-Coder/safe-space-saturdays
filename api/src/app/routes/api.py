@@ -1,5 +1,6 @@
 import asyncio
 import io
+import secrets
 from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
@@ -70,7 +71,6 @@ from app.schemas import (
     ChangePasswordRequest,
     CheckInRequest,
     CheckInResponse,
-    ChangePasswordRequest,
     CommentCreateRequest,
     CommentResponse,
     DashboardResponse,
@@ -91,8 +91,11 @@ from app.schemas import (
     ReactionRequest,
     RegisterRequest,
     RoomCreateRequest,
+    RoomGameChangeRequest,
+    RoomInviteResponse,
     RoomParticipantResponse,
     RoomResponse,
+    GuestRoomJoinRequest,
     UserResponse,
 )
 from app.security import (
@@ -553,7 +556,10 @@ async def change_my_password(
     payload: ChangePasswordRequest, user: CurrentUser, db: DbSession
 ) -> None:
     if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
     user.password_hash = hash_password(payload.new_password)
     await db.commit()
 
@@ -1025,6 +1031,7 @@ async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomRespon
         match_id=active_match,
         ready=participant.ready if participant else False,
         fill_with_bots=room.fill_with_bots,
+        invite_token=room.invite_token if participant is not None else None,
     )
 
 
@@ -1063,12 +1070,77 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
         max_players=payload.max_players,
         fill_with_bots=payload.fill_with_bots,
         bot_difficulty=payload.bot_difficulty,
+        invite_token=secrets.token_urlsafe(32),
     )
     db.add(room)
     await db.flush()
     db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=0, ready=True))
     await db.commit()
     return await room_out(room, user.id, db)
+
+
+@router.get("/games/rooms/invite/{invite_token}", response_model=RoomInviteResponse)
+async def get_room_invite(invite_token: str, db: DbSession) -> RoomInviteResponse:
+    room = await db.scalar(select(GameRoom).where(GameRoom.invite_token == invite_token))
+    if room is None or room.status not in {"open", "active"}:
+        raise HTTPException(status_code=404, detail="This room invite is no longer available")
+    game = await db.get(Game, room.game_id)
+    players = await db.scalar(
+        select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)
+    ) or 0
+    return RoomInviteResponse(
+        id=room.id,
+        name=room.name,
+        game=game.name if game else "Game",
+        players=players,
+        max_players=room.max_players,
+        status=room.status,
+        invite_token=room.invite_token,
+    )
+
+
+@router.post("/games/rooms/invite/{invite_token}/join", response_model=RoomResponse)
+async def join_room_invite(invite_token: str, user: CurrentUser, db: DbSession) -> RoomResponse:
+    room = await db.scalar(select(GameRoom).where(GameRoom.invite_token == invite_token).with_for_update())
+    if room is None or room.status != "open":
+        raise HTTPException(status_code=404, detail="Room is not accepting players")
+    count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
+    existing = await db.scalar(select(RoomParticipant.id).where(RoomParticipant.room_id == room.id, RoomParticipant.user_id == user.id))
+    if existing is None:
+        if count >= room.max_players:
+            raise HTTPException(status_code=409, detail="Room is full")
+        db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=count))
+        await db.commit()
+    return await room_out(room, user.id, db)
+
+
+@router.post("/games/rooms/invite/{invite_token}/guest", response_model=RoomResponse)
+async def join_room_as_guest(
+    invite_token: str,
+    payload: GuestRoomJoinRequest,
+    response: Response,
+    db: DbSession,
+) -> RoomResponse:
+    room = await db.scalar(select(GameRoom).where(GameRoom.invite_token == invite_token).with_for_update())
+    if room is None or room.status != "open":
+        raise HTTPException(status_code=404, detail="Room is not accepting players")
+    count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
+    if count >= room.max_players:
+        raise HTTPException(status_code=409, detail="Room is full")
+    guest = User(
+        name=payload.name.strip(),
+        email=f"guest-{uuid4()}@guest.invalid",
+        password_hash=hash_password(secrets.token_urlsafe(32)),
+        role="guest",
+        is_guest=True,
+        is_approved=True,
+    )
+    db.add(guest)
+    await db.flush()
+    db.add(RoomParticipant(room_id=room.id, user_id=guest.id, seat_index=count, ready=True))
+    await db.commit()
+    await set_session(response, db, guest, remember_me=False)
+    return await room_out(room, guest.id, db)
 
 
 @router.post("/games/rooms/{room_id}/join", response_model=RoomResponse)
@@ -1177,6 +1249,64 @@ async def set_room_ready(room_id: int, user: CurrentUser, db: DbSession) -> Room
     if room is None or participant is None or room.status != "open":
         raise HTTPException(status_code=409, detail="Room is not accepting readiness changes")
     participant.ready = not participant.ready
+    await db.commit()
+    return await room_out(room, user.id, db)
+
+
+@router.post("/games/rooms/{room_id}/game", response_model=RoomResponse)
+async def change_room_game(
+    room_id: int,
+    payload: RoomGameChangeRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> RoomResponse:
+    room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.host_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the room host can change the game")
+    if room.status not in {"open", "active"}:
+        raise HTTPException(status_code=409, detail="This room is no longer available")
+    game = await db.get(Game, payload.game_id)
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    capacity = game_capacity(game.name)
+    participants = (
+        await db.scalars(select(RoomParticipant).where(RoomParticipant.room_id == room.id))
+    ).all()
+    if room.max_players > capacity or len(participants) > capacity:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{game.name} supports at most {capacity} players; remove players or choose another game",
+        )
+    if room.game_id != game.id:
+        active_id = await db.scalar(
+            select(GameMatch.id).where(GameMatch.room_id == room.id, GameMatch.status == "active").limit(1)
+        )
+        if active_id is not None:
+            live_match = match_manager.get(active_id) or universal_matches.get(active_id)
+            if live_match is not None:
+                event = {"type": "game_changed", "room_id": room.id, "game": game.name}
+                for socket in list(live_match.sockets):
+                    try:
+                        await socket.send_json(event)
+                    except Exception:
+                        live_match.sockets.pop(socket, None)
+                await realtime_bus.publish(
+                    match_channel(active_id),
+                    {"origin": get_settings().realtime_node_id, "payload": event},
+                )
+            match_manager.matches.pop(active_id, None)
+            universal_matches.matches.pop(active_id, None)
+            if match_manager.room_matches.get(room.id) == active_id:
+                match_manager.room_matches.pop(room.id, None)
+            old_match = await db.get(GameMatch, active_id)
+            if old_match is not None:
+                await db.delete(old_match)
+        room.game_id = game.id
+        room.status = "open"
+        for participant in participants:
+            participant.ready = participant.user_id == room.host_id
     await db.commit()
     return await room_out(room, user.id, db)
 
