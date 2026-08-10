@@ -9,6 +9,7 @@ import type { DominoState } from '../components/domino-game'
 import { TriviaGame } from '../components/trivia-game'
 import type { TriviaState } from '../components/trivia-game'
 import { ScribbleGame } from '../components/scribble-game'
+import { GameRoomControls } from '../components/game-room-controls'
 import type { ScribbleState } from '../components/scribble-game'
 import { API_URL, api } from '../lib/api'
 import type { GameSession } from '../lib/api'
@@ -78,7 +79,7 @@ function GameSessionScreen() {
     ? opponents.map((player: { name: string; is_bot: boolean }) => player.name).join(', ')
     : 'a friendly opponent'
   return <main className="page-content game-play-page">
-    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>
+    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>
     <section className="game-play-header"><div><span className="eyebrow">Friendly match · {title}</span><h1>{isTrivia ? 'Think fast. Stay curious.' : 'Play at your own pace'}</h1><p>{isTrivia ? 'Five bright questions, kind competition, and something new to learn.' : 'Kind competition, clear rules, and a little room to breathe.'}</p></div><div className="game-play-badge"><Sparkle size={22} /> {isTrivia ? '15 seconds per question' : `Playing with ${opponentLabel}`}</div></section>
     {error && <p className="form-error" role="alert">{error}</p>}
     {match?.game !== 'ludo' && match?.game !== 'dominoes' && match?.game !== 'trivia' && state?.winner !== null && state?.winner !== undefined && <div className="game-result"><Trophy size={22} /> {state.winner === seat ? 'You won this round!' : `${players[state.winner]?.name ?? 'Your opponent'} won this round.`}</div>}

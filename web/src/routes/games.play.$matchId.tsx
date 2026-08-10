@@ -4,6 +4,7 @@ import { ArrowLeft, CaretDown, Robot, Sparkle, Trophy, UserCircle } from '@phosp
 
 import { API_URL, api } from '../lib/api'
 import type { Match } from '../lib/api'
+import { GameRoomControls } from '../components/game-room-controls'
 
 export const Route = createFileRoute('/games/play/$matchId')({ component: ConnectFourScreen })
 
@@ -91,7 +92,7 @@ function ConnectFourScreen() {
   }
 
   return <main className="page-content game-play-page connect-four-page">
-    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>
+    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>
     <section className="game-play-header">
       <div><span className="eyebrow">Friendly match · Connect Four</span><h1>Make a line. Take your time.</h1><p>Plan a step ahead and enjoy a bright little game break.</p></div>
       <div className="game-play-badge"><Sparkle size={20} weight="fill" /><span>{match?.move_count ?? 0} of 42 spaces played</span></div>

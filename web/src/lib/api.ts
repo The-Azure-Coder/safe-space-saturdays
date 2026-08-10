@@ -312,6 +312,7 @@ export const api = {
     }),
   joinRoom: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
+  room: (id: number) => apiFetch<Room>(`/api/games/rooms/${id}`),
   roomInvite: (token: string) =>
     apiFetch<RoomInvite>(`/api/games/rooms/invite/${encodeURIComponent(token)}`),
   joinRoomInvite: (token: string) =>

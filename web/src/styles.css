@@ -995,7 +995,18 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .room-cleanup-button { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; border: 1px solid color-mix(in srgb, var(--orange) 42%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--orange-pale, #fff0e5) 72%, var(--paper)); color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .01em; }
 .room-cleanup-button:hover, .room-cleanup-button:focus-visible { border-color: var(--orange); background: var(--orange); color: white; transform: translateY(-1px); }
 .room-cleanup-button:disabled { opacity: .65; transform: none; }
-.room-share-button, .room-change-control { flex: 0 0 auto; }
+.room-share-menu { position: relative; flex: 0 0 auto; }
+.room-share-trigger { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--muted); }
+.room-share-trigger:hover, .room-share-trigger:focus-visible, .room-share-trigger[aria-expanded='true'] { border-color: var(--sage); background: var(--sage-pale); color: var(--sage-dark); }
+.room-share-popover { position: absolute; z-index: 5; top: calc(100% + 7px); right: 0; min-width: 150px; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: var(--shadow); }
+.room-share-popover button { width: 100%; padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); text-align: left; font-size: 12px; }
+.room-share-popover button:hover, .room-share-popover button:focus-visible { background: var(--sage-pale); color: var(--sage-dark); }
+.room-change-control { flex: 0 0 auto; }
+.game-play-actions__right { display: flex; align-items: center; gap: 10px; }
+.game-room-controls { display: flex; align-items: center; gap: 8px; }
+.game-room-controls__label { color: var(--muted); font-size: 12px; font-weight: 700; }
+.game-room-controls select { min-height: 36px; max-width: 150px; padding: 7px 28px 7px 10px; }
+.game-room-controls .form-error { margin: 0; font-size: 12px; }
 .room-change-control select { min-height: 36px; max-width: 150px; padding: 7px 28px 7px 10px; }
 .public-room-invite { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }
 .public-room-invite__card { width: min(100%, 460px); }

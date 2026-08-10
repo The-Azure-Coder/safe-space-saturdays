@@ -13,6 +13,7 @@ import {
   CheckCircle,
   CheckSquare,
   ChatCircleDots,
+  DotsThreeVertical,
   EnvelopeSimple,
   Eye,
   EyeSlash,
@@ -2611,6 +2612,13 @@ function GamesScreen() {
   const [roomPlayers, setRoomPlayers] = useState(4)
   const [roomFillBots, setRoomFillBots] = useState(true)
   const [copiedRoomId, setCopiedRoomId] = useState<number | null>(null)
+  const [shareRoomId, setShareRoomId] = useState<number | null>(null)
+  useEffect(() => {
+    if (shareRoomId === null) return
+    const closeMenu = () => setShareRoomId(null)
+    document.addEventListener('click', closeMenu)
+    return () => document.removeEventListener('click', closeMenu)
+  }, [shareRoomId])
   const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
   const gamesQuery = useQuery({
     queryKey: ['games', 'featured'],
@@ -2633,11 +2641,6 @@ function GamesScreen() {
   })
   const ready = useMutation({
     mutationFn: api.setRoomReady,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
-  })
-  const changeGame = useMutation({
-    mutationFn: (input: { room_id: number; game_id: number }) =>
-      api.changeRoomGame(input.room_id, input.game_id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
   })
   const cleanupBotRooms = useMutation({
@@ -2858,7 +2861,6 @@ function GamesScreen() {
           createGameSession.error ||
           ready.error ||
           join.error ||
-          changeGame.error ||
           cleanupBotRooms.error) && (
           <p className="form-error" role="alert">
             {
@@ -2867,7 +2869,6 @@ function GamesScreen() {
                 createGameSession.error ||
                 ready.error ||
                 join.error ||
-                changeGame.error ||
                 cleanupBotRooms.error
               )?.message
             }
@@ -2949,20 +2950,27 @@ function GamesScreen() {
                     </small>
                   </div>
                   {room.invite_token && (
-                    <button
-                      className="button button--small button--secondary room-share-button"
-                      type="button"
-                      onClick={() => {
-                        const inviteUrl = `${window.location.origin}/games/rooms/invite/${room.invite_token}`
-                        void navigator.clipboard?.writeText(inviteUrl).then(() => {
-                          setCopiedRoomId(room.id)
-                          window.setTimeout(() => setCopiedRoomId((current) => current === room.id ? null : current), 1800)
-                        })
-                      }}
-                      title="Copy room invite link"
-                    >
-                      {copiedRoomId === room.id ? 'Copied ✓' : 'Share'}
-                    </button>
+                    <div className="room-share-menu">
+                      <button
+                        className="room-share-trigger"
+                        type="button"
+                        aria-label="Room options"
+                        aria-expanded={shareRoomId === room.id}
+                        onClick={(event) => { event.stopPropagation(); setShareRoomId((current) => current === room.id ? null : room.id) }}
+                      >
+                        <DotsThreeVertical size={20} weight="bold" />
+                      </button>
+                      {shareRoomId === room.id && <div className="room-share-popover" role="menu">
+                        <button type="button" role="menuitem" onClick={() => {
+                          const inviteUrl = `${window.location.origin}/games/rooms/invite/${room.invite_token}`
+                          void navigator.clipboard?.writeText(inviteUrl).then(() => {
+                            setCopiedRoomId(room.id)
+                            setShareRoomId(null)
+                            window.setTimeout(() => setCopiedRoomId((current) => current === room.id ? null : current), 1800)
+                          })
+                        }}>{copiedRoomId === room.id ? 'Copied ✓' : 'Copy invite link'}</button>
+                      </div>}
+                    </div>
                   )}
                   {room.joined ? (
                     <span
@@ -2991,25 +2999,6 @@ function GamesScreen() {
                     >
                       {room.ready ? 'Ready ✓' : 'Ready up'}
                     </button>
-                  )}
-                  {room.joined && (room.status === 'open' || room.status === 'active') && room.is_host && (
-                    <label className="room-change-control">
-                      <span className="sr-only">Change room game</span>
-                      <select
-                        value={availableGames.find((game) => game.name === room.game)?.id ?? ''}
-                        onChange={(event) => {
-                          const gameId = Number(event.target.value)
-                          if (gameId && gameId !== availableGames.find((game) => game.name === room.game)?.id)
-                            changeGame.mutate({ room_id: room.id, game_id: gameId })
-                        }}
-                        disabled={changeGame.isPending}
-                        aria-label="Change room game"
-                      >
-                        {availableGames.filter((game) => gameRoomCapacity(game.name) >= room.max_players).map((game) => (
-                          <option value={game.id} key={game.id}>{game.name}</option>
-                        ))}
-                      </select>
-                    </label>
                   )}
                   {room.joined && room.status === 'open' && room.is_host && (
                     <button

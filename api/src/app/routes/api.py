@@ -1172,6 +1172,21 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
     return await room_out(room, user.id, db)
 
 
+@router.get("/games/rooms/{room_id}", response_model=RoomResponse)
+async def get_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
+    room = await db.get(GameRoom, room_id)
+    if room is None or room.status not in {"open", "active"}:
+        raise HTTPException(status_code=404, detail="Room not available")
+    participant = await db.scalar(
+        select(RoomParticipant.id).where(
+            RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
+        )
+    )
+    if participant is None:
+        raise HTTPException(status_code=403, detail="You are not a participant in this room")
+    return await room_out(room, user.id, db)
+
+
 @router.get("/games/rooms/{room_id}/participants", response_model=list[RoomParticipantResponse])
 async def list_room_participants(
     room_id: int, user: CurrentUser, db: DbSession
