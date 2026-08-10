@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CaretDown } from '@phosphor-icons/react'
 
 import { api } from '../lib/api'
 
@@ -25,14 +26,17 @@ export function GameRoomControls({ roomId }: { roomId: number }) {
   const compatibleGames = games.data
   return <div className="game-room-controls">
     <span className="game-room-controls__label">Host controls</span>
-    <select
-      value={gameId}
-      onChange={(event) => setGameId(Number(event.target.value))}
-      aria-label="Choose a new game for this room"
-      disabled={changeGame.isPending}
-    >
-      {compatibleGames.map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}
-    </select>
+    <span className="game-room-controls__select">
+      <select
+        value={gameId}
+        onChange={(event) => setGameId(Number(event.target.value))}
+        aria-label="Choose a new game for this room"
+        disabled={changeGame.isPending}
+      >
+        {compatibleGames.map((game) => <option value={game.id} key={game.id}>{game.name}</option>)}
+      </select>
+      <CaretDown size={15} weight="bold" aria-hidden="true" />
+    </span>
     <button
       className="button button--small button--secondary"
       type="button"
