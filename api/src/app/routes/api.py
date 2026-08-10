@@ -92,6 +92,7 @@ from app.schemas import (
     RegisterRequest,
     RoomCreateRequest,
     RoomGameChangeRequest,
+    GuestRoomJoinResponse,
     RoomInviteResponse,
     RoomParticipantResponse,
     RoomResponse,
@@ -1115,7 +1116,7 @@ async def join_room_invite(invite_token: str, user: CurrentUser, db: DbSession) 
     return await room_out(room, user.id, db)
 
 
-@router.post("/games/rooms/invite/{invite_token}/guest", response_model=RoomResponse)
+@router.post("/games/rooms/invite/{invite_token}/guest", response_model=GuestRoomJoinResponse)
 async def join_room_as_guest(
     invite_token: str,
     payload: GuestRoomJoinRequest,
@@ -1132,12 +1133,15 @@ async def join_room_as_guest(
         .where(
             RoomParticipant.room_id == room.id,
             User.is_guest.is_(True),
-            User.name == guest_name,
+            func.lower(User.name) == guest_name.casefold(),
         )
     )
     if existing_guest is not None:
         await set_session(response, db, existing_guest, remember_me=False)
-        return await room_out(room, existing_guest.id, db)
+        return GuestRoomJoinResponse(
+            room=await room_out(room, existing_guest.id, db),
+            user=user_response(existing_guest),
+        )
     count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
     if count >= room.max_players:
         raise HTTPException(status_code=409, detail="Room is full")
@@ -1154,7 +1158,10 @@ async def join_room_as_guest(
     db.add(RoomParticipant(room_id=room.id, user_id=guest.id, seat_index=count, ready=True))
     await db.commit()
     await set_session(response, db, guest, remember_me=False)
-    return await room_out(room, guest.id, db)
+    return GuestRoomJoinResponse(
+        room=await room_out(room, guest.id, db),
+        user=user_response(guest),
+    )
 
 
 @router.post("/games/rooms/{room_id}/join", response_model=RoomResponse)

@@ -244,6 +244,11 @@ class GuestRoomJoinRequest(BaseModel):
     name: str = Field(min_length=2, max_length=80)
 
 
+class GuestRoomJoinResponse(BaseModel):
+    room: RoomResponse
+    user: UserResponse
+
+
 class RoomCleanupResponse(BaseModel):
     deleted: int
 
