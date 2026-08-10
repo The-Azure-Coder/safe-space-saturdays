@@ -3093,7 +3093,7 @@ function GamesScreen() {
                 <Avatar initials={winner.name.slice(0, 1).toUpperCase()} color={winner.position === 1 ? 'gold' : 'sage'} imageUrl={winner.avatar_url} />
                 <div>
                   <strong>{winner.name}</strong>
-                  <small>{winner.points} XP · {winner.wins} {winner.wins === 1 ? 'win' : 'wins'} · latest: {winner.game}</small>
+                  <small>+{winner.match_points} XP this match · {winner.points} XP total · {winner.wins} {winner.wins === 1 ? 'win' : 'wins'} · {winner.game}</small>
                 </div>
               </div>
             )) : !winnersQuery.isLoading && (
