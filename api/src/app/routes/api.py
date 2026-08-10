@@ -312,6 +312,10 @@ def game_type_for_name(name: str) -> str | None:
     return None
 
 
+def new_guest_email() -> str:
+    return f"guest-{uuid4()}@guests.safespacesaturdays.app"
+
+
 def is_user_online(user: User) -> bool:
     if user.last_seen_at is None:
         return False
@@ -1137,17 +1141,18 @@ async def join_room_as_guest(
         )
     )
     if existing_guest is not None:
+        if existing_guest.email.endswith("@guest.invalid"):
+            existing_guest.email = new_guest_email()
+        guest_user = user_response(existing_guest)
+        guest_room = await room_out(room, existing_guest.id, db)
         await set_session(response, db, existing_guest, remember_me=False)
-        return GuestRoomJoinResponse(
-            room=await room_out(room, existing_guest.id, db),
-            user=user_response(existing_guest),
-        )
+        return GuestRoomJoinResponse(room=guest_room, user=guest_user)
     count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
     if count >= room.max_players:
         raise HTTPException(status_code=409, detail="Room is full")
     guest = User(
         name=guest_name,
-        email=f"guest-{uuid4()}@guest.invalid",
+        email=new_guest_email(),
         password_hash=hash_password(secrets.token_urlsafe(32)),
         role="guest",
         is_guest=True,
@@ -1156,12 +1161,11 @@ async def join_room_as_guest(
     db.add(guest)
     await db.flush()
     db.add(RoomParticipant(room_id=room.id, user_id=guest.id, seat_index=count, ready=True))
-    await db.commit()
+    await db.flush()
+    guest_user = user_response(guest)
+    guest_room = await room_out(room, guest.id, db)
     await set_session(response, db, guest, remember_me=False)
-    return GuestRoomJoinResponse(
-        room=await room_out(room, guest.id, db),
-        user=user_response(guest),
-    )
+    return GuestRoomJoinResponse(room=guest_room, user=guest_user)
 
 
 @router.post("/games/rooms/{room_id}/join", response_model=RoomResponse)
