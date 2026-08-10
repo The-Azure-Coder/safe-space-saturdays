@@ -30,6 +30,8 @@ function RoomInviteScreen() {
   const joinGuest = useMutation({
     mutationFn: () => api.joinGuestRoom(token, name.trim()),
     onSuccess: async () => {
+      await queryClient.cancelQueries({ queryKey: ['me'] })
+      queryClient.removeQueries({ queryKey: ['me'] })
       await queryClient.fetchQuery({ queryKey: ['me'], queryFn: api.me, staleTime: 0 })
       await navigate({ to: '/games' })
     },

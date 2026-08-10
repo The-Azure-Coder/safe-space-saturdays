@@ -1125,11 +1125,24 @@ async def join_room_as_guest(
     room = await db.scalar(select(GameRoom).where(GameRoom.invite_token == invite_token).with_for_update())
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room is not accepting players")
+    guest_name = payload.name.strip()
+    existing_guest = await db.scalar(
+        select(User)
+        .join(RoomParticipant, RoomParticipant.user_id == User.id)
+        .where(
+            RoomParticipant.room_id == room.id,
+            User.is_guest.is_(True),
+            User.name == guest_name,
+        )
+    )
+    if existing_guest is not None:
+        await set_session(response, db, existing_guest, remember_me=False)
+        return await room_out(room, existing_guest.id, db)
     count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
     if count >= room.max_players:
         raise HTTPException(status_code=409, detail="Room is full")
     guest = User(
-        name=payload.name.strip(),
+        name=guest_name,
         email=f"guest-{uuid4()}@guest.invalid",
         password_hash=hash_password(secrets.token_urlsafe(32)),
         role="guest",
