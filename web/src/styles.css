@@ -990,6 +990,9 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .room-row small, .winner-row small { color: var(--muted); font-size: 12px; }
 .room-row .button { padding-inline: 16px; white-space: nowrap; }
 .room-action-button { min-width: 96px; }
+.room-cleanup-button { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; border: 1px solid color-mix(in srgb, var(--orange) 42%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--orange-pale, #fff0e5) 72%, var(--paper)); color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .01em; }
+.room-cleanup-button:hover, .room-cleanup-button:focus-visible { border-color: var(--orange); background: var(--orange); color: white; transform: translateY(-1px); }
+.room-cleanup-button:disabled { opacity: .65; transform: none; }
 .room-share-button, .room-change-control { flex: 0 0 auto; }
 .room-change-control select { min-height: 36px; max-width: 150px; padding: 7px 28px 7px 10px; }
 .public-room-invite { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }

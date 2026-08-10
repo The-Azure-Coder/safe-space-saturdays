@@ -2909,14 +2909,16 @@ function GamesScreen() {
               </div>
               {profile.data && staffRoles.has(profile.data.role) && (
                 <button
-                  className="button button--small button--secondary"
+                  className="button button--small room-cleanup-button"
                   type="button"
                   disabled={cleanupBotRooms.isPending}
+                  aria-label="Clean up stale bot rooms"
                   onClick={() => {
                     if (window.confirm('Delete active rooms containing only the host and generated bots?'))
                       cleanupBotRooms.mutate()
                   }}
                 >
+                  <span aria-hidden="true">✦</span>
                   {cleanupBotRooms.isPending ? 'Cleaning…' : 'Clean bot rooms'}
                 </button>
               )}
