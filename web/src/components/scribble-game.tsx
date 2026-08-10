@@ -109,6 +109,18 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
   }, [strokes])
 
   useEffect(() => {
+    const canvas = canvasRef.current
+    const stroke = state.live_stroke
+    if (!canvas || !stroke) return
+    const key = strokeKey(stroke)
+    if (drawnStrokeKeysRef.current.has(key)) return
+    const context = canvas.getContext('2d')
+    if (!context) return
+    paintStroke(context, stroke, canvas.clientWidth, canvas.clientHeight)
+    drawnStrokeKeysRef.current.add(key)
+  }, [state.live_stroke])
+
+  useEffect(() => {
     if (state.phase !== 'guessing' || !state.guess_deadline) {
       setSecondsLeft(30)
       return

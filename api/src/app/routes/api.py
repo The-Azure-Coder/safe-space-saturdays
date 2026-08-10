@@ -1456,6 +1456,20 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
             except IllegalMove as error:
                 await websocket.send_json({"type": "error", "detail": str(error)})
                 continue
+            # Drawing segments are deliberately ephemeral websocket events.
+            # Persisting and rebroadcasting the entire growing canvas for every
+            # pointer move overwhelms the connection and lets stale snapshots
+            # resurrect erased pixels. The completed state is persisted by the
+            # next meaningful action (finish, clear, or round transition).
+            if match.game_type == "scribble" and message["action"].get("action") == "stroke_segment":
+                await realtime_bus.publish(
+                    match_channel(match.id),
+                    {
+                        "origin": get_settings().realtime_node_id,
+                        "payload": {"type": "drawing_segment", "segment": match.state["strokes"][-1]},
+                    },
+                )
+                continue
             # Broadcast updates the other players. Send the acting player's
             # authoritative snapshot directly as well so their own token
             # animation cannot be lost in websocket/realtime timing.

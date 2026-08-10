@@ -258,6 +258,7 @@ def apply_scribble_action(state: dict[str, Any], player: int, action: dict[str, 
             raise IllegalMove("Only the current drawer can clear the canvas")
         state["strokes"] = []
         state["live_stroke"] = None
+        state["action_count"] += 1
     elif kind == "end_turn":
         if player != drawer or state["phase"] != "drawing":
             raise IllegalMove("Only the current drawer can end the drawing turn")

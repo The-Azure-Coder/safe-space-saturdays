@@ -276,6 +276,12 @@ def test_scribble_word_choice_preview_warm_guess_and_timeout() -> None:
     state = apply_action(state, 0, {"action": "choose_word", "word": word})
     state = apply_action(state, 0, {"action": "stroke_preview", "points": [{"x": 0.1, "y": 0.1}, {"x": 0.4, "y": 0.4}]})
     assert state["live_stroke"]["points"]
+    state = apply_action(state, 0, {"action": "stroke_segment", "points": [{"x": 0.1, "y": 0.1}, {"x": 0.4, "y": 0.4}], "color": "#1f2421", "size": 6, "erase": True})
+    assert state["strokes"][-1]["erase"] is True
+    before_clear = state["action_count"]
+    state = apply_action(state, 0, {"action": "clear"})
+    assert state["strokes"] == []
+    assert state["action_count"] == before_clear + 1
     state = apply_action(state, 0, {"action": "end_turn"})
     state["word"] = "cat"
     state["guess_deadline"] = 9_999_999_999

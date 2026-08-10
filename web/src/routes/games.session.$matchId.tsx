@@ -32,6 +32,10 @@ function GameSessionScreen() {
     socket.current = connection
     connection.onmessage = (event) => {
       const message = JSON.parse(event.data) as { type: string; match?: GameSession; detail?: string }
+      if (message.type === 'drawing_segment' && (message as { segment?: ScribbleState['live_stroke'] }).segment) {
+        const segment = (message as { segment: ScribbleState['live_stroke'] }).segment
+        setMatch((current) => current ? { ...current, state: { ...current.state, live_stroke: segment } } : current)
+      }
       if (message.type === 'state' && message.match) {
         const nextMatch = message.match
         if (nextMatch.state.seat_index === undefined) {

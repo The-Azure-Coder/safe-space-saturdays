@@ -117,6 +117,13 @@ class UniversalMatchManager:
             except Exception:
                 match.sockets.pop(socket, None)
 
+    async def broadcast_drawing_segment(self, match: UniversalMatch, segment: dict[str, Any]) -> None:
+        for socket in list(match.sockets):
+            try:
+                await socket.send_json({"type": "drawing_segment", "segment": segment})
+            except Exception:
+                match.sockets.pop(socket, None)
+
     async def action(
         self, match: UniversalMatch, user_id: int, payload: dict[str, Any]
     ) -> UniversalMatch:
@@ -125,7 +132,10 @@ class UniversalMatchManager:
             if player is None:
                 raise IllegalMove("You are not a player in this match")
             match.state = apply_action(match.state, player, payload)
-            await self.broadcast(match)
+            if match.game_type == "scribble" and payload.get("action") == "stroke_segment":
+                await self.broadcast_drawing_segment(match, match.state["strokes"][-1])
+            else:
+                await self.broadcast(match)
             bot_player = match.bot_player
             bot_players = match.bot_players or ((bot_player,) if bot_player is not None else ())
             bot_turn = (
