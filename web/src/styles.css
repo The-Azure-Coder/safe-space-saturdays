@@ -350,6 +350,21 @@ html[data-theme='crimson'] .form-card input,
 html[data-theme='crimson'] .form-card textarea,
 html[data-theme='crimson'] .post-composer textarea,
 html[data-theme='crimson'] .profile-card form input { border-color: var(--line); background: #2c1b20; color: var(--ink); }
+html[data-theme='crimson'] .auth-panel { border-color: var(--line); background: #3a2026; color: var(--ink); box-shadow: var(--shadow); }
+html[data-theme='crimson'] .auth-panel label,
+html[data-theme='crimson'] .auth-panel__intro,
+html[data-theme='crimson'] .auth-panel .auth-switch { color: var(--muted); }
+html[data-theme='crimson'] .auth-panel h2,
+html[data-theme='crimson'] .auth-panel__leaf { color: #ffe7df; }
+html[data-theme='crimson'] .auth-panel input::placeholder { color: #cda8a1; opacity: 1; }
+html[data-theme='crimson'] .auth-panel input:focus,
+html[data-theme='crimson'] .auth-panel textarea:focus,
+html[data-theme='crimson'] .auth-panel .input-wrap:focus-within { border-color: var(--orange); background: #3b2329; box-shadow: 0 0 0 4px rgb(239 154 114 / 18%); }
+html[data-theme='crimson'] .auth-panel .input-wrap > input,
+html[data-theme='crimson'] .auth-panel .input-wrap > input:focus { border: 0; background: transparent; box-shadow: none; }
+html[data-theme='crimson'] .auth-panel .checkbox-label { color: var(--muted) !important; }
+html[data-theme='crimson'] .auth-panel .auth-switch a { color: #f7b092; }
+html[data-theme='crimson'] select { border-color: var(--line); background: #2c1b20; color: var(--ink); color-scheme: dark; }
 .shared-quote-badge { display: inline-flex; align-items: center; gap: 5px; margin: 2px 0 8px; padding: 5px 9px; border-radius: 999px; background: var(--lilac-pale); color: var(--sage-dark); font-size: 12px; font-weight: 700; }
 html[data-theme='high-contrast'] body { background: #f8f6ef; color: #102019; }
 html[data-theme='high-contrast'] .app-header, html[data-theme='high-contrast'] .profile-card { border-color: #102019; }
@@ -372,6 +387,9 @@ html[data-theme='high-contrast'] .app-header, html[data-theme='high-contrast'] .
 .profile-dropdown a, .profile-dropdown button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 9px; background: transparent; color: var(--ink); text-align: left; }
 .profile-dropdown a:hover, .profile-dropdown button:hover:not(:disabled) { background: var(--sage-pale); }
 .field-label { display: grid; gap: 7px; color: var(--muted); font-size: 13px; font-weight: 600; }
+select { min-height: 42px; padding: 8px 34px 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); color-scheme: light; font: inherit; }
+select:hover { border-color: var(--sage); }
+select:focus-visible { border-color: var(--orange); outline: 3px solid rgb(222 112 75 / 22%); outline-offset: 2px; }
 .button:disabled { cursor: not-allowed; opacity: .58; }
 .mood-row button, .mood-option, .choice-chip, .filter-chip, .game-tile { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background-color .18s ease; }
 .mood-row button:hover, .mood-option:hover, .choice-chip:hover, .filter-chip:hover, .game-tile:hover { transform: translateY(-2px); box-shadow: 0 7px 16px rgb(57 62 37 / 9%); }

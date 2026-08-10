@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
 
 import { api } from '../lib/api'
@@ -11,6 +11,7 @@ export const Route = createFileRoute('/games/rooms/invite/$token')({
 function RoomInviteScreen() {
   const { token } = useParams({ from: '/games/rooms/invite/$token' })
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const invite = useQuery({
     queryKey: ['room-invite', token],
@@ -28,7 +29,10 @@ function RoomInviteScreen() {
   })
   const joinGuest = useMutation({
     mutationFn: () => api.joinGuestRoom(token, name.trim()),
-    onSuccess: () => navigate({ to: '/games' }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['me'] })
+      await navigate({ to: '/games' })
+    },
   })
   const error = invite.error || join.error || joinGuest.error
   const isLoggedIn = Boolean(currentUser.data)
