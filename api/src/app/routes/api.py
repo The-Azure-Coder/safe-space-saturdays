@@ -95,6 +95,7 @@ from app.schemas import (
     RoomInviteResponse,
     RoomParticipantResponse,
     RoomResponse,
+    RoomCleanupResponse,
     GuestRoomJoinRequest,
     UserResponse,
 )
@@ -1236,6 +1237,47 @@ async def end_game_room(room_id: int, user: CurrentUser, db: DbSession) -> Respo
     await db.delete(room)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/games/rooms/cleanup-bot-rooms", response_model=RoomCleanupResponse)
+async def cleanup_bot_rooms(admin: CurrentAdmin, db: DbSession) -> RoomCleanupResponse:
+    """Remove active rooms that only contain their host plus generated bot seats."""
+    rooms = (
+        await db.scalars(select(GameRoom).where(GameRoom.status == "active").with_for_update())
+    ).all()
+    deleted = 0
+    for room in rooms:
+        participant_count = await db.scalar(
+            select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)
+        ) or 0
+        active_match = await db.scalar(
+            select(GameMatch).where(GameMatch.room_id == room.id, GameMatch.status == "active").limit(1)
+        )
+        if participant_count != 1 or active_match is None:
+            continue
+        bot_count = await db.scalar(
+            select(func.count(GameMatchPlayer.id)).where(
+                GameMatchPlayer.match_id == active_match.id,
+                GameMatchPlayer.player_type == "bot",
+            )
+        ) or 0
+        if bot_count == 0:
+            continue
+        live_match = match_manager.get(active_match.id) or universal_matches.get(active_match.id)
+        if live_match is not None:
+            for socket in list(live_match.sockets):
+                try:
+                    await socket.send_json({"type": "session_ended", "detail": "This stale bot room was cleaned up."})
+                except Exception:
+                    live_match.sockets.pop(socket, None)
+            match_manager.matches.pop(active_match.id, None)
+            universal_matches.matches.pop(active_match.id, None)
+            if match_manager.room_matches.get(room.id) == active_match.id:
+                match_manager.room_matches.pop(room.id, None)
+        await db.delete(room)
+        deleted += 1
+    await db.commit()
+    return RoomCleanupResponse(deleted=deleted)
 
 
 @router.post("/games/rooms/{room_id}/ready", response_model=RoomResponse)

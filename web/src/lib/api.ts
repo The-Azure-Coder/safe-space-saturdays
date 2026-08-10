@@ -338,6 +338,8 @@ export const api = {
     }),
   endRoom: (id: number) =>
     apiFetch<void>(`/api/games/rooms/${id}`, { method: 'DELETE' }),
+  cleanupBotRooms: () =>
+    apiFetch<{ deleted: number }>('/api/games/rooms/cleanup-bot-rooms', { method: 'POST' }),
   gameSession: (id: string) =>
     apiFetch<GameSession>(`/api/games/sessions/${id}`),
   gameAction: (id: string, action: Record<string, any>) =>

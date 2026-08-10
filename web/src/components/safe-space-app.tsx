@@ -2611,6 +2611,7 @@ function GamesScreen() {
   const [roomPlayers, setRoomPlayers] = useState(4)
   const [roomFillBots, setRoomFillBots] = useState(true)
   const [copiedRoomId, setCopiedRoomId] = useState<number | null>(null)
+  const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
   const gamesQuery = useQuery({
     queryKey: ['games', 'featured'],
     queryFn: () => api.games(1, 50),
@@ -2632,6 +2633,10 @@ function GamesScreen() {
   const changeGame = useMutation({
     mutationFn: (input: { room_id: number; game_id: number }) =>
       api.changeRoomGame(input.room_id, input.game_id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+  })
+  const cleanupBotRooms = useMutation({
+    mutationFn: api.cleanupBotRooms,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
   })
   const createMatch = useMutation({
@@ -2848,7 +2853,8 @@ function GamesScreen() {
           createGameSession.error ||
           ready.error ||
           join.error ||
-          changeGame.error) && (
+          changeGame.error ||
+          cleanupBotRooms.error) && (
           <p className="form-error" role="alert">
             {
               (
@@ -2856,7 +2862,8 @@ function GamesScreen() {
                 createGameSession.error ||
                 ready.error ||
                 join.error ||
-                changeGame.error
+                changeGame.error ||
+                cleanupBotRooms.error
               )?.message
             }
           </p>
@@ -2900,7 +2907,21 @@ function GamesScreen() {
                 <UsersThree size={24} weight="fill" />
                 <span>Live Rooms</span>
               </div>
+              {profile.data && staffRoles.has(profile.data.role) && (
+                <button
+                  className="button button--small button--secondary"
+                  type="button"
+                  disabled={cleanupBotRooms.isPending}
+                  onClick={() => {
+                    if (window.confirm('Delete active rooms containing only the host and generated bots?'))
+                      cleanupBotRooms.mutate()
+                  }}
+                >
+                  {cleanupBotRooms.isPending ? 'Cleaning…' : 'Clean bot rooms'}
+                </button>
+              )}
             </div>
+            {cleanupBotRooms.data && <p className="form-success" role="status">Deleted {cleanupBotRooms.data.deleted} stale bot {cleanupBotRooms.data.deleted === 1 ? 'room' : 'rooms'}.</p>}
             {rooms.length === 0 && !roomsQuery.isLoading ? (
               <EmptyState
                 title="No live rooms yet"

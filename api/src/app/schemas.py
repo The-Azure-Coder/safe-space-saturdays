@@ -244,6 +244,10 @@ class GuestRoomJoinRequest(BaseModel):
     name: str = Field(min_length=2, max_length=80)
 
 
+class RoomCleanupResponse(BaseModel):
+    deleted: int
+
+
 class MatchCreateRequest(BaseModel):
     room_id: int
     with_bot: bool = True
