@@ -38,18 +38,36 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const drawingRef = useRef<Array<ScribblePoint>>([])
   const livePointRef = useRef<ScribblePoint | null>(null)
-  const previewSentAtRef = useRef(0)
+  const drawnStrokeKeysRef = useRef(new Set<string>())
   const timeoutSentRef = useRef<number | null>(null)
   const [color, setColor] = useState(COLORS[0])
   const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil')
   const [guess, setGuess] = useState('')
-  const [localStrokes, setLocalStrokes] = useState<Array<ScribbleStroke>>([])
   const players = state.players ?? [{ name: 'You', is_bot: false }, { name: 'Milo Bot', is_bot: true }]
   const strokes = state.strokes ?? []
   const isDrawer = Boolean(state.is_drawer)
   const roundResult = state.phase === 'round_result'
   const finished = state.phase === 'finished' || state.winner !== null || state.draw
   const [secondsLeft, setSecondsLeft] = useState(30)
+
+  const strokeKey = (stroke: ScribbleStroke) => `${stroke.erase ? 'erase' : 'draw'}:${stroke.color}:${stroke.size}:${stroke.points.map((point) => `${point.x},${point.y}`).join(';')}`
+  const paintStroke = (context: CanvasRenderingContext2D, stroke: ScribbleStroke, width: number, height: number) => {
+    if (stroke.points.length < 2) return
+    context.globalCompositeOperation = stroke.erase ? 'destination-out' : 'source-over'
+    context.strokeStyle = stroke.color
+    context.lineWidth = stroke.size
+    context.lineCap = 'round'
+    context.lineJoin = 'round'
+    context.beginPath()
+    stroke.points.forEach((point, index) => {
+      const x = point.x * width
+      const y = point.y * height
+      if (index === 0) context.moveTo(x, y)
+      else context.lineTo(x, y)
+    })
+    context.stroke()
+    context.globalCompositeOperation = 'source-over'
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -63,28 +81,32 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
     if (!context) return
     context.scale(ratio, ratio)
     context.clearRect(0, 0, width, height)
-      context.lineCap = 'round'
-      context.lineJoin = 'round'
-    for (const stroke of [...strokes, ...(state.live_stroke ? [state.live_stroke] : []), ...localStrokes]) {
-      if (stroke.points.length < 2) continue
-      context.globalCompositeOperation = stroke.erase ? 'destination-out' : 'source-over'
-      context.strokeStyle = stroke.color
-      context.lineWidth = stroke.size
-      context.beginPath()
-      stroke.points.forEach((point, index) => {
-        const x = point.x * width
-        const y = point.y * height
-        if (index === 0) context.moveTo(x, y)
-        else context.lineTo(x, y)
-      })
-      context.stroke()
+    drawnStrokeKeysRef.current.clear()
+    for (const stroke of strokes) {
+      paintStroke(context, stroke, width, height)
+      drawnStrokeKeysRef.current.add(strokeKey(stroke))
     }
-    context.globalCompositeOperation = 'source-over'
-  }, [strokes, state.live_stroke, localStrokes])
+  }, [state.round])
 
   useEffect(() => {
-    if (state.phase === 'choosing' || state.phase === 'finished') setLocalStrokes([])
-  }, [state.phase, state.round])
+    const canvas = canvasRef.current
+    if (!canvas || !strokes.length) {
+      if (!strokes.length && drawnStrokeKeysRef.current.size) {
+        const context = canvas?.getContext('2d')
+        if (context) context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight)
+        drawnStrokeKeysRef.current.clear()
+      }
+      return
+    }
+    const context = canvas.getContext('2d')
+    if (!context) return
+    for (const stroke of strokes) {
+      const key = strokeKey(stroke)
+      if (drawnStrokeKeysRef.current.has(key)) continue
+      paintStroke(context, stroke, canvas.clientWidth, canvas.clientHeight)
+      drawnStrokeKeysRef.current.add(key)
+    }
+  }, [strokes])
 
   useEffect(() => {
     if (state.phase !== 'guessing' || !state.guess_deadline) {
@@ -127,33 +149,21 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
     const canvas = event.currentTarget
     const context = canvas.getContext('2d')
     if (context) {
-      context.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over'
-      context.strokeStyle = color
-      context.lineWidth = tool === 'eraser' ? 24 : 6
-      context.lineCap = 'round'
-      context.beginPath()
-      context.moveTo(previous.x * canvas.clientWidth, previous.y * canvas.clientHeight)
-      context.lineTo(point.x * canvas.clientWidth, point.y * canvas.clientHeight)
-      context.stroke()
-      context.globalCompositeOperation = 'source-over'
+      paintStroke(context, { points: [previous, point], color, size: tool === 'eraser' ? 24 : 6, erase: tool === 'eraser' }, canvas.clientWidth, canvas.clientHeight)
     }
     drawingRef.current.push(point)
     livePointRef.current = point
-    const now = Date.now()
-    if (now - previewSentAtRef.current >= 60 && drawingRef.current.length >= 2) {
-      previewSentAtRef.current = now
-      send({ action: 'stroke_preview', points: drawingRef.current, color, size: tool === 'eraser' ? 24 : 6, erase: tool === 'eraser' })
-    }
+    const stroke = { points: [previous, point], color, size: tool === 'eraser' ? 24 : 6, erase: tool === 'eraser' }
+    drawnStrokeKeysRef.current.add(strokeKey(stroke))
+    send({ action: 'stroke_segment', ...stroke })
   }
   const finishDrawing = () => {
     const points = drawingRef.current
     drawingRef.current = []
     livePointRef.current = null
-    previewSentAtRef.current = 0
-    if (points.length >= 2) {
-      const stroke = { points, color, size: tool === 'eraser' ? 24 : 6, erase: tool === 'eraser' }
-      setLocalStrokes((current) => [...current, stroke])
-      send({ action: 'stroke', ...stroke })
+    if (points.length === 1) {
+      const stroke = { points: [points[0], points[0]], color, size: tool === 'eraser' ? 24 : 6, erase: tool === 'eraser' }
+      send({ action: 'stroke_segment', ...stroke })
     }
   }
   const submitGuess = (event: FormEvent) => {
@@ -178,7 +188,7 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
 
     <div className="scribble-controls">
       {isDrawer && state.phase === 'choosing' && !finished && <div className="scribble-word-choices" aria-label="Choose a word">{(state.word_choices ?? []).map((word) => <button className="button button--secondary button--small" type="button" key={word} onClick={() => send({ action: 'choose_word', word })}>{word}</button>)}</div>}
-      {isDrawer && state.phase === 'drawing' && !finished && <><div className="scribble-palette" aria-label="Drawing colors">{COLORS.map((item) => <button aria-label={`Use ${item}`} className={color === item && tool === 'pencil' ? 'scribble-color scribble-color--selected' : 'scribble-color'} style={{ backgroundColor: item }} key={item} type="button" onClick={() => { setColor(item); setTool('pencil') }} />)}</div><button className={tool === 'eraser' ? 'button button--primary button--small' : 'button button--secondary button--small'} type="button" onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'}><Eraser size={17} /> Eraser</button><button className="button button--secondary button--small" type="button" onClick={() => { setLocalStrokes([]); send({ action: 'clear' }) }}><Eraser size={17} /> Clear all</button><button className="button button--primary button--small" type="button" onClick={() => send({ action: 'end_turn' })}>Finish drawing</button></>}
+      {isDrawer && state.phase === 'drawing' && !finished && <><div className="scribble-palette" aria-label="Drawing colors">{COLORS.map((item) => <button aria-label={`Use ${item}`} className={color === item && tool === 'pencil' ? 'scribble-color scribble-color--selected' : 'scribble-color'} style={{ backgroundColor: item }} key={item} type="button" onClick={() => { setColor(item); setTool('pencil') }} />)}</div><button className={tool === 'eraser' ? 'button button--primary button--small' : 'button button--secondary button--small'} type="button" onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'}><Eraser size={17} /> Eraser</button><button className="button button--secondary button--small" type="button" onClick={() => { const canvas = canvasRef.current; const context = canvas?.getContext('2d'); if (canvas && context) context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight); drawnStrokeKeysRef.current.clear(); send({ action: 'clear' }) }}><Eraser size={17} /> Clear all</button><button className="button button--primary button--small" type="button" onClick={() => send({ action: 'end_turn' })}>Finish drawing</button></>}
       {!isDrawer && state.phase === 'guessing' && !finished && <form className="scribble-guess-form" onSubmit={submitGuess}><label htmlFor="scribble-guess">Your guess</label><input id="scribble-guess" value={guess} onChange={(event) => setGuess(event.target.value)} placeholder="I think it is…" maxLength={80} /><button className="button button--primary button--small" type="submit">Guess</button></form>}
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}

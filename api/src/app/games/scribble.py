@@ -233,6 +233,26 @@ def apply_scribble_action(state: dict[str, Any], player: int, action: dict[str, 
             clean_points.append({"x": round(x, 4), "y": round(y, 4)})
         state["live_stroke"] = {"points": clean_points, "color": str(action.get("color", "#315542"))[:20], "size": max(2, min(24, int(action.get("size", 5)))), "erase": bool(action.get("erase", False))}
         return state
+    elif kind == "stroke_segment":
+        if player != drawer or state["phase"] != "drawing":
+            raise IllegalMove("Only the current drawer can draw")
+        points = action.get("points")
+        if not isinstance(points, list) or len(points) != 2:
+            raise IllegalMove("A line segment needs two points")
+        clean_points = []
+        for point in points:
+            if not isinstance(point, dict):
+                raise IllegalMove("Invalid drawing point")
+            x, y = float(point.get("x", -1)), float(point.get("y", -1))
+            if not 0 <= x <= 1 or not 0 <= y <= 1:
+                raise IllegalMove("Drawing points must stay inside the canvas")
+            clean_points.append({"x": round(x, 4), "y": round(y, 4)})
+        if len(state["strokes"]) >= 600:
+            raise IllegalMove("This sketch is full")
+        state["strokes"].append({"points": clean_points, "color": str(action.get("color", "#315542"))[:20], "size": max(2, min(24, int(action.get("size", 5)))), "erase": bool(action.get("erase", False))})
+        state["live_stroke"] = None
+        state["action_count"] += 1
+        return state
     elif kind == "clear":
         if player != drawer or state["phase"] != "drawing":
             raise IllegalMove("Only the current drawer can clear the canvas")
