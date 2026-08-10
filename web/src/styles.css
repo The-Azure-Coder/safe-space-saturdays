@@ -988,6 +988,8 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .room-row > div, .winner-row > div { display: grid; flex: 1; gap: 4px; min-width: 0; }
 .room-row__name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .room-row small, .winner-row small { color: var(--muted); font-size: 12px; }
+.winner-rank { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--sage-dark); font-size: 13px; font-weight: 800; }
+.winner-row--empty { border-top: 0; }
 .room-row .button { padding-inline: 16px; white-space: nowrap; }
 .room-action-button { min-width: 96px; }
 .room-cleanup-button { display: inline-flex; min-height: 36px; align-items: center; gap: 7px; border: 1px solid color-mix(in srgb, var(--orange) 42%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--orange-pale, #fff0e5) 72%, var(--paper)); color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .01em; }

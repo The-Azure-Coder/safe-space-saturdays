@@ -169,6 +169,16 @@ export type GameSession = {
   game: string
   state: Record<string, any>
 }
+export type Winner = {
+  position: number
+  name: string
+  avatar_url: string | null
+  points: number
+  match_points: number
+  wins: number
+  game: string
+  created_at: string
+}
 export type LeaderboardEntry = { rank: number; user: User }
 export type BugReport = {
   id: number
@@ -285,6 +295,8 @@ export const api = {
     ),
   games: (page = 1, limit = 20) =>
     apiFetch<Array<Game>>(`/api/games?page=${page}&limit=${limit}`),
+  winners: (page = 1, limit = 5) =>
+    apiFetch<Array<Winner>>(`/api/games/winners?page=${page}&limit=${limit}`),
   rooms: (page = 1, limit = 10) =>
     apiFetch<Array<Room>>(`/api/games/rooms?page=${page}&limit=${limit}`),
   createRoom: (body: {

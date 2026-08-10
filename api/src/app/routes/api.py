@@ -1676,27 +1676,48 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
 async def list_winners(
     user: CurrentUser, db: DbSession, page: int = 1, limit: int = 10
 ) -> list[dict[str, object]]:
+    del user
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    winners = (
-        await db.scalars(
-            select(GameWinner)
-            .order_by(GameWinner.created_at.desc())
+    totals = (
+        await db.execute(
+            select(
+                RewardLedger.user_id,
+                User.name,
+                User.avatar_url,
+                func.sum(RewardLedger.xp).label("points"),
+                func.count(RewardLedger.id).label("wins"),
+                func.max(RewardLedger.created_at).label("latest_win"),
+            )
+            .join(User, User.id == RewardLedger.user_id)
+            .where(RewardLedger.kind == "game_win")
+            .group_by(RewardLedger.user_id, User.name, User.avatar_url)
+            .order_by(func.sum(RewardLedger.xp).desc(), func.max(RewardLedger.created_at).desc(), User.name.asc())
             .offset((page - 1) * limit)
             .limit(limit)
         )
     ).all()
     result: list[dict[str, object]] = []
-    for winner in winners:
-        member = await db.get(User, winner.user_id)
-        game = await db.get(Game, winner.game_id)
+    for position, row in enumerate(totals, start=(page - 1) * limit + 1):
+        latest = await db.scalar(
+            select(RewardLedger)
+            .where(RewardLedger.user_id == row.user_id, RewardLedger.kind == "game_win")
+            .order_by(RewardLedger.created_at.desc())
+            .limit(1)
+        )
+        game_name = latest.match_id if latest else "Game"
+        match = await db.get(GameMatch, game_name) if latest else None
+        game_label = (match.game_type.replace("-", " ").title() if match else "Game")
         result.append(
             {
-                "id": winner.id,
-                "name": member.name if member else "Member",
-                "game": game.name if game else "Game",
-                "result": winner.result,
-                "created_at": winner.created_at,
+                "position": position,
+                "name": row.name,
+                "avatar_url": row.avatar_url,
+                "points": int(row.points or 0),
+                "match_points": int(latest.xp if latest else 0),
+                "wins": int(row.wins or 0),
+                "game": game_label,
+                "created_at": row.latest_win,
             }
         )
     return result

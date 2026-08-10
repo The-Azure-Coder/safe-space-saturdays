@@ -2621,6 +2621,11 @@ function GamesScreen() {
     queryFn: () => api.rooms(roomsPage, 5),
     refetchInterval: 2500,
   })
+  const winnersQuery = useQuery({
+    queryKey: ['game-winners'],
+    queryFn: () => api.winners(1, 5),
+    refetchInterval: 10000,
+  })
   const queryClient = useQueryClient()
   const join = useMutation({
     mutationFn: api.joinRoom,
@@ -3082,13 +3087,24 @@ function GamesScreen() {
                 See all <ArrowRight size={16} />
               </button>
             </div>
-            <div className="winner-row">
-              <Avatar initials="★" color="gold" />
-              <div>
-                <strong>Community winners</strong>
-                <small>Results will appear after game night.</small>
+            {winnersQuery.data?.length ? winnersQuery.data.map((winner) => (
+              <div className="winner-row" key={`${winner.position}-${winner.name}`}>
+                <span className="winner-rank" aria-label={`Position ${winner.position}`}>{winner.position}</span>
+                <Avatar initials={winner.name.slice(0, 1).toUpperCase()} color={winner.position === 1 ? 'gold' : 'sage'} imageUrl={winner.avatar_url} />
+                <div>
+                  <strong>{winner.name}</strong>
+                  <small>{winner.points} XP · {winner.wins} {winner.wins === 1 ? 'win' : 'wins'} · latest: {winner.game}</small>
+                </div>
               </div>
-            </div>
+            )) : !winnersQuery.isLoading && (
+              <div className="winner-row winner-row--empty">
+                <Avatar initials="★" color="gold" />
+                <div>
+                  <strong>Community winners</strong>
+                  <small>Results will appear after the first match.</small>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       </main>
