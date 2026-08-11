@@ -857,7 +857,8 @@ function HomeScreen() {
               Explore Community <ArrowRight size={16} />
             </Link>
           </article>
-        </section>
+      </section>
+        <GameStrip />
         {/* <ComingSoonBanner /> */}
       </main>
       <PageFooter />
@@ -1089,8 +1090,6 @@ function GameStrip() {
   )
 }
 
-void GameStrip
-
 function formatCooldown(milliseconds: number) {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
   const hours = Math.floor(totalSeconds / 3600)
@@ -1107,6 +1106,11 @@ function AdminScreen() {
   const [quoteText, setQuoteText] = useState('')
   const [quoteAuthor, setQuoteAuthor] = useState('Safe Space Saturdays')
   const [quoteCategory, setQuoteCategory] = useState('Encouragement')
+  const adminDashboard = useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: api.adminDashboard,
+    enabled: Boolean(profile.data && staffRoles.has(profile.data.role)),
+  })
   const reports = useQuery({
     queryKey: ['admin-reports', reportStatus],
     queryFn: () => api.adminBugReports(1, 50, reportStatus || undefined),
@@ -1190,6 +1194,27 @@ function AdminScreen() {
           title="Admin portal"
           description="Review member feedback, protect accounts, and keep the community content thoughtful."
         />
+        <section className="admin-overview" aria-label="Admin overview">
+          <div className="admin-overview__heading">
+            <div>
+              <span className="eyebrow">At a glance</span>
+              <h2>Community pulse</h2>
+            </div>
+            {adminDashboard.isFetching && <ApiLoader label="Updating…" />}
+          </div>
+          {adminDashboard.isLoading ? (
+            <ContentSkeleton rows={1} />
+          ) : adminDashboard.data ? (
+            <div className="admin-overview__grid">
+              <AdminMetric icon={UsersThree} label="Members" value={adminDashboard.data.total_members} detail={adminDashboard.data.pending_members ? `${adminDashboard.data.pending_members} awaiting approval` : 'All approved'} />
+              <AdminMetric icon={Bug} label="Open reports" value={adminDashboard.data.open_bug_reports} detail="Needs attention" />
+              <AdminMetric icon={Quotes} label="Pending quotes" value={adminDashboard.data.pending_quotes} detail={`${adminDashboard.data.total_quotes} total quotes`} />
+              <AdminMetric icon={GameController} label="Live rooms" value={adminDashboard.data.active_rooms} detail="Open or in play" />
+            </div>
+          ) : adminDashboard.isError ? (
+            <p className="admin-overview__error">Overview data is temporarily unavailable.</p>
+          ) : null}
+        </section>
         <div className="admin-tabs" role="tablist" aria-label="Admin sections">
           <button
             className={
@@ -1445,6 +1470,31 @@ function AdminScreen() {
       </main>
       <PageFooter />
     </>
+  )
+}
+
+function AdminMetric({
+  icon: MetricIcon,
+  label,
+  value,
+  detail,
+}: {
+  icon: Icon
+  label: string
+  value: number
+  detail: string
+}) {
+  return (
+    <article className="admin-metric">
+      <div className="admin-metric__icon" aria-hidden="true">
+        <MetricIcon size={22} weight="fill" />
+      </div>
+      <div>
+        <span>{label}</span>
+        <strong>{value.toLocaleString()}</strong>
+        <small>{detail}</small>
+      </div>
+    </article>
   )
 }
 

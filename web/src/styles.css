@@ -1434,6 +1434,17 @@ html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
 .icon-button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; }
 .icon-button:hover { background: var(--sage-pale); color: var(--sage-dark); }
 .admin-page { max-width: 1180px; }
+.admin-overview { margin: 24px 0 22px; padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--paper) 88%, var(--sage-pale)); box-shadow: var(--shadow); }
+.admin-overview__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.admin-overview__heading h2 { margin: 3px 0 0; font-family: 'Playfair Display', serif; font-size: 25px; }
+.admin-overview__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.admin-metric { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }
+.admin-metric__icon { display: grid; flex: 0 0 42px; width: 42px; height: 42px; place-items: center; border-radius: 13px; background: var(--sage-pale); color: var(--sage-dark); }
+.admin-metric > div:last-child { display: grid; min-width: 0; gap: 2px; }
+.admin-metric span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.admin-metric strong { color: var(--ink); font-size: 25px; line-height: 1.05; }
+.admin-metric small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-overview__error { margin: 0; color: var(--muted); font-size: 13px; }
 .admin-tabs { display: flex; gap: 8px; margin: 22px 0 16px; border-bottom: 1px solid var(--line); }
 .admin-tab { display: inline-flex; align-items: center; gap: 8px; padding: 12px 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font: inherit; font-weight: 700; cursor: pointer; }
 .admin-tab--active { border-bottom-color: var(--sage-dark); color: var(--sage-dark); }
@@ -1475,6 +1486,9 @@ html[data-theme='night'] .carousel-dot--active { background: #b9d8b5; }
   .bug-report-widget { right: 14px; bottom: 14px; }
   .bug-report-launcher { min-height: 44px; padding: 0 14px; }
   .admin-panel { padding: 15px; }
+  .admin-overview { padding: 15px; }
+  .admin-overview__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-overview__heading { align-items: flex-start; flex-direction: column; }
   .admin-tabs { overflow-x: auto; }
   .admin-panel__toolbar, .admin-user-row { align-items: stretch; flex-direction: column; }
   .admin-panel__toolbar > input, .admin-panel__toolbar > select { width: 100%; }

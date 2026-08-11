@@ -61,6 +61,7 @@ from app.models import (
 )
 from app.schemas import (
     AdminPasswordResetRequest,
+    AdminDashboardResponse,
     AdminQuoteCreateRequest,
     AdminQuoteUpdateRequest,
     AdminUserUpdateRequest,
@@ -1908,6 +1909,42 @@ async def admin_bug_reports(
         query = query.where(BugReport.status == report_status)
     rows = (await db.execute(query.offset((page - 1) * limit).limit(limit))).all()
     return [bug_report_response(report, reporter) for report, reporter in rows]
+
+
+@router.get("/admin/dashboard", response_model=AdminDashboardResponse)
+async def admin_dashboard(
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> AdminDashboardResponse:
+    del admin
+    total_members = await db.scalar(
+        select(func.count(User.id)).where(User.is_guest.is_(False))
+    )
+    pending_members = await db.scalar(
+        select(func.count(User.id)).where(
+            User.is_guest.is_(False), User.is_approved.is_(False)
+        )
+    )
+    open_bug_reports = await db.scalar(
+        select(func.count(BugReport.id)).where(
+            BugReport.status.in_(("open", "in_progress"))
+        )
+    )
+    pending_quotes = await db.scalar(
+        select(func.count(Quote.id)).where(Quote.approval_status == "pending")
+    )
+    active_rooms = await db.scalar(
+        select(func.count(GameRoom.id)).where(GameRoom.status.in_(("open", "active")))
+    )
+    total_quotes = await db.scalar(select(func.count(Quote.id)))
+    return AdminDashboardResponse(
+        total_members=total_members or 0,
+        pending_members=pending_members or 0,
+        open_bug_reports=open_bug_reports or 0,
+        pending_quotes=pending_quotes or 0,
+        active_rooms=active_rooms or 0,
+        total_quotes=total_quotes or 0,
+    )
 
 
 @router.patch("/admin/bug-reports/{report_id}", response_model=BugReportResponse)

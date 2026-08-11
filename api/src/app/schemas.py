@@ -71,6 +71,15 @@ class BugReportResponse(BaseModel):
     updated_at: datetime
 
 
+class AdminDashboardResponse(BaseModel):
+    total_members: int
+    pending_members: int
+    open_bug_reports: int
+    pending_quotes: int
+    active_rooms: int
+    total_quotes: int
+
+
 class AdminUserUpdateRequest(BaseModel):
     role: Literal["member", "moderator", "manager", "admin", "super_admin"] | None = None
     is_approved: bool | None = None

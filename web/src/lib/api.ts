@@ -87,6 +87,14 @@ export type Dashboard = {
   rank: number
   level_progress: number
 }
+export type AdminDashboard = {
+  total_members: number
+  pending_members: number
+  open_bug_reports: number
+  pending_quotes: number
+  active_rooms: number
+  total_quotes: number
+}
 export type CheckIn = {
   id: number
   mood: string
@@ -391,6 +399,7 @@ export const api = {
     apiFetch<Array<BugReport>>(
       `/api/admin/bug-reports?page=${page}&limit=${limit}${status ? `&report_status=${encodeURIComponent(status)}` : ''}`,
     ),
+  adminDashboard: () => apiFetch<AdminDashboard>('/api/admin/dashboard'),
   updateBugReport: (
     id: number,
     body: { status: string; admin_note?: string },
