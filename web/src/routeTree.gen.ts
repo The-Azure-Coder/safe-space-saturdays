@@ -21,6 +21,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GamesIndexRouteImport } from './routes/games.index'
 import { Route as GamesSessionMatchIdRouteImport } from './routes/games.session.$matchId'
+import { Route as GamesRoomsRoomIdRouteImport } from './routes/games.rooms.$roomId'
 import { Route as GamesPlayMatchIdRouteImport } from './routes/games.play.$matchId'
 import { Route as GamesRoomsInviteTokenRouteImport } from './routes/games.rooms.invite.$token'
 
@@ -84,6 +85,11 @@ const GamesSessionMatchIdRoute = GamesSessionMatchIdRouteImport.update({
   path: '/session/$matchId',
   getParentRoute: () => GamesRoute,
 } as any)
+const GamesRoomsRoomIdRoute = GamesRoomsRoomIdRouteImport.update({
+  id: '/rooms/$roomId',
+  path: '/rooms/$roomId',
+  getParentRoute: () => GamesRoute,
+} as any)
 const GamesPlayMatchIdRoute = GamesPlayMatchIdRouteImport.update({
   id: '/play/$matchId',
   path: '/play/$matchId',
@@ -108,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/registration': typeof RegistrationRoute
   '/games/': typeof GamesIndexRoute
   '/games/play/$matchId': typeof GamesPlayMatchIdRoute
+  '/games/rooms/$roomId': typeof GamesRoomsRoomIdRoute
   '/games/session/$matchId': typeof GamesSessionMatchIdRoute
   '/games/rooms/invite/$token': typeof GamesRoomsInviteTokenRoute
 }
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/registration': typeof RegistrationRoute
   '/games': typeof GamesIndexRoute
   '/games/play/$matchId': typeof GamesPlayMatchIdRoute
+  '/games/rooms/$roomId': typeof GamesRoomsRoomIdRoute
   '/games/session/$matchId': typeof GamesSessionMatchIdRoute
   '/games/rooms/invite/$token': typeof GamesRoomsInviteTokenRoute
 }
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/registration': typeof RegistrationRoute
   '/games/': typeof GamesIndexRoute
   '/games/play/$matchId': typeof GamesPlayMatchIdRoute
+  '/games/rooms/$roomId': typeof GamesRoomsRoomIdRoute
   '/games/session/$matchId': typeof GamesSessionMatchIdRoute
   '/games/rooms/invite/$token': typeof GamesRoomsInviteTokenRoute
 }
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/registration'
     | '/games/'
     | '/games/play/$matchId'
+    | '/games/rooms/$roomId'
     | '/games/session/$matchId'
     | '/games/rooms/invite/$token'
   fileRoutesByTo: FileRoutesByTo
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/registration'
     | '/games'
     | '/games/play/$matchId'
+    | '/games/rooms/$roomId'
     | '/games/session/$matchId'
     | '/games/rooms/invite/$token'
   id:
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/registration'
     | '/games/'
     | '/games/play/$matchId'
+    | '/games/rooms/$roomId'
     | '/games/session/$matchId'
     | '/games/rooms/invite/$token'
   fileRoutesById: FileRoutesById
@@ -292,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GamesSessionMatchIdRouteImport
       parentRoute: typeof GamesRoute
     }
+    '/games/rooms/$roomId': {
+      id: '/games/rooms/$roomId'
+      path: '/rooms/$roomId'
+      fullPath: '/games/rooms/$roomId'
+      preLoaderRoute: typeof GamesRoomsRoomIdRouteImport
+      parentRoute: typeof GamesRoute
+    }
     '/games/play/$matchId': {
       id: '/games/play/$matchId'
       path: '/play/$matchId'
@@ -312,6 +331,7 @@ declare module '@tanstack/react-router' {
 interface GamesRouteChildren {
   GamesIndexRoute: typeof GamesIndexRoute
   GamesPlayMatchIdRoute: typeof GamesPlayMatchIdRoute
+  GamesRoomsRoomIdRoute: typeof GamesRoomsRoomIdRoute
   GamesSessionMatchIdRoute: typeof GamesSessionMatchIdRoute
   GamesRoomsInviteTokenRoute: typeof GamesRoomsInviteTokenRoute
 }
@@ -319,6 +339,7 @@ interface GamesRouteChildren {
 const GamesRouteChildren: GamesRouteChildren = {
   GamesIndexRoute: GamesIndexRoute,
   GamesPlayMatchIdRoute: GamesPlayMatchIdRoute,
+  GamesRoomsRoomIdRoute: GamesRoomsRoomIdRoute,
   GamesSessionMatchIdRoute: GamesSessionMatchIdRoute,
   GamesRoomsInviteTokenRoute: GamesRoomsInviteTokenRoute,
 }

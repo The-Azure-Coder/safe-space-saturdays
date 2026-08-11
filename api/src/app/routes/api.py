@@ -1221,6 +1221,13 @@ async def list_room_participants(
     room = await db.get(GameRoom, room_id)
     if room is None:
         raise HTTPException(status_code=404, detail="Room not found")
+    membership = await db.scalar(
+        select(RoomParticipant.id).where(
+            RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
+        )
+    )
+    if membership is None:
+        raise HTTPException(status_code=403, detail="You are not a participant in this room")
     participants = (
         await db.execute(
             select(RoomParticipant, User)
@@ -1249,6 +1256,13 @@ async def end_game_room(room_id: int, user: CurrentUser, db: DbSession) -> Respo
         raise HTTPException(status_code=404, detail="Room not found")
     if room.host_id != user.id:
         raise HTTPException(status_code=403, detail="Only the room host can end this game")
+    guest_user_ids = (
+        await db.scalars(
+            select(User.id)
+            .join(RoomParticipant, RoomParticipant.user_id == User.id)
+            .where(RoomParticipant.room_id == room_id, User.is_guest.is_(True))
+        )
+    ).all()
     match_id = await db.scalar(
         select(GameMatch.id).where(GameMatch.room_id == room_id).limit(1)
     )
@@ -1277,6 +1291,16 @@ async def end_game_room(room_id: int, user: CurrentUser, db: DbSession) -> Respo
         if match_manager.room_matches.get(room_id) == match_id:
             match_manager.room_matches.pop(room_id, None)
     await db.delete(room)
+    await db.flush()
+    for guest_user_id in guest_user_ids:
+        still_participating = await db.scalar(
+            select(RoomParticipant.id).where(RoomParticipant.user_id == guest_user_id).limit(1)
+        )
+        if still_participating is None:
+            await db.execute(delete(Session).where(Session.user_id == guest_user_id))
+            guest = await db.get(User, guest_user_id)
+            if guest is not None:
+                await db.delete(guest)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

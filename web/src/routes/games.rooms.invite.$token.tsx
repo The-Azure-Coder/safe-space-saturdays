@@ -25,13 +25,13 @@ function RoomInviteScreen() {
   })
   const join = useMutation({
     mutationFn: () => api.joinRoomInvite(token),
-    onSuccess: () => navigate({ to: '/games' }),
+    onSuccess: (room) => navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } }),
   })
   const joinGuest = useMutation({
     mutationFn: () => api.joinGuestRoom(token, name.trim()),
     onSuccess: async (result) => {
       queryClient.setQueryData(['me'], result.user)
-      await navigate({ to: '/games' })
+      await navigate({ to: '/games/rooms/$roomId', params: { roomId: String(result.room.id) } })
     },
   })
   const error = invite.error || join.error || joinGuest.error

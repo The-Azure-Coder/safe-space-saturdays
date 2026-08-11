@@ -148,6 +148,14 @@ export type Room = {
   fill_with_bots: boolean
   invite_token?: string | null
 }
+export type RoomParticipant = {
+  user_id: number
+  name: string
+  avatar_url: string | null
+  seat_index: number | null
+  ready: boolean
+  is_host: boolean
+}
 export type RoomInvite = Pick<Room, 'id' | 'name' | 'game' | 'players' | 'max_players' | 'status'> & { invite_token: string }
 export type Match = {
   match_id: string
@@ -313,6 +321,8 @@ export const api = {
   joinRoom: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
   room: (id: number) => apiFetch<Room>(`/api/games/rooms/${id}`),
+  roomParticipants: (id: number) =>
+    apiFetch<Array<RoomParticipant>>(`/api/games/rooms/${id}/participants`),
   roomInvite: (token: string) =>
     apiFetch<RoomInvite>(`/api/games/rooms/invite/${encodeURIComponent(token)}`),
   joinRoomInvite: (token: string) =>

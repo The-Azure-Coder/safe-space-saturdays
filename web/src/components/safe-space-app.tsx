@@ -40,7 +40,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { ApiError, api, assetUrl } from '../lib/api'
-import type { CheckIn, Post, Quote, Room } from '../lib/api'
+import type { CheckIn, Post, Quote } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -2637,32 +2637,14 @@ function GamesScreen() {
   const queryClient = useQueryClient()
   const join = useMutation({
     mutationFn: api.joinRoom,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
-  })
-  const ready = useMutation({
-    mutationFn: api.setRoomReady,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+    onSuccess: (room) => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } })
+    },
   })
   const cleanupBotRooms = useMutation({
     mutationFn: api.cleanupBotRooms,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
-  })
-  const createMatch = useMutation({
-    mutationFn: api.createMatch,
-    onSuccess: (match) =>
-      navigate({
-        to: '/games/play/$matchId',
-        params: { matchId: match.match_id },
-      }),
-  })
-  const createGameSession = useMutation({
-    mutationFn: (input: { room_id: number; fill_with_bots: boolean }) =>
-      api.createGameSession(input.room_id, input.fill_with_bots),
-    onSuccess: (match) =>
-      navigate({
-        to: '/games/session/$matchId',
-        params: { matchId: match.match_id },
-      }),
   })
   const playGame = useMutation({
     mutationFn: async (game: GameDefinition) => {
@@ -2695,26 +2677,13 @@ function GamesScreen() {
   })
   const createRoom = useMutation({
     mutationFn: api.createRoom,
-    onSuccess: () => {
+    onSuccess: (room) => {
       setShowCreateRoom(false)
       setRoomName('A gentle game night')
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } })
     },
   })
-  const startRoom = (room: Room) => {
-    if (room.game === 'Connect Four') {
-      createMatch.mutate({
-        room_id: room.id,
-        with_bot: room.fill_with_bots,
-        bot_difficulty: 'friendly',
-      })
-    } else {
-      createGameSession.mutate({
-        room_id: room.id,
-        fill_with_bots: room.fill_with_bots,
-      })
-    }
-  }
   const availableGames: Array<GameDefinition> = gamesQuery.data?.length
     ? gamesQuery.data.map((game) => ({ ...game, color: game.color }))
     : games.map((game, index) => ({ ...game, id: index + 1 }))
@@ -2857,17 +2826,11 @@ function GamesScreen() {
             {playGame.error.message}
           </p>
         )}
-        {(createMatch.error ||
-          createGameSession.error ||
-          ready.error ||
-          join.error ||
+        {(join.error ||
           cleanupBotRooms.error) && (
           <p className="form-error" role="alert">
             {
               (
-                createMatch.error ||
-                createGameSession.error ||
-                ready.error ||
                 join.error ||
                 cleanupBotRooms.error
               )?.message
@@ -2989,52 +2952,14 @@ function GamesScreen() {
                       Join
                     </button>
                   )}
-                  {room.joined && room.status === 'open' && !room.is_host && (
-                    <button
-                      className={`button button--small room-ready-button ${room.ready ? 'room-ready-button--active' : ''}`}
-                      type="button"
-                      aria-pressed={room.ready}
-                      disabled={ready.isPending}
-                      onClick={() => ready.mutate(room.id)}
-                    >
-                      {room.ready ? 'Ready ✓' : 'Ready up'}
-                    </button>
-                  )}
-                  {room.joined && room.status === 'open' && room.is_host && (
+                  {room.joined && room.status === 'open' && (
                     <button
                       className="button button--small button--secondary room-action-button"
                       type="button"
-                      disabled={
-                        createMatch.isPending || createGameSession.isPending
-                      }
-                      onClick={() => startRoom(room)}
+                      onClick={() => navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } })}
                     >
-                      {createMatch.isPending || createGameSession.isPending
-                        ? 'Opening…'
-                        : room.fill_with_bots
-                          ? 'Start with bots'
-                          : 'Start game'}
+                      Open lobby
                     </button>
-                  )}
-                  {room.joined &&
-                    room.status === 'open' &&
-                    room.is_host &&
-                    !room.fill_with_bots && (
-                      <button
-                        className={`button button--small room-ready-button ${room.ready ? 'room-ready-button--active' : ''}`}
-                        type="button"
-                        aria-pressed={room.ready}
-                        disabled={ready.isPending}
-                        onClick={() => ready.mutate(room.id)}
-                      >
-                        {room.ready ? 'Ready ✓' : 'Ready up'}
-                      </button>
-                    )}
-                  {room.joined && room.status === 'open' && !room.is_host && (
-                    <span className="room-waiting" role="status">
-                      <span className="room-waiting__dot" aria-hidden="true" />
-                      Waiting for host…
-                    </span>
                   )}
                   {room.joined && room.status === 'active' && room.match_id && (
                     <button
