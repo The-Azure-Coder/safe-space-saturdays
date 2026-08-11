@@ -235,21 +235,21 @@ html[data-theme='night'] .profile-dropdown button { color: var(--ink); }
 html[data-theme='night'] .page-footer { background: #21382b; color: #e5eadc; }
 html[data-theme='night'] .privacy-badge { background: #385542; color: #e4f2df; }
 html[data-theme='purple'] {
-  --ink: #30243e;
-  --muted: #6f617a;
-  --paper: #fffaff;
-  --cream: #f7f0fa;
-  --sage: #76639a;
-  --sage-dark: #5a477e;
-  --sage-pale: #eee7f5;
-  --orange: #bd6f63;
-  --orange-pale: #f8e8e4;
-  --lilac: #8c79b6;
-  --lilac-pale: #e9e1f3;
-  --line: #ded3e6;
-  --shadow: 0 12px 32px rgb(85 61 105 / 10%);
+  --ink: #f2eafa;
+  --muted: #c8b8d2;
+  --paper: #30243d;
+  --cream: #211729;
+  --sage: #8d70b5;
+  --sage-dark: #c8a9ed;
+  --sage-pale: #4b3761;
+  --orange: #ef9a9a;
+  --orange-pale: #523442;
+  --lilac: #b99be4;
+  --lilac-pale: #49345d;
+  --line: rgb(224 201 246 / 20%);
+  --shadow: 0 14px 34px rgb(0 0 0 / 30%);
 }
-html[data-theme='purple'] body { background: #f7f0fa; color: var(--ink); }
+html[data-theme='purple'] body { background: #211729; color: var(--ink); }
 html[data-theme='purple'] .app-header,
 html[data-theme='purple'] .profile-card,
 html[data-theme='purple'] .profile-tabs,
@@ -1685,3 +1685,25 @@ html[data-theme='purple'] .section-heading p,
 html[data-theme='purple'] .support-card p,
 html[data-theme='purple'] .check-card > p,
 html[data-theme='purple'] .community-card > p { color: #c8b8d2; }
+html[data-theme='purple'] .auth-panel { border-color: var(--line); background: #30243d; color: var(--ink); box-shadow: var(--shadow); }
+html[data-theme='purple'] .auth-page { background: #211729; color: var(--ink); }
+html[data-theme='purple'] .auth-panel input,
+html[data-theme='purple'] .auth-panel textarea,
+html[data-theme='purple'] .input-wrap { border-color: #644c79; background: #211729; color: var(--ink); }
+html[data-theme='purple'] .leaderboard-table__head { border-color: var(--line); background: #584275; color: #f2eafa; }
+html[data-theme='purple'] .leaderboard-row,
+html[data-theme='purple'] .leaderboard-row--you { border-color: var(--line); background: #30243d; color: var(--ink); }
+html[data-theme='purple'] .leaderboard-row:hover { background: #584275; }
+html[data-theme='purple'] .quote-share-card textarea,
+html[data-theme='purple'] .quote-author-field input { border-color: #644c79; background: #211729; color: #f2eafa; }
+html[data-theme='purple'] .quote-share-card textarea::placeholder { color: #b9a6c8; opacity: 1; }
+html[data-theme='purple'] .announcement-card { background: linear-gradient(145deg, #49345d, #30243d); }
+html[data-theme='purple'] .announcement-item { border-color: rgb(224 201 246 / 18%); }
+html[data-theme='purple'] .announcement-item__badge { background: #584275; color: #ead8ff; }
+html[data-theme='purple'] .announcement-item__badge--sage { background: #354b43; color: #d4edc5; }
+html[data-theme='purple'] .game-night-banner { background: #49345d; }
+html[data-theme='purple'] .welcome-carousel p,
+html[data-theme='purple'] .support-card p { color: #c8b8d2; }
+html[data-theme='purple'] .section-heading .eyebrow,
+html[data-theme='purple'] .eyebrow { color: #c8a9ed; }
+html[data-theme='purple'] .app-nav__link--active { border-color: rgb(200 169 237 / 35%); background: #584275; color: #f5eaff; box-shadow: 0 0 0 2px rgb(200 169 237 / 14%); }
