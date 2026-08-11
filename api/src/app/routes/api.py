@@ -326,10 +326,13 @@ def is_user_online(user: User) -> bool:
 
 
 def user_response(user: User) -> UserResponse:
-    return UserResponse.model_validate({
+    values = {
         **{field: getattr(user, field) for field in UserResponse.model_fields if field != "is_online"},
         "is_online": is_user_online(user),
-    })
+    }
+    if user.is_guest and user.email.endswith("@guest.invalid"):
+        values["email"] = f"guest-{user.id}@guests.safespacesaturdays.app"
+    return UserResponse.model_validate(values)
 
 
 def game_capacity(game_name: str) -> int:

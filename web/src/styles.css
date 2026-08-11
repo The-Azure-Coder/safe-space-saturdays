@@ -1038,6 +1038,10 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
 .room-change-control select { min-height: 36px; max-width: 150px; padding: 7px 28px 7px 10px; }
 .public-room-invite { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }
 .public-room-invite__card { width: min(100%, 460px); }
+.leaderboard-error { display: grid; justify-items: start; gap: 7px; margin: 20px; padding: 18px; border: 1px solid color-mix(in srgb, var(--orange) 42%, var(--line)); border-radius: 14px; background: var(--orange-pale); color: var(--ink); }
+.leaderboard-error span { color: var(--muted); font-size: 13px; }
+.auth-gate__error { display: grid; width: min(100%, 460px); justify-items: center; gap: 10px; margin: 12vh auto 0; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); text-align: center; }
+.auth-gate__error span { color: var(--muted); }
 .room-status-pill { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid var(--sage-pale); border-radius: 999px; background: var(--sage-pale); color: var(--sage-dark); font-size: 13px; font-weight: 700; white-space: nowrap; }
 .room-status-pill--joined { gap: 5px; border-color: color-mix(in srgb, var(--sage) 34%, var(--line)); }
 .room-ready-button { min-width: 86px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); }

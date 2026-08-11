@@ -39,7 +39,7 @@ import {
   X,
 } from '@phosphor-icons/react'
 
-import { api, assetUrl } from '../lib/api'
+import { ApiError, api, assetUrl } from '../lib/api'
 import type { CheckIn, Post, Quote, Room } from '../lib/api'
 
 type Screen =
@@ -3324,7 +3324,13 @@ function LeaderboardScreen() {
             <span>Total XP</span>
             <span>Current Streak</span>
           </div>
-          {!leaderboard.isLoading && entries.length === 0 ? (
+          {leaderboard.isError ? (
+            <div className="leaderboard-error" role="alert">
+              <strong>We couldn’t load the rankings.</strong>
+              <span>{leaderboard.error.message}</span>
+              <button className="button button--small button--secondary" type="button" onClick={() => void leaderboard.refetch()}>Try again</button>
+            </div>
+          ) : !leaderboard.isLoading && entries.length === 0 ? (
             <EmptyState
               title="No rankings yet"
               message="Complete a check-in or encourage the community to start earning points."
@@ -4173,16 +4179,27 @@ function ProtectedApp({
     retry: false,
     enabled: isBrowser,
   })
+  const isUnauthenticated = currentUser.error instanceof ApiError && currentUser.error.status === 401
   useEffect(() => {
-    if (currentUser.isError) navigate({ to: '/login', replace: true })
-  }, [currentUser.isError, navigate])
+    if (isUnauthenticated) navigate({ to: '/login', replace: true })
+  }, [isUnauthenticated, navigate])
   if (!isBrowser || currentUser.isLoading)
     return (
       <main className="page-content auth-gate">
         <ApiLoader label="Checking your safe space session…" />
       </main>
     )
-  if (currentUser.isError || !currentUser.data) return null
+  if (currentUser.isError && !isUnauthenticated)
+    return (
+      <main className="page-content auth-gate">
+        <div className="auth-gate__error" role="alert">
+          <strong>Your session is still here.</strong>
+          <span>We couldn’t reach the server. Please try again.</span>
+          <button className="button button--small button--primary" type="button" onClick={() => void currentUser.refetch()}>Try again</button>
+        </div>
+      </main>
+    )
+  if (isUnauthenticated || !currentUser.data) return null
   const content =
     screen === 'admin' ? (
       <AdminScreen />
