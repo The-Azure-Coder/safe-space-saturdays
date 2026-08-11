@@ -787,6 +787,7 @@ function HomeScreen() {
       <PageHeader screen="home" />
       <main className="page-content home-page">
         <WelcomeCarousel />
+        <GameStrip />
         {dashboard.isLoading && (
           <ApiLoader label="Gathering your safe-space details…" />
         )}
@@ -858,7 +859,6 @@ function HomeScreen() {
             </Link>
           </article>
       </section>
-        <GameStrip />
         {/* <ComingSoonBanner /> */}
       </main>
       <PageFooter />
@@ -1197,8 +1197,8 @@ function AdminScreen() {
         <section className="admin-overview" aria-label="Admin overview">
           <div className="admin-overview__heading">
             <div>
-              <span className="eyebrow">At a glance</span>
-              <h2>Community pulse</h2>
+              <span className="eyebrow">Overview</span>
+              <h2>Admin dashboard</h2>
             </div>
             {adminDashboard.isFetching && <ApiLoader label="Updating…" />}
           </div>
