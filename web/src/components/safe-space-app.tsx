@@ -787,7 +787,6 @@ function HomeScreen() {
       <PageHeader screen="home" />
       <main className="page-content home-page">
         <WelcomeCarousel />
-        <GameStrip />
         {dashboard.isLoading && (
           <ApiLoader label="Gathering your safe-space details…" />
         )}
@@ -859,6 +858,7 @@ function HomeScreen() {
             </Link>
           </article>
       </section>
+        <GameStrip />
         {/* <ComingSoonBanner /> */}
       </main>
       <PageFooter />
@@ -1060,12 +1060,6 @@ function GameStrip() {
     },
     onError: () => navigate({ to: '/games' }),
   })
-  const featured = games.concat({
-    name: 'Bingo',
-    players: '2+ players',
-    icon: '/assets/game-bingo.png',
-    color: 'peach',
-  })
   return (
     <section className="game-strip">
       <div className="section-row">
@@ -1077,7 +1071,7 @@ function GameStrip() {
         </Link>
       </div>
       <div className="game-strip__items">
-        {featured.map((game) => (
+        {games.map((game) => (
           <GameTile
             game={game}
             key={game.name}
