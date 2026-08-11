@@ -1528,6 +1528,31 @@ html[data-theme='crimson'] .leaderboard-table__head { border-color: var(--line);
 html[data-theme='crimson'] .leaderboard-row,
 html[data-theme='crimson'] .leaderboard-row--you { border-color: var(--line); background: #3a2026; color: var(--ink); }
 html[data-theme='crimson'] .leaderboard-row:hover { background: #5a3037; }
+/* Keep the selected leaderboard period unmistakable across every theme. */
+html[data-theme='night'] .leaderboard-filter .filter-chip--active {
+  border-color: #b9d8b5;
+  background: #385542;
+  color: #ffffff;
+  box-shadow: 0 0 0 2px rgb(185 216 181 / 18%);
+}
+html[data-theme='purple'] .leaderboard-filter .filter-chip--active {
+  border-color: #5a477e;
+  background: #76639a;
+  color: #ffffff;
+  box-shadow: 0 0 0 2px rgb(118 99 154 / 18%);
+}
+html[data-theme='crimson'] .leaderboard-filter .filter-chip--active {
+  border-color: #f09a82;
+  background: #6b353e;
+  color: #ffeae4;
+  box-shadow: 0 0 0 2px rgb(240 154 130 / 18%);
+}
+html[data-theme='high-contrast'] .leaderboard-filter .filter-chip--active {
+  border-color: #102019;
+  background: #f2c27b;
+  color: #102019;
+  box-shadow: 0 0 0 2px #102019;
+}
 html[data-theme='crimson'] .quote-share-card textarea,
 html[data-theme='crimson'] .quote-author-field input { border-color: #80505a; background: #2c1b20; color: #fff2ed; }
 html[data-theme='crimson'] .quote-share-card textarea::placeholder { color: #d4aaa3; opacity: 1; }
