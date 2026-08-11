@@ -1072,6 +1072,13 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
 .public-room-invite__card { width: min(100%, 460px); }
 .leaderboard-error { display: grid; justify-items: start; gap: 7px; margin: 20px; padding: 18px; border: 1px solid color-mix(in srgb, var(--orange) 42%, var(--line)); border-radius: 14px; background: var(--orange-pale); color: var(--ink); }
 .leaderboard-error span { color: var(--muted); font-size: 13px; }
+.leaderboard-loading { display: grid; min-height: 230px; place-content: center; justify-items: center; gap: 8px; padding: 28px; color: var(--muted); text-align: center; }
+.leaderboard-loading strong { color: var(--ink); font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 600; }
+.leaderboard-loading > span:last-child { font-size: 13px; }
+.leaderboard-loading__spark { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid var(--sage-pale); border-radius: 50%; background: var(--sage-pale); color: var(--orange); font-size: 25px; animation: leaderboard-sparkle 1.4s ease-in-out infinite; }
+@keyframes leaderboard-sparkle { 0%, 100% { transform: scale(.9) rotate(-8deg); opacity: .7; } 50% { transform: scale(1.08) rotate(8deg); opacity: 1; } }
+.api-loader { display: flex; min-height: 100px; align-items: center; justify-content: center; gap: 9px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); color: var(--muted); }
+.api-loader__spark { color: var(--orange); animation: leaderboard-sparkle 1.4s ease-in-out infinite; }
 .auth-gate__error { display: grid; width: min(100%, 460px); justify-items: center; gap: 10px; margin: 12vh auto 0; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); text-align: center; }
 .auth-gate__error span { color: var(--muted); }
 .room-status-pill { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid var(--sage-pale); border-radius: 999px; background: var(--sage-pale); color: var(--sage-dark); font-size: 13px; font-weight: 700; white-space: nowrap; }

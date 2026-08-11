@@ -115,6 +115,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 
 STAFF_ROLES = {"admin", "super_admin", "manager", "moderator"}
+LEADERBOARD_PERIOD_DAYS = {"day": 1, "week": 7, "month": 30}
 
 
 def can_manage_roles(user: User) -> bool:
@@ -1799,26 +1800,65 @@ async def list_winners(
     return result
 
 
+def leaderboard_query(period: str):
+    """Return members and the XP earned in the requested ranking window."""
+    member_filter = User.is_guest.is_(False)
+    if period == "all":
+        return select(User, User.xp.label("ranking_xp")).where(member_filter)
+
+    start = datetime.now(UTC) - timedelta(days=LEADERBOARD_PERIOD_DAYS[period])
+    reward_totals = (
+        select(
+            RewardLedger.user_id,
+            func.coalesce(func.sum(RewardLedger.xp), 0).label("reward_xp"),
+        )
+        .where(RewardLedger.created_at >= start)
+        .group_by(RewardLedger.user_id)
+        .subquery()
+    )
+    checkin_totals = (
+        select(
+            CheckIn.user_id,
+            (func.count(CheckIn.id) * 25).label("checkin_xp"),
+        )
+        .where(CheckIn.created_at >= start, CheckIn.completed.is_(True))
+        .group_by(CheckIn.user_id)
+        .subquery()
+    )
+    ranking_xp = (
+        func.coalesce(reward_totals.c.reward_xp, 0)
+        + func.coalesce(checkin_totals.c.checkin_xp, 0)
+    ).label("ranking_xp")
+    return (
+        select(User, ranking_xp)
+        .outerjoin(reward_totals, reward_totals.c.user_id == User.id)
+        .outerjoin(checkin_totals, checkin_totals.c.user_id == User.id)
+        .where(member_filter, ranking_xp > 0)
+    )
+
+
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 async def leaderboard(
     user: CurrentUser, db: DbSession, period: str = "week", page: int = 1, limit: int = 10
 ) -> list[LeaderboardEntry]:
-    if period not in {"week", "month", "all"}:
+    if period not in {"day", "week", "month", "all"}:
         raise HTTPException(status_code=422, detail="Invalid leaderboard period")
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    users = (
-        await db.scalars(
-            select(User)
-            .where(User.is_guest.is_(False))
-            .order_by(User.xp.desc(), User.created_at.asc())
+    query = leaderboard_query(period)
+    rows = (
+        await db.execute(
+            query.order_by(query.selected_columns.ranking_xp.desc(), User.created_at.asc())
             .offset((page - 1) * limit)
             .limit(limit)
         )
     ).all()
     return [
-        LeaderboardEntry(rank=(page - 1) * limit + index, user=user_response(member))
-        for index, member in enumerate(users, start=1)
+        LeaderboardEntry(
+            rank=(page - 1) * limit + index,
+            user=user_response(member).model_copy(update={"xp": int(ranking_xp)}),
+        )
+        for index, (member, ranking_xp) in enumerate(rows, start=1)
     ]
 
 
@@ -1826,17 +1866,24 @@ async def leaderboard(
 async def leaderboard_me(
     user: CurrentUser, db: DbSession, period: str = "week"
 ) -> LeaderboardEntry:
-    if period not in {"week", "month", "all"}:
+    if period not in {"day", "week", "month", "all"}:
         raise HTTPException(status_code=422, detail="Invalid leaderboard period")
     if user.is_guest:
         raise HTTPException(status_code=403, detail="Temporary guest players are not ranked")
+    query = leaderboard_query(period)
+    current_row = (await db.execute(query.where(User.id == user.id))).first()
+    current_xp = int(current_row[1]) if current_row else 0
+    ranking = query.subquery()
     rank = (
         await db.scalar(
-            select(func.count(User.id)).where(User.is_guest.is_(False), User.xp > user.xp)
+            select(func.count()).select_from(ranking).where(ranking.c.ranking_xp > current_xp)
         )
         or 0
     ) + 1
-    return LeaderboardEntry(rank=rank, user=user_response(user))
+    return LeaderboardEntry(
+        rank=rank,
+        user=user_response(user).model_copy(update={"xp": current_xp}),
+    )
 
 
 @router.get("/admin/bug-reports", response_model=list[BugReportResponse])

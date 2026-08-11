@@ -40,7 +40,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { ApiError, api, assetUrl } from '../lib/api'
-import type { CheckIn, Post, Quote } from '../lib/api'
+import type { CheckIn, LeaderboardPeriod, Post, Quote } from '../lib/api'
 
 type Screen =
   | 'home'
@@ -3155,7 +3155,7 @@ function BugReportWidget() {
 }
 
 function LeaderboardScreen() {
-  const [period, setPeriod] = useState('week')
+  const [period, setPeriod] = useState<LeaderboardPeriod>('week')
   const [page, setPage] = useState(1)
   const leaderboard = useQuery({
     queryKey: ['leaderboard', period, page],
@@ -3167,6 +3167,13 @@ function LeaderboardScreen() {
     queryFn: () => api.leaderboardMe(period),
   })
   const entries = leaderboard.data ?? []
+  const isRefreshing = leaderboard.isFetching || progress.isFetching
+  const filters: Array<[LeaderboardPeriod, string]> = [
+    ['day', 'Today'],
+    ['week', 'This Week'],
+    ['month', 'This Month'],
+    ['all', 'All Time'],
+  ]
   return (
     <>
       <PageHeader screen="leaderboard" />
@@ -3179,7 +3186,7 @@ function LeaderboardScreen() {
             />
           </div>
           <div className="podium">
-            {page === 1 &&
+            {page === 1 && !isRefreshing &&
               entries.slice(0, 3).map((entry, index) => (
                 <div
                   className={`podium-member podium-member--${index + 1}`}
@@ -3209,10 +3216,10 @@ function LeaderboardScreen() {
                 <strong>#{progress.data?.rank ?? '—'}</strong>
               </span>
               <span>
-                Total XP
+                {period === 'all' ? 'Total XP' : 'XP Earned'}
                 <strong>
-                  {progress.data?.user.xp.toLocaleString() ?? '—'}{' '}
-                  <small>XP</small>
+                  {progress.isFetching ? '—' : progress.data?.user.xp.toLocaleString() ?? '—'}{' '}
+                  <small>{period === 'all' ? 'XP' : 'this period'}</small>
                 </strong>
               </span>
             </div>
@@ -3220,11 +3227,7 @@ function LeaderboardScreen() {
           </aside>
         </section>
         <div className="leaderboard-filter">
-          {[
-            ['week', 'This Week'],
-            ['month', 'This Month'],
-            ['all', 'All Time'],
-          ].map(([value, label]) => (
+          {filters.map(([value, label]) => (
             <button
               className={
                 period === value
@@ -3246,10 +3249,16 @@ function LeaderboardScreen() {
           <div className="leaderboard-table__head">
             <span>Rank</span>
             <span>Member</span>
-            <span>Total XP</span>
+            <span>{period === 'all' ? 'Total XP' : 'XP Earned'}</span>
             <span>Current Streak</span>
           </div>
-          {leaderboard.isError ? (
+          {isRefreshing ? (
+            <div className="leaderboard-loading" role="status" aria-live="polite">
+              <span className="leaderboard-loading__spark" aria-hidden="true">✦</span>
+              <strong>Gathering the kindest wins…</strong>
+              <span>One moment while we refresh the rankings.</span>
+            </div>
+          ) : leaderboard.isError ? (
             <div className="leaderboard-error" role="alert">
               <strong>We couldn’t load the rankings.</strong>
               <span>{leaderboard.error.message}</span>

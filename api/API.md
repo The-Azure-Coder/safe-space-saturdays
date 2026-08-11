@@ -35,7 +35,7 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 | Games | POST | `/api/games/rooms` | Create a room |
 | Games | POST | `/api/games/rooms/{id}/join` | Join a room |
 | Games | GET | `/api/games/winners?page=1&limit=10` | Recent winners with pagination |
-| Leaderboard | GET | `/api/leaderboard?period=week&page=1&limit=10` | Ranked members with pagination |
+| Leaderboard | GET | `/api/leaderboard?period=day&page=1&limit=10` | Ranked members for `day`, `week`, `month`, or `all` with pagination |
 
 All request bodies and response bodies are typed and visible in the generated OpenAPI schema. Validation errors use FastAPI's standard `422` response; missing authentication uses `401`; missing resources use `404`; duplicate or full resources use `409`.
 

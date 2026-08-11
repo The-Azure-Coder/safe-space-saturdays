@@ -156,6 +156,7 @@ export type RoomParticipant = {
   ready: boolean
   is_host: boolean
 }
+export type LeaderboardPeriod = 'day' | 'week' | 'month' | 'all'
 export type RoomInvite = Pick<Room, 'id' | 'name' | 'game' | 'players' | 'max_players' | 'status'> & { invite_token: string }
 export type Match = {
   match_id: string
@@ -370,11 +371,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
-  leaderboard: (period: string, page = 1, limit = 10) =>
+  leaderboard: (period: LeaderboardPeriod, page = 1, limit = 10) =>
     apiFetch<Array<LeaderboardEntry>>(
       `/api/leaderboard?period=${period}&page=${page}&limit=${limit}`,
     ),
-  leaderboardMe: (period: string) =>
+  leaderboardMe: (period: LeaderboardPeriod) =>
     apiFetch<LeaderboardEntry>(`/api/leaderboard/me?period=${period}`),
   createBugReport: (body: {
     title: string
