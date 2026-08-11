@@ -48,6 +48,8 @@ function ConnectFourScreen() {
 
   const board = match?.board ?? EMPTY_BOARD
   const winning = useMemo(() => new Set((match?.winning_cells ?? []).map(([row, column]) => `${row}-${column}`)), [match?.winning_cells])
+  if (!match && !error)
+    return <main className="page-content game-play-page connect-four-page"><div className="api-loader">Preparing the Connect Four board…</div></main>
   let previewRow: number | null = null
   if (hoveredColumn !== null) {
     for (let row = board.length - 1; row >= 0; row -= 1) {
