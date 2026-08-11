@@ -594,7 +594,12 @@ async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
     quote = await db.scalar(
         select(Quote).where(Quote.is_featured.is_(True)).order_by(Quote.id).limit(1)
     )
-    rank = (await db.scalar(select(func.count(User.id)).where(User.xp > user.xp)) or 0) + 1
+    rank = (
+        await db.scalar(
+            select(func.count(User.id)).where(User.is_guest.is_(False), User.xp > user.xp)
+        )
+        or 0
+    ) + 1
     quote_response = None if quote is None else QuoteResponse.model_validate(quote)
     checkin_response = None if latest is None else CheckInResponse.model_validate(latest)
     return DashboardResponse(
@@ -1756,7 +1761,7 @@ async def list_winners(
                 func.max(RewardLedger.created_at).label("latest_win"),
             )
             .join(User, User.id == RewardLedger.user_id)
-            .where(RewardLedger.kind == "game_win")
+            .where(RewardLedger.kind == "game_win", User.is_guest.is_(False))
             .group_by(RewardLedger.user_id, User.name, User.avatar_url)
             .order_by(func.sum(RewardLedger.xp).desc(), func.max(RewardLedger.created_at).desc(), User.name.asc())
             .offset((page - 1) * limit)
@@ -1800,6 +1805,7 @@ async def leaderboard(
     users = (
         await db.scalars(
             select(User)
+            .where(User.is_guest.is_(False))
             .order_by(User.xp.desc(), User.created_at.asc())
             .offset((page - 1) * limit)
             .limit(limit)
@@ -1817,7 +1823,14 @@ async def leaderboard_me(
 ) -> LeaderboardEntry:
     if period not in {"week", "month", "all"}:
         raise HTTPException(status_code=422, detail="Invalid leaderboard period")
-    rank = (await db.scalar(select(func.count(User.id)).where(User.xp > user.xp)) or 0) + 1
+    if user.is_guest:
+        raise HTTPException(status_code=403, detail="Temporary guest players are not ranked")
+    rank = (
+        await db.scalar(
+            select(func.count(User.id)).where(User.is_guest.is_(False), User.xp > user.xp)
+        )
+        or 0
+    ) + 1
     return LeaderboardEntry(rank=rank, user=user_response(user))
 
 
