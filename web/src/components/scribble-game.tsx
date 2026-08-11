@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, PointerEvent } from 'react'
 import { Eraser, Pencil, Robot, Timer, Trophy } from '@phosphor-icons/react'
 
+import { playerDisplayName } from '../lib/game-player'
+
 type ScribblePlayer = { name: string; is_bot: boolean }
 type ScribblePoint = { x: number; y: number }
 type ScribbleStroke = { points: Array<ScribblePoint>; color: string; size: number; erase?: boolean }
 
 export type ScribbleState = {
+  seat_index?: number
   game: 'scribble'
   phase: 'choosing' | 'drawing' | 'guessing' | 'round_result' | 'finished'
   round: number
@@ -44,6 +47,7 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
   const [tool, setTool] = useState<'pencil' | 'eraser'>('pencil')
   const [guess, setGuess] = useState('')
   const players = state.players ?? [{ name: 'You', is_bot: false }, { name: 'Milo Bot', is_bot: true }]
+  const playerIndex = Number(state.seat_index ?? 0)
   const strokes = state.strokes ?? []
   const isDrawer = Boolean(state.is_drawer)
   const roundResult = state.phase === 'round_result'
@@ -192,7 +196,7 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
     </header>
 
     <div className="scribble-scoreboard" aria-label="Scores">
-      {players.map((player, index) => <div className={index === state.current_drawer && !finished ? 'scribble-score scribble-score--active' : 'scribble-score'} key={player.name}><span className="scribble-score__avatar">{player.is_bot ? <Robot size={17} weight="fill" /> : <Pencil size={17} weight="fill" />}</span><span>{player.name}</span><strong>{state.scores?.[index] ?? 0}</strong></div>)}
+      {players.map((player, index) => <div className={index === state.current_drawer && !finished ? 'scribble-score scribble-score--active' : 'scribble-score'} key={player.name}><span className="scribble-score__avatar">{player.is_bot ? <Robot size={17} weight="fill" /> : <Pencil size={17} weight="fill" />}</span><span>{playerDisplayName(player.name, index, playerIndex)}</span><strong>{state.scores?.[index] ?? 0}</strong></div>)}
     </div>
 
     {state.phase === 'guessing' && <div className={`scribble-timer${secondsLeft <= 7 ? ' scribble-timer--urgent' : ''}`} role="timer"><Timer size={18} weight="fill" /><strong>{secondsLeft}s to guess</strong><span><i style={{ width: `${Math.max(0, Math.min(100, (secondsLeft / 30) * 100))}%` }} /></span></div>}

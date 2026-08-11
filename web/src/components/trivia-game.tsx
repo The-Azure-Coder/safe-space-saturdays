@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle, Clock, Fire, Robot, SpeakerHigh, SpeakerSlash, Sparkle, Trophy, UserCircle, XCircle } from '@phosphor-icons/react'
 
+import { playerDisplayName } from '../lib/game-player'
+
 type TriviaPlayer = { name: string; is_bot: boolean }
 
 export type TriviaState = {
@@ -94,7 +96,7 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
       priorPhase.current = phase
       return
     }
-    if (phase === 'reveal') playTone(selectedAnswers[0] === state.correct_answer ? 'correct' : 'wrong')
+    if (phase === 'reveal') playTone(selectedAnswers[playerIndex] === state.correct_answer ? 'correct' : 'wrong')
     if (phase === 'complete') playTone('complete')
     priorPhase.current = phase
   }, [phase, selectedAnswers, soundOn, state.correct_answer])
@@ -119,9 +121,9 @@ export function TriviaGame({ state, send, error, playerIndex = 0 }: { state: Par
     <div className="trivia-progress" aria-label={`${Math.round(progress)} percent complete`}><span style={{ width: `${progress}%` }} /></div>
 
     <div className="trivia-scoreboard">
-      {players.map((player, index) => <article className={`trivia-player${index === 0 ? ' trivia-player--you' : ''}${state.current_player === index && !isReveal ? ' trivia-player--active' : ''}`} key={player.name}>
+      {players.map((player, index) => <article className={`trivia-player${index === playerIndex ? ' trivia-player--you' : ''}${state.current_player === index && !isReveal ? ' trivia-player--active' : ''}`} key={player.name}>
         <span className="trivia-player__avatar">{player.is_bot ? <Robot size={25} weight="fill" /> : <UserCircle size={26} weight="fill" />}</span>
-        <span><small>{player.name}</small><strong>{scores[index] ?? 0}</strong></span>
+        <span><small>{playerDisplayName(player.name, index, playerIndex)}</small><strong>{scores[index] ?? 0}</strong></span>
         {(streaks[index] ?? 0) > 1 && <em><Fire size={14} weight="fill" /> {streaks[index]} streak</em>}
       </article>)}
     </div>

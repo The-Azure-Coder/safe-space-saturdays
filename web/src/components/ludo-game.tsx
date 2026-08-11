@@ -76,8 +76,8 @@ function tokenCoordinate(player: LudoPlayer, token: number, position: number): C
   return HOME_PATHS[player.color][Math.min(position - 52, HOME_PATHS[player.color].length - 1)]
 }
 
-function tokenLabel(player: LudoPlayer, token: number, position: number): string {
-  const owner = player.is_bot ? `${player.name}'s` : 'Your'
+function tokenLabel(player: LudoPlayer, token: number, position: number, isLocal: boolean): string {
+  const owner = isLocal ? 'Your' : `${player.name}'s`
   if (position < 0) return `${owner} token ${token + 1}, in the yard`
   if (position >= 57) return `${owner} token ${token + 1}, home`
   if (position >= 52) return `${owner} token ${token + 1}, in the home lane`
@@ -190,7 +190,7 @@ export function LudoGame({ state, send, playerIndex }: LudoGameProps) {
   const legalTokens = state.legal_tokens ?? []
   const canRoll = currentPlayer === localPlayer && phase === 'roll' && winner === null && !rolling && !isAnimatingMove
   const canMove = currentPlayer === localPlayer && phase === 'move' && winner === null && !rolling && !isAnimatingMove
-  const activePlayer = players[currentPlayer] ?? players[localPlayer] ?? players[0]
+  const activePlayer = players[currentPlayer]
   const botRolling = currentPlayer !== localPlayer && Boolean(players[currentPlayer]?.is_bot) && phase === 'roll' && winner === null
 
   const rollDice = () => {
@@ -234,11 +234,11 @@ export function LudoGame({ state, send, playerIndex }: LudoGameProps) {
     <div className="ludo-board-frame">
       <div className="ludo-classic-board" role="grid" aria-label="Classic fifteen by fifteen Ludo board">
         {COLORS.map((color) => {
-          const playerIndex = players.findIndex((player) => player.color === color)
-          const playerName = playerIndex >= 0 ? players[playerIndex].name : color
-          const active = playerIndex >= 0 && currentPlayer === playerIndex && winner === null
-          const playerRolling = playerIndex === localPlayer ? rolling : botRolling && currentPlayer === playerIndex
-          return <div className={`ludo-yard ludo-yard--${color}${active ? ' ludo-yard--active' : ''}`} aria-label={`${playerName} yard${active ? ', current turn' : ''}`} key={color}><span>{playerName}</span>{active && <><small className="ludo-yard__turn">{phase === 'roll' ? 'ROLL' : 'MOVE'}</small><span className="ludo-yard__die"><Die face={state.last_rolls?.[playerIndex] ?? (playerIndex === localPlayer ? diceFace : 1)} rolling={playerRolling} label={`${playerName} die`} onClick={playerIndex === localPlayer && canRoll ? rollDice : undefined} /></span></>}<div className="ludo-yard__inner">{Array.from({ length: 4 }, (_, index) => <i key={index} />)}</div></div>
+          const playerSeat = players.findIndex((player) => player.color === color)
+          const playerName = playerSeat >= 0 ? players[playerSeat].name : color
+          const active = playerSeat >= 0 && currentPlayer === playerSeat && winner === null
+          const playerRolling = playerSeat === localPlayer ? rolling : botRolling && currentPlayer === playerSeat
+          return <div className={`ludo-yard ludo-yard--${color}${active ? ' ludo-yard--active' : ''}`} aria-label={`${playerName} yard${active ? ', current turn' : ''}`} key={color}><span>{playerName}</span>{active && <><small className="ludo-yard__turn">{phase === 'roll' ? 'ROLL' : 'MOVE'}</small><span className="ludo-yard__die"><Die face={state.last_rolls?.[playerSeat] ?? (playerSeat === localPlayer ? diceFace : 1)} rolling={playerRolling} label={`${playerName} die`} onClick={playerSeat === localPlayer && canRoll ? rollDice : undefined} /></span></>}<div className="ludo-yard__inner">{Array.from({ length: 4 }, (_, index) => <i key={index} />)}</div></div>
         })}
 
         {TRACK.map(([row, column], index) => <span
@@ -269,10 +269,10 @@ export function LudoGame({ state, send, playerIndex }: LudoGameProps) {
             {player === localPlayer ? <button
               className={tokenClass}
               type="button"
-              aria-label={`${tokenLabel(playerDetails, token, position)}${legal ? ', legal move' : ''}`}
+              aria-label={`${tokenLabel(playerDetails, token, position, true)}${legal ? ', legal move' : ''}`}
               disabled={!legal}
               onClick={() => moveToken(token)}
-            ><span>{token + 1}</span></button> : <span className={tokenClass} aria-label={tokenLabel(playerDetails, token, position)} role="img"><span>{token + 1}</span></span>}
+            ><span>{token + 1}</span></button> : <span className={tokenClass} aria-label={tokenLabel(playerDetails, token, position, false)} role="img"><span>{token + 1}</span></span>}
           </span>
         }))}
       </div>

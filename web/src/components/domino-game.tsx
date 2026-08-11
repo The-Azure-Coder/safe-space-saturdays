@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { ArrowBendDownLeft, ArrowBendDownRight, Robot, Sparkle, Trophy } from '@phosphor-icons/react'
+import { ArrowBendDownLeft, ArrowBendDownRight, Robot, Sparkle, Trophy, UserCircle } from '@phosphor-icons/react'
 
 type DominoPlayer = { name: string; is_bot: boolean }
 type DominoMove = { tile_index: number; sides: Array<'left' | 'right'> }
@@ -184,10 +184,10 @@ export function DominoGame({ state, send, error = '', playerIndex }: DominoGameP
     <div className="domino-opponents" aria-label="Other players">
       {players.map((player, index) => {
         if (index === localPlayer) return null
-        const playerIndex = index
-        const handCount = state.hand_counts?.[playerIndex] ?? hands[playerIndex].length
-        return <article className={`domino-player${currentPlayer === playerIndex && winner === null && !draw ? ' domino-player--active' : ''}`} key={player.name}>
-          <span className="domino-player__avatar"><Robot size={20} weight="fill" /></span>
+        const playerSeat = index
+        const handCount = state.hand_counts?.[playerSeat] ?? hands[playerSeat].length
+        return <article className={`domino-player${currentPlayer === playerSeat && winner === null && !draw ? ' domino-player--active' : ''}`} key={player.name}>
+          <span className="domino-player__avatar">{player.is_bot ? <Robot size={20} weight="fill" /> : <UserCircle size={20} weight="fill" />}</span>
           <span><strong>{player.name}</strong><small>{handCount} dominoes</small></span>
           <span className="domino-mini-rack" aria-hidden="true">{Array.from({ length: Math.min(5, handCount) }, (_, tile) => <i key={tile} />)}</span>
         </article>
