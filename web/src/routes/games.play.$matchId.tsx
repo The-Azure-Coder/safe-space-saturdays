@@ -4,6 +4,7 @@ import { ArrowLeft, CaretDown, Robot, Sparkle, Trophy, UserCircle } from '@phosp
 
 import { API_URL, api } from '../lib/api'
 import type { Match } from '../lib/api'
+import { connectFourSeat } from '../lib/connect-four'
 import { GameRoomControls } from '../components/game-room-controls'
 
 export const Route = createFileRoute('/games/play/$matchId')({ component: ConnectFourScreen })
@@ -54,11 +55,12 @@ function ConnectFourScreen() {
     }
   }
   const playerNumber = match?.player ?? 1
-  const players = match?.players?.length === 2
+  const players = match?.players.length === 2
     ? match.players
     : [{ name: 'You', is_bot: false }, { name: 'Milo Bot', is_bot: true }]
-  const opponentNumber = playerNumber === 1 ? 2 : 1
-  const opponent = players[opponentNumber - 1]
+  const coralSeat = connectFourSeat(players, 1, playerNumber)
+  const sunshineSeat = connectFourSeat(players, 2, playerNumber)
+  const ownDiscLabel = playerNumber === 1 ? coralSeat.disc : sunshineSeat.disc
   const canPlay = Boolean(match && match.current_player === playerNumber && !match.winner && !match.draw && pendingColumn === null)
   const status = match?.winner
     ? match.winner === playerNumber ? 'Four in a row — you won!' : `${players[match.winner - 1]?.name ?? 'Your opponent'} found four this time.`
@@ -101,16 +103,16 @@ function ConnectFourScreen() {
 
     <section className="connect-four-shell" aria-label="Connect Four game">
       <div className="connect-four-scoreboard">
-        <article className={`connect-four-player connect-four-player--you${match?.current_player === playerNumber && !match.winner ? ' connect-four-player--active' : ''}`}>
+        <article className={`connect-four-player connect-four-player--you${match?.current_player === 1 && !match.winner ? ' connect-four-player--active' : ''}`}>
           <span className="connect-four-player__avatar"><UserCircle size={28} weight="fill" /></span>
-          <span><small>Coral discs</small><strong>{players[playerNumber - 1]?.name ?? 'You'}</strong></span>
+          <span><small>Coral discs</small><strong>{coralSeat.name}{coralSeat.isViewer ? ' · You' : ''}</strong></span>
           <i aria-hidden="true" />
         </article>
         <div className="connect-four-round"><small>Round one</small><strong>{match?.winner || match?.draw ? 'Complete' : 'Playing'}</strong></div>
-        <article className={`connect-four-player connect-four-player--bot${match?.current_player === opponentNumber && !match.winner ? ' connect-four-player--active' : ''}`}>
+        <article className={`connect-four-player connect-four-player--bot${match?.current_player === 2 && !match.winner ? ' connect-four-player--active' : ''}`}>
           <i aria-hidden="true" />
-          <span><small>Sunshine discs</small><strong>{opponent?.name ?? 'Your opponent'}</strong></span>
-          <span className="connect-four-player__avatar">{opponent?.is_bot ? <Robot size={27} weight="fill" /> : <UserCircle size={27} weight="fill" />}</span>
+          <span><small>Sunshine discs</small><strong>{sunshineSeat.name}{sunshineSeat.isViewer ? ' · You' : ''}</strong></span>
+          <span className="connect-four-player__avatar">{sunshineSeat.isBot ? <Robot size={27} weight="fill" /> : <UserCircle size={27} weight="fill" />}</span>
         </article>
       </div>
 
@@ -126,7 +128,7 @@ function ConnectFourScreen() {
             key={column}
             className="connect-four-drop-button"
             type="button"
-            aria-label={`Drop coral disc in column ${column + 1}`}
+            aria-label={`Drop ${ownDiscLabel} disc in column ${column + 1}`}
             disabled={!canPlay || board[0][column] !== 0}
             onClick={() => play(column)}
             onFocus={() => setHoveredColumn(column)}
@@ -144,7 +146,7 @@ function ConnectFourScreen() {
                 className={`connect-four-cell connect-four-cell--${cell}${isLast ? ' connect-four-cell--last' : ''}${isWinning ? ' connect-four-cell--winning' : ''}${hoveredColumn === column && previewRow === rowIndex ? ' connect-four-cell--preview' : ''}`}
                 role="gridcell"
                 key={`${rowIndex}-${column}`}
-                aria-label={`Row ${rowIndex + 1}, column ${column + 1}: ${cell === 0 ? 'empty' : cell === 1 ? 'your coral disc' : 'Milo’s sunshine disc'}${isWinning ? ', winning disc' : ''}`}
+                aria-label={`Row ${rowIndex + 1}, column ${column + 1}: ${cell === 0 ? 'empty' : cell === 1 ? 'coral disc' : 'sunshine disc'}${isWinning ? ', winning disc' : ''}`}
               />
             }))}
           </div>
