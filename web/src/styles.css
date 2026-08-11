@@ -77,7 +77,7 @@ main { min-height: 100vh; }
 @media (max-width: 760px) { .app-header { position: sticky; top: 8px; width: calc(100% - 20px); min-height: 64px; margin-top: 10px; padding: 0 12px; border-radius: 17px; }.brand-mark--compact { flex-basis: 106px; margin-top: -5px; padding: 5px 7px 8px; }.brand-mark__script { margin-top: 14px; font-size: 20px; }.brand-mark__name { font-size: 6px; letter-spacing: .2em; }.brand-mark__tagline { display: none; }.brand-mark__leaves { font-size: 28px; }.app-nav { justify-content: flex-end; gap: 2px; }.app-nav__link { min-height: 50px; padding: 5px; border: 0; }.app-nav__link span { display: none; }.profile-menu { display: none; }.page-content { width: calc(100% - 28px); padding-top: 34px; }.section-heading h1 { font-size: clamp(36px, 11vw, 56px); }.section-heading p { font-size: 16px; }.home-hero, .community-hero, .games-hero { display: flex; flex-direction: column-reverse; align-items: stretch; }.home-hero__art img, .community-hero img, .games-hero img { max-height: 190px; }.home-hero__copy { order: 2; }.home-hero__art { order: 1; }.stats-grid, .dashboard-grid, .community-promos, .quote-grid, .two-column, .quote-actions, .games-layout { grid-template-columns: 1fr; }.dashboard-grid .community-card { grid-column: auto; }.game-strip__items { grid-template-columns: repeat(2, 1fr); }.game-strip__items .game-tile:nth-child(n+5) { display: none; }.auth-page { grid-template-columns: 1fr; gap: 24px; padding: 30px 16px; }.auth-intro { order: 2; }.auth-panel { padding: 29px 22px; }.auth-intro h1 { font-size: 43px; }.auth-intro > p { font-size: 17px; }.auth-intro img { max-height: 220px; object-fit: cover; object-position: center 55%; }.auth-panel h2 { font-size: 36px; }.mood-row--large { gap: 5px; }.mood-option { min-height: 88px; font-size: 25px; }.checkin-sidebar { grid-template-columns: 1fr; }.checkin-actions { grid-template-columns: 1fr; }.featured-quote { padding: 28px 30px 22px; }.featured-quote::before, .featured-quote::after { font-size: 60px; }.promo-card { grid-template-columns: 95px 1fr; }.promo-card__icon { width: 90px; height: 90px; font-size: 43px; }.promo-card h2 { font-size: 21px; }.game-night-banner { flex-wrap: wrap; padding: 22px; }.game-night-banner div { flex-basis: 100%; }.game-night-banner h2 { font-size: 24px; }.game-grid { grid-template-columns: repeat(2, 1fr); }.game-tile { min-height: 180px; padding: 10px; }.leaderboard-hero { display: flex; flex-direction: column; align-items: stretch; }.podium { gap: 3px; }.podium-member { width: 33%; }.leaderboard-filter { justify-content: center; }.leaderboard-table { overflow-x: auto; }.leaderboard-table__head, .leaderboard-row { min-width: 640px; }.page-footer { min-height: 68px; padding: 14px 8px; font-size: 22px; }.footer-leaf { display: none; } }
 
 .form-error { margin: 12px 0; padding: 10px 12px; border: 1px solid #d88f80; border-radius: 10px; background: #fff0eb; color: #8a382b; }
-.choice-chip--selected { border-color: var(--sage-dark); background: #e5ebd9; }
+.choice-chip--selected { border-color: var(--sage-dark); background: #e5ebd9; box-shadow: 0 0 0 2px rgb(122 140 105 / 18%); }
 .post-composer { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 16px 22px; border-bottom: 1px solid var(--line); }
 .post-composer textarea { min-height: 76px; resize: vertical; }
 .post-composer__controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
@@ -1251,7 +1251,7 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
 .range-row { display: grid; gap: 9px; }
 .range-row__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .range-row__heading label { color: var(--ink); font-weight: 700; }
-.range-row__heading output { color: var(--sage-dark); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.range-row__heading output { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--sage-pale); color: var(--sage-dark); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .range-row input[type='range'] {
   width: 100%;
   height: 28px;
@@ -1629,3 +1629,59 @@ html[data-theme='sage'] .app-nav__link--active { border-color: rgb(86 105 70 / 3
 html[data-theme='night'] .app-nav__link--active { border-color: rgb(185 216 181 / 35%); background: #385542; color: #e8f4e4; box-shadow: 0 0 0 2px rgb(185 216 181 / 12%); }
 html[data-theme='purple'] .app-nav__link--active { border-color: rgb(90 71 126 / 35%); background: #e1d5ef; color: #493765; box-shadow: 0 0 0 2px rgb(118 99 154 / 14%); }
 html[data-theme='high-contrast'] .app-nav__link--active { border-color: #102019; background: #f2c27b; color: #102019; box-shadow: 0 0 0 2px #102019; }
+html[data-theme='night'] .mood-option--selected,
+html[data-theme='night'] .choice-chip--selected { border-color: #b9d8b5; background: #385542; color: #ffffff; box-shadow: 0 0 0 3px rgb(185 216 181 / 18%); }
+html[data-theme='night'] .range-row__heading output { border-color: #526b5b; background: #385542; color: #d8efd3; }
+html[data-theme='purple'] .mood-option--selected,
+html[data-theme='purple'] .choice-chip--selected { border-color: #c8a9ed; background: #584275; color: #ffffff; box-shadow: 0 0 0 3px rgb(200 169 237 / 20%); }
+html[data-theme='purple'] .range-row__heading output { border-color: #725890; background: #584275; color: #f4eaff; }
+html[data-theme='crimson'] .mood-option--selected,
+html[data-theme='crimson'] .choice-chip--selected { border-color: #f2b39a; background: #6b3540; color: #fff7f3; box-shadow: 0 0 0 3px rgb(242 179 154 / 20%); }
+html[data-theme='crimson'] .range-row__heading output { border-color: #8d4a56; background: #6b3540; color: #ffe1d5; }
+
+/* Tatty's Garden is a purple night garden, not a light lavender surface. */
+html[data-theme='purple'] body { background: #211729; color: #f2eafa; }
+html[data-theme='purple'] .app-header,
+html[data-theme='purple'] .form-card,
+html[data-theme='purple'] .support-card,
+html[data-theme='purple'] .privacy-note,
+html[data-theme='purple'] .profile-card,
+html[data-theme='purple'] .profile-tabs,
+html[data-theme='purple'] .conversation-card,
+html[data-theme='purple'] .guidelines-card,
+html[data-theme='purple'] .games-panel,
+html[data-theme='purple'] .rooms-panel,
+html[data-theme='purple'] .winner-panel,
+html[data-theme='purple'] .leaderboard-table,
+html[data-theme='purple'] .featured-quote { border-color: #584269; background: #30243d; color: #f2eafa; }
+html[data-theme='purple'] .choice-chip,
+html[data-theme='purple'] .mood-option,
+html[data-theme='purple'] .button--secondary,
+html[data-theme='purple'] .filter-chip,
+html[data-theme='purple'] .theme-option { border-color: #644c79; background: #3b2d4c; color: #f2eafa; }
+html[data-theme='purple'] .choice-chip:hover,
+html[data-theme='purple'] .mood-option:hover,
+html[data-theme='purple'] .theme-option:hover,
+html[data-theme='purple'] .theme-option--selected { background: #584275; color: #ffffff; }
+html[data-theme='purple'] .stat-card,
+html[data-theme='purple'] .check-card,
+html[data-theme='purple'] .quote-card,
+html[data-theme='purple'] .community-card,
+html[data-theme='purple'] .promo-card,
+html[data-theme='purple'] .game-strip { background: #3a2b4a; color: #f2eafa; }
+html[data-theme='purple'] .form-card input,
+html[data-theme='purple'] .form-card textarea,
+html[data-theme='purple'] .profile-card form input,
+html[data-theme='purple'] .post-composer textarea { border-color: #644c79; background: #211729; color: #f2eafa; }
+html[data-theme='purple'] .form-card input::placeholder,
+html[data-theme='purple'] .form-card textarea::placeholder,
+html[data-theme='purple'] .post-composer textarea::placeholder { color: #b9a6c8; opacity: 1; }
+html[data-theme='purple'] .form-card input:focus,
+html[data-theme='purple'] .form-card textarea:focus,
+html[data-theme='purple'] .post-composer textarea:focus { border-color: #c8a9ed; box-shadow: 0 0 0 4px rgb(200 169 237 / 16%); }
+html[data-theme='purple'] .privacy-note { background: #3b2d4c; }
+html[data-theme='purple'] .page-footer { background: #2a1d37; color: #f2eafa; }
+html[data-theme='purple'] .section-heading p,
+html[data-theme='purple'] .support-card p,
+html[data-theme='purple'] .check-card > p,
+html[data-theme='purple'] .community-card > p { color: #c8b8d2; }
