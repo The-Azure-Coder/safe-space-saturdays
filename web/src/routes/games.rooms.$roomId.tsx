@@ -97,11 +97,14 @@ function GameRoomLobby() {
       }}><Copy size={17} /> {copied ? 'Link copied' : 'Copy invite link'}</button>}
       <div className="game-lobby-waiting"><span className="game-lobby-pulse" /> <strong>{currentRoom.is_host ? 'Your room is ready.' : 'Waiting for the host to start…'}</strong><small>Everyone will enter the game automatically when it begins.</small></div>
       <div className="game-lobby-members" aria-label="Room participants">
-        {members.map((member) => <article className="game-lobby-member" key={member.user_id}>
-          <span className="avatar avatar--sage">{member.avatar_url ? <img src={assetUrl(member.avatar_url)} alt="" /> : member.name.slice(0, 1).toUpperCase()}</span>
-          <div><strong>{member.name}</strong><small>{member.is_host ? 'Host' : member.ready ? 'Ready to play' : 'Getting ready'}</small></div>
-          <span className={member.ready ? 'lobby-ready lobby-ready--yes' : 'lobby-ready'}><CheckCircle size={18} weight={member.ready ? 'fill' : 'regular'} /> {member.ready ? 'Ready' : 'Not ready'}</span>
-        </article>)}
+        {members.map((member) => {
+          const isReady = member.is_host || member.ready
+          return <article className="game-lobby-member" key={member.user_id}>
+            <span className="avatar avatar--sage">{member.avatar_url ? <img src={assetUrl(member.avatar_url)} alt="" /> : member.name.slice(0, 1).toUpperCase()}</span>
+            <div><strong>{member.name}</strong><small>{member.is_host ? 'Host · ready to start' : isReady ? 'Ready to play' : 'Getting ready'}</small></div>
+            <span className={isReady ? 'lobby-ready lobby-ready--yes' : 'lobby-ready'}><CheckCircle size={18} weight={isReady ? 'fill' : 'regular'} /> {isReady ? 'Ready' : 'Not ready'}</span>
+          </article>
+        })}
         {Array.from({ length: Math.max(0, currentRoom.max_players - members.length) }, (_, index) => <article className="game-lobby-member game-lobby-member--empty" key={`empty-${index}`}><span className="game-lobby-empty-avatar"><UsersThree size={19} /></span><div><strong>Open seat</strong><small>{currentRoom.fill_with_bots ? 'A friendly bot can fill this seat' : 'Waiting for a player'}</small></div></article>)}
       </div>
       {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : 'The lobby could not update.'}</p>}

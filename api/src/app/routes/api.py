@@ -346,6 +346,11 @@ def game_capacity(game_name: str) -> int:
     return 4
 
 
+def room_participant_is_ready(room: GameRoom, participant: RoomParticipant) -> bool:
+    """Hosts are ready by definition because they control when the match starts."""
+    return participant.user_id == room.host_id or participant.ready
+
+
 async def build_match_seats(
     room: GameRoom,
     game_type: str,
@@ -362,7 +367,7 @@ async def build_match_seats(
     ).all()
     if not any(participant.user_id == user_id for participant in participants):
         raise HTTPException(status_code=403, detail="Join the room before starting a match")
-    if not all(participant.ready for participant in participants):
+    if not all(room_participant_is_ready(room, participant) for participant in participants):
         raise HTTPException(status_code=409, detail="Every human player must be ready")
     count = min(room.max_players, game_capacity(game_type))
     if len(participants) > count:
@@ -1043,7 +1048,7 @@ async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomRespon
         joined=participant is not None,
         is_host=room.host_id == user_id,
         match_id=active_match,
-        ready=participant.ready if participant else False,
+        ready=room_participant_is_ready(room, participant) if participant else False,
         fill_with_bots=room.fill_with_bots,
         invite_token=room.invite_token if participant is not None else None,
     )
@@ -1247,7 +1252,7 @@ async def list_room_participants(
             name=member.name,
             avatar_url=member.avatar_url,
             seat_index=participant.seat_index,
-            ready=participant.ready,
+            ready=room_participant_is_ready(room, participant),
             is_host=room.host_id == participant.user_id,
         )
         for participant, member in participants
@@ -1361,7 +1366,7 @@ async def set_room_ready(room_id: int, user: CurrentUser, db: DbSession) -> Room
     )
     if room is None or participant is None or room.status != "open":
         raise HTTPException(status_code=409, detail="Room is not accepting readiness changes")
-    participant.ready = not participant.ready
+    participant.ready = True if participant.user_id == room.host_id else not participant.ready
     await db.commit()
     return await room_out(room, user.id, db)
 
