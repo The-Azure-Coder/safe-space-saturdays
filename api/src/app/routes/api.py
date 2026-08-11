@@ -1926,9 +1926,9 @@ async def admin_dashboard(
         )
     )
     open_bug_reports = await db.scalar(
-        select(func.count(BugReport.id)).where(
-            BugReport.status.in_(("open", "in_progress"))
-        )
+        select(func.count(BugReport.id))
+        .join(User, User.id == BugReport.user_id)
+        .where(BugReport.status.in_(("open", "in_progress")))
     )
     pending_quotes = await db.scalar(
         select(func.count(Quote.id)).where(Quote.approval_status == "pending")
