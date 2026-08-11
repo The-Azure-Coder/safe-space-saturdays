@@ -83,6 +83,7 @@ type GameDefinition = {
   id?: number
   name: string
   players: string
+  description: string
   icon: Icon | string
   color: string
 }
@@ -98,36 +99,42 @@ const games: Array<GameDefinition> = [
   {
     name: 'Ludo',
     players: '2–4 players',
+    description: 'Roll, race, and make a little room for friendly competition.',
     icon: '/assets/game-ludo.png',
     color: 'sage',
   },
   {
     name: 'Dominoes',
     players: '2–4 players',
+    description: 'Match the ends, play your hand, and keep the table flowing.',
     icon: '/assets/game-dominoes.png',
     color: 'peach',
   },
   {
     name: 'Trivia Battle',
     players: '2+ players',
+    description: 'Put your curious mind to work across bright, playful categories.',
     icon: '/assets/game-trivia.png',
     color: 'lilac',
   },
   {
     name: 'Connect Four',
     players: '2 players',
+    description: 'Think one move ahead and connect four before your rival does.',
     icon: '/assets/game-connect-four.png',
     color: 'blue',
   },
   {
     name: 'Scribble',
     players: '2–4 players',
+    description: 'Draw something wonderfully imperfect and see who can guess it.',
     icon: '/assets/game-scribble.png',
     color: 'coral',
   },
   {
     name: 'Bingo',
     players: '2–8 players',
+    description: 'Mark your cards, cheer each other on, and wait for that winning line.',
     icon: '/assets/game-bingo.png',
     color: 'peach',
   },
@@ -1018,6 +1025,7 @@ void ComingSoonBanner
 
 function GameStrip() {
   const navigate = useNavigate()
+  const [activeIndex, setActiveIndex] = useState(0)
   const catalog = useQuery({
     queryKey: ['games', 'home'],
     queryFn: () => api.games(1, 20),
@@ -1060,8 +1068,24 @@ function GameStrip() {
     },
     onError: () => navigate({ to: '/games' }),
   })
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setActiveIndex((index) => (index + 1) % games.length),
+      6000,
+    )
+    return () => window.clearInterval(timer)
+  }, [])
+  const activeGame = games[activeIndex]
+  const move = (direction: -1 | 1) =>
+    setActiveIndex(
+      (index) => (index + direction + games.length) % games.length,
+    )
   return (
-    <section className="game-strip">
+    <section
+      className={`game-strip game-strip--${activeGame.color}`}
+      aria-roledescription="carousel"
+      aria-label="Featured games"
+    >
       <div className="section-row">
         <div className="card-title">
           <GameController size={22} weight="fill" /> <span>Featured Games</span>
@@ -1070,15 +1094,48 @@ function GameStrip() {
           View all games <ArrowRight size={16} />
         </Link>
       </div>
-      <div className="game-strip__items">
-        {games.map((game) => (
-          <GameTile
-            game={game}
-            key={game.name}
-            compact
-            onPlay={() => launch.mutate(game)}
-          />
-        ))}
+      <div className="game-feature" key={activeGame.name}>
+        <div className="game-feature__copy" aria-live="polite">
+          <span className="eyebrow">A little game night</span>
+          <h2>{activeGame.name}</h2>
+          <p>{activeGame.description}</p>
+          <div className="game-feature__meta">
+            <span>{activeGame.players}</span>
+            <button
+              className="button button--primary button--small"
+              type="button"
+              onClick={() => launch.mutate(activeGame)}
+              disabled={catalog.isLoading || launch.isPending}
+            >
+              {launch.isPending ? 'Setting up…' : 'Play now'} <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="game-feature__art" aria-hidden="true">
+          <img src={activeGame.icon as string} alt="" />
+          <span className="game-feature__spark game-feature__spark--one">✦</span>
+          <span className="game-feature__spark game-feature__spark--two">✿</span>
+        </div>
+      </div>
+      <div className="game-strip__controls">
+        <button type="button" aria-label="Previous featured game" onClick={() => move(-1)}>
+          <CaretLeft size={18} />
+        </button>
+        <div className="game-strip__dots">
+          {games.map((game, index) => (
+            <button
+              type="button"
+              key={game.name}
+              className={index === activeIndex ? 'is-active' : ''}
+              aria-label={`Show ${game.name}`}
+              aria-current={index === activeIndex ? 'true' : undefined}
+              onClick={() => setActiveIndex(index)}
+            />
+          ))}
+        </div>
+        <button type="button" aria-label="Next featured game" onClick={() => move(1)}>
+          <CaretRight size={18} />
+        </button>
       </div>
     </section>
   )
