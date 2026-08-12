@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     cloudinary_cloud_name: str | None = None
     cloudinary_api_key: str | None = None
     cloudinary_api_secret: str | None = None
+    google_oauth_enabled: bool = False
+    google_oauth_client_id: str | None = None
+    google_oauth_client_secret: str | None = None
+    google_oauth_redirect_uri: str | None = None
+    google_oauth_state_ttl_seconds: int = 600
 
     @model_validator(mode="after")
     def require_secure_production_cookies(self) -> "Settings":
@@ -40,6 +45,17 @@ class Settings(BaseSettings):
             )
         if self.app_env == "production" and not self.cookie_secure:
             raise ValueError("COOKIE_SECURE must be true when APP_ENV=production")
+        if self.google_oauth_enabled and not all(
+            (
+                self.google_oauth_client_id,
+                self.google_oauth_client_secret,
+                self.google_oauth_redirect_uri,
+            )
+        ):
+            raise ValueError(
+                "GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, and "
+                "GOOGLE_OAUTH_REDIRECT_URI are required when GOOGLE_OAUTH_ENABLED=true"
+            )
         return self
 
 

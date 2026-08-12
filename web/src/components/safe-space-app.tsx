@@ -39,7 +39,7 @@ import {
   X,
 } from '@phosphor-icons/react'
 
-import { ApiError, api, assetUrl } from '../lib/api'
+import { ApiError, api, assetUrl, googleLoginUrl } from '../lib/api'
 import type { CheckIn, LeaderboardPeriod, Post, Quote } from '../lib/api'
 
 type Screen =
@@ -562,6 +562,24 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
   const [passwordValue, setPasswordValue] = useState('')
   const [confirmPasswordValue, setConfirmPasswordValue] = useState('')
   const isLogin = mode === 'login'
+  const googleAuth = useQuery({
+    queryKey: ['google-auth-status'],
+    queryFn: api.googleAuthStatus,
+    retry: false,
+  })
+  useEffect(() => {
+    const error = new URLSearchParams(window.location.search).get('oauth_error')
+    if (!error) return
+    const messages: Record<string, string> = {
+      cancelled: 'Google sign-in was cancelled. You can try again whenever you are ready.',
+      pending_approval: 'Your account is awaiting approval before you can sign in.',
+      account_conflict: 'This email is already linked to another Google account. Please use your original sign-in method.',
+      unavailable: 'Google sign-in is temporarily unavailable. Please use your email and password.',
+      failed: 'Google sign-in could not be completed. Please try again.',
+    }
+    setFormError(messages[error] ?? 'Google sign-in could not be completed. Please try again.')
+    window.history.replaceState({}, '', window.location.pathname)
+  }, [])
   const mutation = useMutation({
     mutationFn: (body: {
       name?: string
@@ -654,6 +672,22 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
               mutation.error?.message ||
               'We could not complete that request.'}
           </div>
+        )}
+        {googleAuth.data?.enabled && (
+          <>
+            <a className="google-auth-button" href={googleLoginUrl}>
+              <svg aria-hidden="true" className="google-mark" viewBox="0 0 24 24" width="20" height="20">
+                <path fill="#4285f4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.55h3.24c1.9-1.75 2.98-4.33 2.98-7.42Z" />
+                <path fill="#34a853" d="M12 22c2.7 0 4.98-.9 6.64-2.43l-3.24-2.54c-.9.6-2.05.96-3.4.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.62A10 10 0 0 0 12 22Z" />
+                <path fill="#fbbc05" d="M6.39 13.86A6.02 6.02 0 0 1 6.08 12c0-.65.11-1.28.31-1.86V7.52H3.04A10 10 0 0 0 2 12c0 1.61.38 3.14 1.04 4.48l3.35-2.62Z" />
+                <path fill="#ea4335" d="M12 6.01c1.47 0 2.78.5 3.82 1.49l2.88-2.88A9.67 9.67 0 0 0 12 2a10 10 0 0 0-8.96 5.52l3.35 2.62C7.18 7.77 9.39 6.01 12 6.01Z" />
+              </svg>
+              <span>{isLogin ? 'Continue with Google' : 'Sign up with Google'}</span>
+            </a>
+            <div className="auth-divider" aria-hidden="true">
+              <span>or continue with email</span>
+            </div>
+          </>
         )}
         <form onSubmit={onSubmit} noValidate>
           {!isLogin && (

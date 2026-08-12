@@ -43,6 +43,10 @@ class AuthResponse(BaseModel):
     message: str | None = None
 
 
+class GoogleAuthStatusResponse(BaseModel):
+    enabled: bool
+
+
 class BugReportCreateRequest(BaseModel):
     title: str = Field(min_length=3, max_length=160)
     description: str = Field(min_length=10, max_length=5000)

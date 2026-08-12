@@ -4,6 +4,7 @@ web/node_modules/
 web/.output/
 web/.tanstack/
 web/dist/
+web/test-results/
 api/.venv/
 api/.pytest_cache/
 api/.mypy_cache/

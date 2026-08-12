@@ -8,6 +8,8 @@ export const API_URL =
     ? window.location.origin
     : CONFIGURED_API_URL
 
+export const googleLoginUrl = `${API_URL}/api/auth/google/start`
+
 export function assetUrl(value: string): string {
   return value.startsWith('http://') || value.startsWith('https://')
     ? value
@@ -221,6 +223,7 @@ export type BugReport = {
 }
 
 export const api = {
+  googleAuthStatus: () => apiFetch<{ enabled: boolean }>('/api/auth/google/status'),
   register: (body: {
     name: string
     email: string

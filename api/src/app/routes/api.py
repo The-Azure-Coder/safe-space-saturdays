@@ -23,6 +23,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,9 +60,18 @@ from app.models import (
     Session,
     User,
 )
+from app.oauth import (
+    GoogleOAuthError,
+    build_google_authorize_url,
+    create_oauth_state,
+    exchange_google_code,
+    frontend_oauth_redirect,
+    google_oauth_configured,
+    verify_oauth_state,
+)
 from app.schemas import (
-    AdminPasswordResetRequest,
     AdminDashboardResponse,
+    AdminPasswordResetRequest,
     AdminQuoteCreateRequest,
     AdminQuoteUpdateRequest,
     AdminUserUpdateRequest,
@@ -79,6 +89,9 @@ from app.schemas import (
     GameResponse,
     GameSessionCreateRequest,
     GameSessionResponse,
+    GoogleAuthStatusResponse,
+    GuestRoomJoinRequest,
+    GuestRoomJoinResponse,
     LeaderboardEntry,
     LoginRequest,
     MatchCreateRequest,
@@ -91,14 +104,12 @@ from app.schemas import (
     QuoteSubmissionRequest,
     ReactionRequest,
     RegisterRequest,
+    RoomCleanupResponse,
     RoomCreateRequest,
     RoomGameChangeRequest,
-    GuestRoomJoinResponse,
     RoomInviteResponse,
     RoomParticipantResponse,
     RoomResponse,
-    RoomCleanupResponse,
-    GuestRoomJoinRequest,
     UserResponse,
 )
 from app.security import (
@@ -117,6 +128,7 @@ CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 
 STAFF_ROLES = {"admin", "super_admin", "manager", "moderator"}
 LEADERBOARD_PERIOD_DAYS = {"day": 1, "week": 7, "month": 30}
+GOOGLE_OAUTH_COOKIE = "safe_space_google_oauth"
 
 
 def can_manage_roles(user: User) -> bool:
@@ -481,6 +493,109 @@ async def set_session(
         samesite="none" if get_settings().cookie_secure else "lax",
         max_age=60 * 60 * 24 * (get_settings().session_ttl_days if remember_me else 1),
     )
+
+
+def clear_google_oauth_cookie(response: Response) -> None:
+    response.delete_cookie(GOOGLE_OAUTH_COOKIE, path="/api/auth/google")
+
+
+def google_oauth_error_response(error: str) -> RedirectResponse:
+    settings = get_settings()
+    try:
+        target = frontend_oauth_redirect(settings, error)
+    except GoogleOAuthError:
+        target = "/login"
+    response = RedirectResponse(target, status_code=status.HTTP_303_SEE_OTHER)
+    clear_google_oauth_cookie(response)
+    return response
+
+
+@router.get("/auth/google/status", response_model=GoogleAuthStatusResponse)
+async def google_oauth_status() -> GoogleAuthStatusResponse:
+    return GoogleAuthStatusResponse(enabled=google_oauth_configured(get_settings()))
+
+
+@router.get("/auth/google/start", include_in_schema=False)
+async def google_oauth_start() -> RedirectResponse:
+    settings = get_settings()
+    if not google_oauth_configured(settings):
+        raise HTTPException(status_code=503, detail="Google sign-in is not available")
+    state_value, nonce, cookie = create_oauth_state(settings)
+    response = RedirectResponse(
+        build_google_authorize_url(settings, state_value, nonce),
+        status_code=status.HTTP_302_FOUND,
+    )
+    response.set_cookie(
+        GOOGLE_OAUTH_COOKIE,
+        cookie,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        max_age=settings.google_oauth_state_ttl_seconds,
+        path="/api/auth/google",
+    )
+    return response
+
+
+@router.get("/auth/google/callback", include_in_schema=False)
+async def google_oauth_callback(
+    request: Request,
+    db: DbSession,
+    state: str | None = None,
+    code: str | None = None,
+    error: str | None = None,
+) -> RedirectResponse:
+    settings = get_settings()
+    if not google_oauth_configured(settings):
+        return google_oauth_error_response("unavailable")
+    try:
+        nonce = verify_oauth_state(
+            settings,
+            request.cookies.get(GOOGLE_OAUTH_COOKIE),
+            state,
+        )
+        if error:
+            return google_oauth_error_response("cancelled")
+        if not code:
+            raise GoogleOAuthError("Missing Google authorization code")
+        identity = await exchange_google_code(settings, code, nonce)
+    except GoogleOAuthError:
+        return google_oauth_error_response("failed")
+
+    user = await db.scalar(select(User).where(User.google_subject == identity.subject))
+    if user is None:
+        user = await db.scalar(select(User).where(User.email == identity.email))
+        if user is not None:
+            if user.google_subject and user.google_subject != identity.subject:
+                return google_oauth_error_response("account_conflict")
+            user.google_subject = identity.subject
+            if not user.avatar_url and identity.picture:
+                user.avatar_url = identity.picture
+        else:
+            registered_count = await db.scalar(select(func.count(User.id))) or 0
+            user = User(
+                name=identity.name[:120],
+                email=identity.email,
+                password_hash=hash_password(secrets.token_urlsafe(48)),
+                google_subject=identity.subject,
+                avatar_url=identity.picture,
+                level=1,
+                is_approved=registered_count < 20,
+            )
+            db.add(user)
+            await db.flush()
+
+    if not user.is_approved:
+        await db.commit()
+        return google_oauth_error_response("pending_approval")
+
+    response = RedirectResponse(
+        frontend_oauth_redirect(settings),
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+    clear_google_oauth_cookie(response)
+    await set_session(response, db, user)
+    return response
 
 
 @router.post("/auth/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)

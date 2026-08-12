@@ -35,3 +35,24 @@ test('registration explains invalid password input before sending it', async ({ 
   await page.getByRole('button', { name: 'Create account' }).click()
   await expect(page.getByRole('alert')).toHaveText('Your password must be at least 10 characters.')
 })
+
+test('Google sign-in is accessible and preserves the mobile auth layout', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.route('**/api/auth/google/status', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true }) }),
+  )
+  await page.goto('/login?oauth_error=failed')
+  await page.waitForFunction(() => document.documentElement.dataset.clientReady === 'true', undefined, { timeout: 110_000 })
+
+  const googleLink = page.getByRole('link', { name: 'Continue with Google' })
+  await expect(googleLink).toBeVisible()
+  await expect(googleLink).toHaveAttribute('href', 'http://localhost:8000/api/auth/google/start')
+  await expect(page.getByRole('alert')).toHaveText('Google sign-in could not be completed. Please try again.')
+  await expect(page).toHaveURL(/\/login$/)
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(1)
+
+  await page.goto('/registration')
+  await expect(page.getByRole('link', { name: 'Sign up with Google' })).toBeVisible()
+})

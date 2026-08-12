@@ -6,6 +6,8 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 
 `POST /api/auth/register` and `POST /api/auth/login` set an HTTP-only `safe_space_session` cookie. Browser clients should send requests with credentials enabled. `POST /api/auth/logout` clears the session. Protected endpoints return `401` when no valid session is present.
 
+Google sign-in uses the server-side OpenID Connect authorization-code flow. `GET /api/auth/google/start` creates signed, short-lived `state` and `nonce` values before redirecting to Google. The callback validates those values and Google's signed ID token, links an existing account only by a verified email, and then creates the same HTTP-only session used by password login. The Google access and ID tokens are never sent to the browser or stored by the application.
+
 ## Endpoints
 
 | Area | Method | Path | Purpose |
@@ -14,6 +16,9 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 | Health | GET | `/health/ready` | PostgreSQL readiness |
 | Auth | POST | `/api/auth/register` | Create an account |
 | Auth | POST | `/api/auth/login` | Start a session |
+| Auth | GET | `/api/auth/google/status` | Report whether Google sign-in is configured |
+| Auth | GET | `/api/auth/google/start` | Start Google OpenID Connect sign-in |
+| Auth | GET | `/api/auth/google/callback` | Validate Google identity and start a session |
 | Auth | POST | `/api/auth/logout` | End the current session |
 | Auth | GET | `/api/auth/me` | Current user |
 | Auth | PATCH | `/api/auth/me` | Update display name |
@@ -52,6 +57,8 @@ uv run uvicorn app.main:app --app-dir src --reload
 ```
 
 The initial migration seeds the supplied quote and game data. Production deployments should set a strong database password, `COOKIE_SECURE=true`, and a narrow `API_CORS_ORIGINS` value.
+
+To enable Google sign-in, configure `GOOGLE_OAUTH_ENABLED=true`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI`. The redirect URI must exactly match the authorized URI in Google Cloud. For this deployment it should use the public web origin (for example, `https://safe-space-saturdays-web.onrender.com/api/auth/google/callback`) so mobile browsers receive the session cookie as first-party.
 # Games
 
 The games foundation provides an authoritative Connect Four match with a friendly or thoughtful bot. The room must be joined before starting a match.
