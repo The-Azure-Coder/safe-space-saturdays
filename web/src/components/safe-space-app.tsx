@@ -156,6 +156,19 @@ function Logo({ compact = false }: { compact?: boolean }) {
   )
 }
 
+function ProfileLevelBadge({ level }: { level: number }) {
+  return (
+    <span
+      className="profile-level-badge"
+      aria-label={`Level ${level}`}
+      title={`Level ${level}`}
+    >
+      <Star size={12} weight="fill" aria-hidden="true" />
+      <span>LV {level}</span>
+    </span>
+  )
+}
+
 function PageHeader({ screen }: { screen: Screen }) {
   const currentUser = useQuery({
     queryKey: ['me'],
@@ -244,6 +257,9 @@ function PageHeader({ screen }: { screen: Screen }) {
                 aria-hidden="true"
               />
               <span>Profile &amp; settings</span>
+              {currentUser.data && (
+                <ProfileLevelBadge level={currentUser.data.level} />
+              )}
             </Link>
             {currentUser.data && staffRoles.has(currentUser.data.role) && (
               <Link
@@ -312,6 +328,9 @@ function PageHeader({ screen }: { screen: Screen }) {
               )}
             </span>
             <span className="profile-menu__name">{displayName}</span>
+            {currentUser.data && (
+              <ProfileLevelBadge level={currentUser.data.level} />
+            )}
             <CaretDown size={16} aria-hidden="true" />
           </button>
           {menuOpen && (

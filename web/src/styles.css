@@ -25,6 +25,8 @@ main { min-height: 100vh; }
 .profile-menu { display: inline-flex; align-items: center; gap: 10px; padding: 5px 7px 5px 5px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--ink); font-weight: 600; transition: background-color .2s ease, border-color .2s ease, transform .2s ease; }
 .profile-menu:hover, .profile-menu[aria-expanded='true'] { transform: translateY(-1px); border-color: var(--line); background: #fffaf2; }
 .profile-menu__name { white-space: nowrap; }
+.profile-level-badge { display: inline-flex; min-width: 52px; min-height: 25px; align-items: center; justify-content: center; gap: 4px; padding: 3px 8px; border: 1px solid rgb(193 137 52 / 30%); border-radius: 999px; background: #f7e4aa; color: #684a19; font-size: 10px; font-weight: 900; letter-spacing: .045em; line-height: 1; white-space: nowrap; box-shadow: inset 0 1px rgb(255 255 255 / 58%), 0 3px 8px rgb(84 58 24 / 10%); }
+.profile-level-badge svg { flex: 0 0 auto; color: #b8751e; }
 .avatar { position: relative; display: inline-grid; flex: 0 0 auto; width: 44px; height: 44px; place-items: center; border: 3px solid #f7f2e8; border-radius: 50%; color: var(--ink); font-family: 'Playfair Display', serif; font-size: 20px; box-shadow: 0 0 0 1px rgb(74 85 67 / 10%); }
 .avatar--sage { background: #bdcaa9; }.avatar--peach { background: #e8ae91; }.avatar--gold { background: #e3b85a; }.avatar--lilac { background: #c0b4d5; }.avatar--blue { background: #9db7ca; }.avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .avatar__presence { position: absolute; right: -2px; bottom: 0; width: 11px; height: 11px; border: 2px solid var(--paper); border-radius: 50%; background: #9aa39b; box-shadow: 0 1px 3px rgb(27 39 31 / 22%); }
@@ -234,6 +236,8 @@ html[data-theme='night'] .profile-dropdown a,
 html[data-theme='night'] .profile-dropdown button { color: var(--ink); }
 html[data-theme='night'] .page-footer { background: #21382b; color: #e5eadc; }
 html[data-theme='night'] .privacy-badge { background: #385542; color: #e4f2df; }
+html[data-theme='night'] .profile-level-badge { border-color: rgb(242 179 154 / 35%); background: #5a4034; color: #ffe3d7; box-shadow: inset 0 1px rgb(255 255 255 / 8%); }
+html[data-theme='night'] .profile-level-badge svg { color: #f2b39a; }
 html[data-theme='purple'] {
   --ink: #f2eafa;
   --muted: #c8b8d2;
@@ -285,6 +289,8 @@ html[data-theme='purple'] .promo-card--peach { background: #faece8; }
 html[data-theme='purple'] .promo-card--lilac { background: #e9e1f3; }
 html[data-theme='purple'] .promo-card--sage { background: #e8f0e7; }
 html[data-theme='purple'] .page-footer { background: #e3d8ee; color: var(--ink); }
+html[data-theme='purple'] .profile-level-badge { border-color: rgb(200 169 237 / 38%); background: #584275; color: #f5eaff; box-shadow: inset 0 1px rgb(255 255 255 / 9%); }
+html[data-theme='purple'] .profile-level-badge svg { color: #d7b9fa; }
 html[data-theme='purple'] .auth-panel input,
 html[data-theme='purple'] .auth-panel textarea,
 html[data-theme='purple'] .input-wrap,
@@ -343,6 +349,10 @@ html[data-theme='crimson'] .promo-card--peach { background: #513027; }
 html[data-theme='crimson'] .promo-card--lilac { background: #493044; }
 html[data-theme='crimson'] .promo-card--sage { background: #303b31; }
 html[data-theme='crimson'] .page-footer { background: #3a2026; color: #f8e9e5; }
+html[data-theme='crimson'] .profile-level-badge { border-color: rgb(239 154 114 / 38%); background: #6b3540; color: #ffe5dc; box-shadow: inset 0 1px rgb(255 255 255 / 9%); }
+html[data-theme='crimson'] .profile-level-badge svg { color: #ef9a72; }
+html[data-theme='high-contrast'] .profile-level-badge { border: 2px solid #102019; background: #f2c27b; color: #102019; box-shadow: none; }
+html[data-theme='high-contrast'] .profile-level-badge svg { color: #102019; }
 html[data-theme='crimson'] .auth-panel input,
 html[data-theme='crimson'] .auth-panel textarea,
 html[data-theme='crimson'] .input-wrap,
@@ -1300,6 +1310,8 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
   .app-nav__mobile-account { display: grid; gap: 3px; margin-top: 5px; padding-top: 7px; border-top: 1px solid var(--line); }
   .app-nav .app-nav__link { justify-content: flex-start; justify-self: stretch; width: 100%; min-height: 44px; padding: 9px 12px; border-radius: 10px; text-align: left; }
   .app-nav .app-nav__link span { display: inline; }
+  .app-nav .app-nav__link .profile-level-badge { margin-left: auto; }
+  .app-nav .app-nav__link .profile-level-badge span { display: inline; }
   .app-nav .app-nav__link--active { background: var(--sage-pale); color: var(--sage-dark); }
 }
 
