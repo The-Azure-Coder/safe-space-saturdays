@@ -1,4 +1,12 @@
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const CONFIGURED_API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+
+// In production, route API traffic through the web origin. This keeps the
+// httpOnly session cookie first-party on mobile browsers that block cookies
+// from a separate API hostname.
+export const API_URL =
+  typeof window !== 'undefined' && import.meta.env.PROD
+    ? window.location.origin
+    : CONFIGURED_API_URL
 
 export function assetUrl(value: string): string {
   return value.startsWith('http://') || value.startsWith('https://')
