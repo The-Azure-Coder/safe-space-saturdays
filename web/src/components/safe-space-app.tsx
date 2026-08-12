@@ -3325,6 +3325,7 @@ function LeaderboardScreen() {
                     online={entry.user.is_online}
                   />
                   <strong>{entry.user.name}</strong>
+                  <ProfileLevelBadge level={entry.user.level} />
                   <span>{entry.user.xp.toLocaleString()} XP</span>
                   <div className="podium-block" />
                 </div>
@@ -3398,16 +3399,17 @@ function LeaderboardScreen() {
             entries.map((entry) => (
               <div className="leaderboard-row" key={entry.user.id}>
                 <strong>{entry.rank}</strong>
-                <div>
+                <div className="leaderboard-member">
                   <Avatar
                     initials={entry.user.name[0]}
                     color="sage"
                     imageUrl={entry.user.avatar_url}
                     online={entry.user.is_online}
                   />
-                  <span>
+                  <span className="leaderboard-member__name">
                     {entry.user.name} <Leaf size={16} weight="fill" />
                   </span>
+                  <ProfileLevelBadge level={entry.user.level} />
                 </div>
                 <span className="xp xp--sage">
                   {entry.user.xp.toLocaleString()} <small>XP</small>

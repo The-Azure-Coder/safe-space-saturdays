@@ -1296,6 +1296,11 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
 .podium-member--2 .podium-rank { background: #8f87a5; box-shadow: 0 0 0 2px rgb(112 103 135 / 20%), 0 7px 15px rgb(58 52 73 / 14%), inset 0 1px rgb(255 255 255 / 42%); }
 .podium-member--3 .podium-rank { background: #ce7654; box-shadow: 0 0 0 2px rgb(169 83 52 / 20%), 0 7px 15px rgb(78 48 38 / 14%), inset 0 1px rgb(255 255 255 / 42%); }
 .podium-member > .avatar { margin-inline: auto; }
+.podium-member .profile-level-badge { min-width: 48px; min-height: 22px; padding: 2px 7px; font-size: 9px; }
+.leaderboard-member { min-width: 0; }
+.leaderboard-member__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaderboard-row .profile-level-badge { flex: 0 0 auto; }
+.leaderboard-row .profile-level-badge svg { color: #b8751e; }
 
 /* Keep the sticky header flush with the same page surface at every breakpoint. */
 .app-header { top: 0; margin-top: 0; }
