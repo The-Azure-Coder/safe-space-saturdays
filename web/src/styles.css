@@ -31,6 +31,7 @@ main { min-height: 100vh; }
 .avatar--sage { background: #bdcaa9; }.avatar--peach { background: #e8ae91; }.avatar--gold { background: #e3b85a; }.avatar--lilac { background: #c0b4d5; }.avatar--blue { background: #9db7ca; }.avatar img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .avatar__presence { position: absolute; right: -2px; bottom: 0; width: 11px; height: 11px; border: 2px solid var(--paper); border-radius: 50%; background: #9aa39b; box-shadow: 0 1px 3px rgb(27 39 31 / 22%); }
 .avatar__presence--online { background: #3fba70; box-shadow: 0 0 0 2px rgb(63 186 112 / 18%), 0 1px 3px rgb(27 39 31 / 22%); }
+.profile-menu .avatar__presence { right: -1px; bottom: -1px; width: 13px; height: 13px; border-width: 2px; }
 .page-content { width: min(92%, 1490px); margin: 0 auto; padding: 48px 0 34px; }
 .page-footer { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 88px; margin-top: 24px; padding: 20px 30px; background: #c3c9af; color: #26392a; font-family: 'Sacramento', cursive; font-size: 29px; }
 .footer-leaf { font-family: Georgia, serif; color: var(--sage-dark); font-size: 44px; transform: rotate(-25deg); }.footer-leaf--right { transform: rotate(25deg) scaleX(-1); }.footer-heart { color: var(--orange); font-family: Georgia, serif; font-size: 38px; }
@@ -1291,7 +1292,9 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
 .podium-member { align-items: center; }
 .podium-rank,
 .podium-member > .avatar { align-self: center; display: grid; place-items: center; line-height: 1; text-align: center; }
-.podium-rank { margin-inline: auto; padding: 0; }
+.podium-rank { width: 44px; min-width: 44px; max-width: 44px; height: 44px; min-height: 44px; max-height: 44px; flex: 0 0 44px; margin-inline: auto; padding: 0; aspect-ratio: 1; place-items: center; border: 3px solid rgb(255 255 255 / 72%); border-radius: 50%; background: #dca43d; color: #fffdf7; font-family: 'DM Sans', sans-serif; font-size: 18px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; box-shadow: 0 0 0 2px rgb(176 122 28 / 20%), 0 7px 15px rgb(71 55 29 / 16%), inset 0 1px rgb(255 255 255 / 42%); }
+.podium-member--2 .podium-rank { background: #8f87a5; box-shadow: 0 0 0 2px rgb(112 103 135 / 20%), 0 7px 15px rgb(58 52 73 / 14%), inset 0 1px rgb(255 255 255 / 42%); }
+.podium-member--3 .podium-rank { background: #ce7654; box-shadow: 0 0 0 2px rgb(169 83 52 / 20%), 0 7px 15px rgb(78 48 38 / 14%), inset 0 1px rgb(255 255 255 / 42%); }
 .podium-member > .avatar { margin-inline: auto; }
 
 /* Keep the sticky header flush with the same page surface at every breakpoint. */

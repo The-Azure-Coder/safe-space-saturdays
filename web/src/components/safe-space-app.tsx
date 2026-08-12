@@ -315,18 +315,17 @@ function PageHeader({ screen }: { screen: Screen }) {
           <button
             className="profile-menu"
             type="button"
-            aria-label={`Open ${displayName} profile menu`}
+            aria-label={`Open ${displayName} profile menu, level ${currentUser.data?.level ?? 1}, ${currentUser.data?.is_online ? 'online' : 'offline'}`}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <span className="avatar avatar--gold">
-              {currentUser.data?.avatar_url ? (
-                <img src={assetUrl(currentUser.data.avatar_url)} alt="" />
-              ) : (
-                displayName[0].toUpperCase()
-              )}
-            </span>
+            <Avatar
+              initials={displayName[0].toUpperCase()}
+              color="gold"
+              imageUrl={currentUser.data?.avatar_url}
+              online={currentUser.data?.is_online}
+            />
             <span className="profile-menu__name">{displayName}</span>
             {currentUser.data && (
               <ProfileLevelBadge level={currentUser.data.level} />
@@ -3312,7 +3311,13 @@ function LeaderboardScreen() {
                   className={`podium-member podium-member--${index + 1}`}
                   key={entry.user.id}
                 >
-                  <span className="podium-rank">{index + 1}</span>
+                  <span
+                    className="podium-rank"
+                    aria-label={`Rank ${index + 1}`}
+                    title={`Rank ${index + 1}`}
+                  >
+                    {index + 1}
+                  </span>
                   <Avatar
                     initials={entry.user.name[0]}
                     color="sage"
