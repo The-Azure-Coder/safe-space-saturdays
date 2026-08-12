@@ -56,3 +56,14 @@ test('Google sign-in is accessible and preserves the mobile auth layout', async 
   await page.goto('/registration')
   await expect(page.getByRole('link', { name: 'Sign up with Google' })).toBeVisible()
 })
+
+test('Google sign-in stays visible while the API wakes from a cold start', async ({ page }) => {
+  await page.route('**/api/auth/google/status', (route) =>
+    route.fulfill({ status: 502, contentType: 'application/json', body: '{"detail":"Waking up"}' }),
+  )
+
+  await page.goto('/login')
+  await page.waitForFunction(() => document.documentElement.dataset.clientReady === 'true', undefined, { timeout: 110_000 })
+
+  await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible()
+})

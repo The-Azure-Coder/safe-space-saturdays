@@ -565,7 +565,9 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
   const googleAuth = useQuery({
     queryKey: ['google-auth-status'],
     queryFn: api.googleAuthStatus,
-    retry: false,
+    retry: 4,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    staleTime: 5 * 60 * 1000,
   })
   useEffect(() => {
     const error = new URLSearchParams(window.location.search).get('oauth_error')
@@ -673,7 +675,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
               'We could not complete that request.'}
           </div>
         )}
-        {googleAuth.data?.enabled && (
+        {googleAuth.data?.enabled !== false && (
           <>
             <a className="google-auth-button" href={googleLoginUrl}>
               <svg aria-hidden="true" className="google-mark" viewBox="0 0 24 24" width="20" height="20">
