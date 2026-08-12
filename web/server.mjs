@@ -150,4 +150,38 @@ server.on('upgrade', (nodeRequest, clientSocket, head) => {
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`Safe Space web listening on ${port}`)
+  void warmApi()
 })
+
+async function warmApi() {
+  const configuredApiUrl = process.env.API_PROXY_URL || process.env.VITE_API_URL
+  if (!configuredApiUrl) {
+    console.log('API warm-up skipped: no API URL configured')
+    return
+  }
+
+  let healthUrl
+  try {
+    healthUrl = new URL('/health/ready', configuredApiUrl).toString()
+  } catch {
+    console.warn('API warm-up skipped: invalid API URL')
+    return
+  }
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 10_000)
+  try {
+    const response = await fetch(healthUrl, {
+      method: 'GET',
+      headers: { accept: 'application/json' },
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    console.log(`API warm-up completed with status ${response.status}`)
+  } catch (error) {
+    const message = error instanceof Error && error.name === 'AbortError' ? 'timed out' : 'unavailable'
+    console.warn(`API warm-up ${message}; the next request will retry normally`)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
