@@ -45,6 +45,8 @@ from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
     BugReport,
     CheckIn,
+    Challenge,
+    ChallengeCompletion,
     Comment,
     Game,
     GameMatch,
@@ -80,6 +82,9 @@ from app.schemas import (
     BugReportResponse,
     BugReportUpdateRequest,
     ChangePasswordRequest,
+    ChallengeCompleteRequest,
+    ChallengeResponse,
+    ChallengesResponse,
     CheckInRequest,
     CheckInResponse,
     CommentCreateRequest,
@@ -337,6 +342,139 @@ def is_user_online(user: User) -> bool:
     if last_seen.tzinfo is None:
         last_seen = last_seen.replace(tzinfo=UTC)
     return datetime.now(UTC) - last_seen <= timedelta(minutes=5)
+
+
+CHALLENGE_TEMPLATES: tuple[dict[str, object], ...] = (
+    {
+        "slug": "notice-beauty",
+        "title": "Notice something beautiful",
+        "description": (
+            "Pause for a moment and notice a flower, cloud, color, or other small detail "
+            "that brings you a little joy."
+        ),
+        "category": "Notice",
+        "icon": "🌼",
+        "color": "sage",
+        "xp": 10,
+    },
+    {
+        "slug": "kind-word",
+        "title": "Offer a kind word",
+        "description": (
+            "Give someone a sincere compliment, only if it feels welcome and comfortable "
+            "for both of you."
+        ),
+        "category": "Connect",
+        "icon": "💬",
+        "color": "peach",
+        "xp": 15,
+    },
+    {
+        "slug": "screen-free-pause",
+        "title": "Take a screen-free pause",
+        "description": (
+            "Set your phone aside for ten quiet minutes. Breathe, stretch, or simply let "
+            "your mind wander."
+        ),
+        "category": "Restore",
+        "icon": "☁️",
+        "color": "lilac",
+        "xp": 10,
+    },
+    {
+        "slug": "handled-well",
+        "title": "Name something you handled well",
+        "description": (
+            "Write one small thing you navigated this week, even if it felt ordinary or "
+            "unfinished."
+        ),
+        "category": "Reflect",
+        "icon": "✍️",
+        "color": "blue",
+        "xp": 15,
+    },
+    {
+        "slug": "appreciation-note",
+        "title": "Send appreciation",
+        "description": (
+            "Send a short thank-you or appreciation message to someone you trust—or write "
+            "one for yourself."
+        ),
+        "category": "Connect",
+        "icon": "💛",
+        "color": "coral",
+        "xp": 15,
+    },
+)
+
+
+def challenge_window(today: date | None = None) -> tuple[date, date]:
+    current = today or datetime.now(UTC).date()
+    start = current - timedelta(days=current.weekday())
+    return start, start + timedelta(days=6)
+
+
+async def ensure_current_challenges(
+    db: AsyncSession, week_start: date, active_until: date
+) -> list[Challenge]:
+    rows = list(
+        (
+            await db.scalars(
+                select(Challenge)
+                .where(Challenge.week_start == week_start)
+                .order_by(Challenge.id)
+            )
+        ).all()
+    )
+    existing_slugs = {row.slug for row in rows}
+    for template in CHALLENGE_TEMPLATES:
+        if str(template["slug"]) in existing_slugs:
+            continue
+        db.add(
+            Challenge(
+                slug=str(template["slug"]),
+                title=str(template["title"]),
+                description=str(template["description"]),
+                category=str(template["category"]),
+                icon=str(template["icon"]),
+                color=str(template["color"]),
+                xp=int(template["xp"]),
+                week_start=week_start,
+                active_until=active_until,
+            )
+        )
+    if len(existing_slugs) < len(CHALLENGE_TEMPLATES):
+        await db.flush()
+        rows = list(
+            (
+                await db.scalars(
+                    select(Challenge)
+                    .where(Challenge.week_start == week_start)
+                    .order_by(Challenge.id)
+                )
+            ).all()
+        )
+    return rows
+
+
+def challenge_out(
+    challenge: Challenge, completion: ChallengeCompletion | None
+) -> ChallengeResponse:
+    return ChallengeResponse(
+        id=challenge.id,
+        slug=challenge.slug,
+        title=challenge.title,
+        description=challenge.description,
+        category=challenge.category,
+        icon=challenge.icon,
+        color=challenge.color,
+        xp=challenge.xp,
+        week_start=challenge.week_start,
+        active_until=challenge.active_until,
+        completed=completion is not None,
+        completed_at=completion.created_at if completion else None,
+        reflection=completion.reflection if completion else None,
+    )
 
 
 def user_response(user: User) -> UserResponse:
@@ -731,6 +869,83 @@ async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
         rank=rank,
         level_progress=min(100, (user.xp % 250) * 100 // 250),
     )
+
+
+@router.get("/challenges/current", response_model=ChallengesResponse)
+async def current_challenges(user: CurrentUser, db: DbSession) -> ChallengesResponse:
+    if user.is_guest or not user.is_approved:
+        raise HTTPException(status_code=403, detail="Challenges are available to approved members")
+    week_start, active_until = challenge_window()
+    challenges = await ensure_current_challenges(db, week_start, active_until)
+    completions = list(
+        (
+            await db.scalars(
+                select(ChallengeCompletion).where(
+                    ChallengeCompletion.user_id == user.id,
+                    ChallengeCompletion.challenge_id.in_([
+                        challenge.id for challenge in challenges
+                    ]),
+                )
+            )
+        ).all()
+    )
+    by_challenge = {completion.challenge_id: completion for completion in completions}
+    await db.commit()
+    return ChallengesResponse(
+        week_start=week_start,
+        active_until=active_until,
+        completed_count=len(completions),
+        total_count=len(challenges),
+        xp_earned=sum(completion.xp_awarded for completion in completions),
+        challenges=[
+            challenge_out(challenge, by_challenge.get(challenge.id)) for challenge in challenges
+        ],
+    )
+
+
+@router.post("/challenges/{challenge_id}/complete", response_model=ChallengeResponse)
+async def complete_challenge(
+    challenge_id: int,
+    payload: ChallengeCompleteRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> ChallengeResponse:
+    if user.is_guest or not user.is_approved:
+        raise HTTPException(status_code=403, detail="Challenges are available to approved members")
+    week_start, active_until = challenge_window()
+    challenge = await db.scalar(
+        select(Challenge).where(
+            Challenge.id == challenge_id,
+            Challenge.week_start == week_start,
+            Challenge.active_until >= datetime.now(UTC).date(),
+        )
+    )
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge is no longer available")
+    locked_user = await db.scalar(select(User).where(User.id == user.id).with_for_update())
+    if locked_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    completion = await db.scalar(
+        select(ChallengeCompletion).where(
+            ChallengeCompletion.challenge_id == challenge.id,
+            ChallengeCompletion.user_id == user.id,
+        )
+    )
+    if completion is not None:
+        return challenge_out(challenge, completion)
+    reflection = payload.reflection.strip() if payload.reflection else None
+    completion = ChallengeCompletion(
+        challenge_id=challenge.id,
+        user_id=user.id,
+        reflection=reflection or None,
+        xp_awarded=challenge.xp,
+    )
+    db.add(completion)
+    locked_user.xp += challenge.xp
+    locked_user.level = max(1, locked_user.xp // 250 + 1)
+    await db.commit()
+    await db.refresh(completion)
+    return challenge_out(challenge, completion)
 
 
 @router.post("/check-ins", response_model=CheckInResponse, status_code=status.HTTP_201_CREATED)
@@ -1941,14 +2156,25 @@ def leaderboard_query(period: str):
         .group_by(CheckIn.user_id)
         .subquery()
     )
+    challenge_totals = (
+        select(
+            ChallengeCompletion.user_id,
+            func.coalesce(func.sum(ChallengeCompletion.xp_awarded), 0).label("challenge_xp"),
+        )
+        .where(ChallengeCompletion.created_at >= start)
+        .group_by(ChallengeCompletion.user_id)
+        .subquery()
+    )
     ranking_xp = (
         func.coalesce(reward_totals.c.reward_xp, 0)
         + func.coalesce(checkin_totals.c.checkin_xp, 0)
+        + func.coalesce(challenge_totals.c.challenge_xp, 0)
     ).label("ranking_xp")
     return (
         select(User, ranking_xp)
         .outerjoin(reward_totals, reward_totals.c.user_id == User.id)
         .outerjoin(checkin_totals, checkin_totals.c.user_id == User.id)
+        .outerjoin(challenge_totals, challenge_totals.c.user_id == User.id)
         .where(member_filter, ranking_xp > 0)
     )
 

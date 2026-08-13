@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -99,6 +100,43 @@ class CheckIn(TimestampMixin, Base):
     thoughts: Mapped[str | None] = mapped_column(Text, nullable=True)
     gratitude: Mapped[str | None] = mapped_column(Text, nullable=True)
     completed: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+
+class Challenge(TimestampMixin, Base):
+    __tablename__ = "challenges"
+    __table_args__ = (
+        UniqueConstraint("week_start", "slug", name="uq_challenges_week_slug"),
+        Index("ix_challenges_week_active", "week_start", "active_until"),
+        CheckConstraint("xp BETWEEN 1 AND 100", name="ck_challenges_xp_range"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(80))
+    title: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(40))
+    icon: Mapped[str] = mapped_column(String(8))
+    color: Mapped[str] = mapped_column(String(20))
+    xp: Mapped[int] = mapped_column(Integer, default=15, server_default="15")
+    week_start: Mapped[date] = mapped_column(Date, index=True)
+    active_until: Mapped[date] = mapped_column(Date, index=True)
+
+
+class ChallengeCompletion(TimestampMixin, Base):
+    __tablename__ = "challenge_completions"
+    __table_args__ = (
+        UniqueConstraint("challenge_id", "user_id", name="uq_challenge_completion_user"),
+        Index("ix_challenge_completions_user_created", "user_id", "created_at"),
+        CheckConstraint("xp_awarded >= 0", name="ck_challenge_completions_xp_nonnegative"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    challenge_id: Mapped[int] = mapped_column(
+        ForeignKey("challenges.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    reflection: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    xp_awarded: Mapped[int] = mapped_column(Integer)
 
 
 class Post(TimestampMixin, Base):

@@ -1,6 +1,8 @@
 from app.models.domain import (
     BugReport,
     CheckIn,
+    Challenge,
+    ChallengeCompletion,
     Comment,
     Game,
     GameEvent,
@@ -21,6 +23,8 @@ from app.models.domain import (
 __all__ = [
     "BugReport",
     "CheckIn",
+    "Challenge",
+    "ChallengeCompletion",
     "Comment",
     "Game",
     "GameRoom",

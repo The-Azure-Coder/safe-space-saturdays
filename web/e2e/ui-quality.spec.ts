@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const routes = [
   ['Home', '/'], ['Login', '/login'], ['Registration', '/registration'],
-  ['Daily Check-In', '/check-in'], ['Quotes', '/quotes'], ['Community', '/community'],
+  ['Daily Check-In', '/check-in'], ['Challenges', '/challenges'], ['Quotes', '/quotes'], ['Community', '/community'],
   ['Games', '/games'], ['Leaderboard', '/leaderboard'], ['Profile', '/profile'],
   ['Admin', '/admin'],
 ] as const

@@ -1433,6 +1433,19 @@ html[data-theme='night'] .mood-row button { border-color: var(--line); backgroun
 html[data-theme='night'] .mood-row button small { color: var(--ink); }
 html[data-theme='night'] .coming-soon-banner .eyebrow { color: #b9d8b5; }
 
+/* Keep the login preference aligned with its label across themes and viewports. */
+.auth-panel .checkbox-label--remember {
+  align-items: center;
+  min-height: 24px;
+  white-space: nowrap;
+}
+.auth-panel .checkbox-label--remember input {
+  flex: 0 0 19px;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+}
+
 .checkin-cooldown-card { overflow: hidden; }
 .checkin-cooldown-card__visual { position: relative; width: min(100%, 390px); height: 156px; margin: -10px auto 24px; overflow: hidden; border-radius: 22px; background: var(--sage-pale); }
 .checkin-cooldown-card__visual img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 52%; mix-blend-mode: multiply; opacity: .86; }
@@ -1578,6 +1591,74 @@ html[data-theme='night'] .carousel-dot--active { background: #b9d8b5; }
 .games-panel .game-grid--games-expanded .game-tile { min-height: 150px; }
 .games-panel .games-view-more { display: flex; margin: 16px auto 0; }
 .quotes-page .quote-actions { margin-top: 28px; }
+
+/* Weekly challenges: one calm card language, with theme tokens doing the coloring. */
+.challenges-page { max-width: 1220px; }
+.challenges-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 330px); align-items: end; gap: 28px; margin-bottom: 30px; }
+.challenge-progress-card { padding: 22px; border: 1px solid var(--line); border-radius: 22px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
+.challenge-progress-card__topline { display: flex; align-items: center; justify-content: space-between; color: var(--sage-dark); }
+.challenge-progress-card__topline .eyebrow { margin: 0; }
+.challenge-progress-card > strong { display: block; margin-top: 15px; font-family: 'Playfair Display', serif; font-size: 38px; line-height: 1; }
+.challenge-progress-card > span { display: block; margin-top: 6px; color: var(--muted); font-size: 14px; }
+.challenge-progress-card .progress-track { margin-top: 20px; background: var(--sage-pale); }
+.challenge-progress-card .progress-track span { background: var(--sage-dark); transition: width .45s ease; }
+.challenge-progress-card__meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 15px; color: var(--muted); font-size: 12px; }
+.challenge-progress-card__meta span { display: inline-flex; align-items: center; gap: 5px; }
+.challenge-progress-card__meta svg { color: var(--orange); }
+.challenge-feature { display: grid; grid-template-columns: 98px minmax(0, 1fr); gap: 22px; align-items: start; margin: 0 0 28px; padding: 26px; border: 1px solid var(--line); border-radius: 24px; background: color-mix(in srgb, var(--paper) 84%, var(--sage-pale)); color: var(--ink); box-shadow: var(--shadow); }
+.challenge-feature--peach { background: color-mix(in srgb, var(--paper) 84%, var(--orange-pale)); }
+.challenge-feature--lilac { background: color-mix(in srgb, var(--paper) 84%, var(--lilac-pale)); }
+.challenge-feature--blue { background: color-mix(in srgb, var(--paper) 84%, var(--sage-pale)); }
+.challenge-feature--coral { background: color-mix(in srgb, var(--paper) 84%, var(--orange-pale)); }
+.challenge-feature__icon { display: grid; width: 78px; height: 78px; place-items: center; border: 1px solid var(--line); border-radius: 22px; background: color-mix(in srgb, var(--paper) 65%, var(--sage-pale)); font-size: 38px; }
+.challenge-feature__content h2 { margin: 5px 0 7px; font-family: 'Playfair Display', serif; font-size: clamp(25px, 3vw, 36px); }
+.challenge-feature__content > p { max-width: 62ch; margin: 0 0 17px; color: var(--muted); line-height: 1.55; }
+.challenge-reflection { max-width: 620px; margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--line); }
+.challenge-reflection .field-label span { color: var(--muted); font-weight: 400; }
+.challenge-reflection textarea { width: 100%; min-height: 78px; margin-top: 7px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--paper); color: var(--ink); resize: vertical; }
+.challenge-reflection textarea::placeholder { color: var(--muted); opacity: 1; }
+.challenge-reflection__actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 9px; }
+.challenge-reflection__actions small { color: var(--muted); font-size: 11px; }
+.challenges-section { margin-top: 30px; }
+.challenges-section h2, .challenge-guide h2 { margin: 3px 0 0; font-family: 'Playfair Display', serif; font-size: 27px; }
+.challenge-count { align-self: end; color: var(--muted); font-size: 13px; }
+.challenge-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.challenge-card { display: flex; min-height: 245px; flex-direction: column; padding: 20px; border: 1px solid var(--line); border-top: 4px solid var(--sage-dark); border-radius: 18px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
+.challenge-card--peach, .challenge-feature--peach { border-top-color: var(--orange); }
+.challenge-card--lilac { border-top-color: var(--lilac); }
+.challenge-card--blue { border-top-color: var(--sage-dark); }
+.challenge-card--coral { border-top-color: var(--orange); }
+.challenge-card--completed { opacity: .86; }
+.challenge-card__header { display: flex; align-items: center; gap: 9px; }
+.challenge-card__icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 13px; background: var(--sage-pale); font-size: 22px; }
+.challenge-card--peach .challenge-card__icon { background: var(--orange-pale); }
+.challenge-card--lilac .challenge-card__icon { background: var(--lilac-pale); }
+.challenge-card__category { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.challenge-card__xp { margin-left: auto; color: var(--orange); font-size: 12px; font-weight: 800; }
+.challenge-card h3 { margin: 20px 0 8px; font-size: 19px; line-height: 1.2; }
+.challenge-card p { flex: 1; margin: 0 0 17px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.challenge-card .button { align-self: flex-start; min-height: 42px; }
+.challenge-card__complete { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; color: var(--sage-dark); font-size: 14px; font-weight: 800; }
+.challenge-error { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.challenge-guide { display: flex; gap: 14px; align-items: flex-start; margin-top: 28px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--paper) 80%, var(--lilac-pale)); color: var(--ink); }
+.challenge-guide > svg { flex: 0 0 auto; margin-top: 4px; color: var(--orange); }
+.challenge-guide p { max-width: 72ch; margin: 8px 0 0; color: var(--muted); line-height: 1.55; }
+html[data-theme='high-contrast'] .challenge-card,
+html[data-theme='high-contrast'] .challenge-feature,
+html[data-theme='high-contrast'] .challenge-progress-card,
+html[data-theme='high-contrast'] .challenge-guide { border-color: #102019; box-shadow: none; }
+html[data-theme='high-contrast'] .challenge-card__complete { color: #102019; }
+@media (max-width: 760px) {
+  .challenges-hero { grid-template-columns: 1fr; gap: 20px; }
+  .challenge-progress-card { max-width: none; }
+  .challenge-feature { grid-template-columns: 1fr; gap: 14px; padding: 21px; }
+  .challenge-feature__icon { width: 62px; height: 62px; border-radius: 18px; font-size: 29px; }
+  .challenge-grid { grid-template-columns: 1fr; }
+  .challenge-card { min-height: 220px; }
+  .challenge-reflection__actions { align-items: flex-start; flex-direction: column; }
+  .challenge-reflection__actions .button { width: 100%; }
+  .challenge-error { align-items: flex-start; flex-direction: column; }
+}
 /* Crimson Ty final contrast pass: keep every dashboard surface inside the red night palette. */
 html[data-theme='crimson'] .welcome-carousel,
 html[data-theme='crimson'] .welcome-carousel--peach,

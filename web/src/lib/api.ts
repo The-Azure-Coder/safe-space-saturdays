@@ -46,9 +46,10 @@ export async function apiFetch<T>(
     )
   }
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as {
-      detail?: unknown
-    } | null
+    const contentType = response.headers.get('content-type') ?? ''
+    const body = contentType.includes('application/json')
+      ? ((await response.json().catch(() => null)) as { detail?: unknown } | null)
+      : null
     const detail = Array.isArray(body?.detail)
       ? body.detail
           .map((item) =>
@@ -58,9 +59,14 @@ export async function apiFetch<T>(
           )
           .join('. ')
       : body?.detail
+    const transient = [502, 503, 504].includes(response.status)
     throw new ApiError(
       response.status,
-      detail == null ? 'Something went wrong' : String(detail),
+      detail == null
+        ? transient
+          ? 'Safe Space is waking up. Please try again in a moment.'
+          : 'Something went wrong'
+        : String(detail),
     )
   }
   if (response.status === 204) return undefined as T
@@ -115,6 +121,29 @@ export type CheckIn = {
   gratitude: string | null
   completed: boolean
   created_at: string
+}
+export type Challenge = {
+  id: number
+  slug: string
+  title: string
+  description: string
+  category: string
+  icon: string
+  color: string
+  xp: number
+  week_start: string
+  active_until: string
+  completed: boolean
+  completed_at: string | null
+  reflection: string | null
+}
+export type Challenges = {
+  week_start: string
+  active_until: string
+  completed_count: number
+  total_count: number
+  xp_earned: number
+  challenges: Array<Challenge>
 }
 export type Comment = {
   id: number
@@ -262,6 +291,12 @@ export const api = {
   },
   logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
   dashboard: () => apiFetch<Dashboard>('/api/dashboard'),
+  currentChallenges: () => apiFetch<Challenges>('/api/challenges/current'),
+  completeChallenge: (id: number, reflection?: string) =>
+    apiFetch<Challenge>(`/api/challenges/${id}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ reflection: reflection?.trim() || null }),
+    }),
   checkIns: (page = 1, limit = 20) =>
     apiFetch<Array<CheckIn>>(`/api/check-ins?page=${page}&limit=${limit}`),
   createCheckIn: (body: Omit<CheckIn, 'id' | 'created_at'>) =>

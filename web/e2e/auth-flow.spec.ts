@@ -67,3 +67,19 @@ test('Google sign-in stays visible while the API wakes from a cold start', async
 
   await expect(page.getByRole('link', { name: 'Continue with Google' })).toBeVisible()
 })
+
+test('login remember-me preference is aligned and toggleable', async ({ page }) => {
+  await page.route('**/api/auth/google/status', (route) =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: false }) }),
+  )
+
+  await page.goto('/login')
+  await page.waitForFunction(() => document.documentElement.dataset.clientReady === 'true', undefined, { timeout: 110_000 })
+
+  const rememberMe = page.locator('input[name="remember_me"]')
+  await rememberMe.waitFor({ state: 'attached' })
+  await expect(rememberMe).toBeChecked()
+  await rememberMe.uncheck()
+  await expect(rememberMe).not.toBeChecked()
+  await expect(rememberMe).toHaveCSS('width', '19px')
+})

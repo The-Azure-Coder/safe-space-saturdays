@@ -17,6 +17,7 @@ import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as GamesRouteImport } from './routes/games'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CheckInRouteImport } from './routes/check-in'
+import { Route as ChallengesRouteImport } from './routes/challenges'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GamesIndexRouteImport } from './routes/games.index'
@@ -65,6 +66,11 @@ const CheckInRoute = CheckInRouteImport.update({
   path: '/check-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChallengesRoute = ChallengesRouteImport.update({
+  id: '/challenges',
+  path: '/challenges',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -104,6 +110,7 @@ const GamesRoomsInviteTokenRoute = GamesRoomsInviteTokenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/challenges': typeof ChallengesRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
   '/games': typeof GamesRouteWithChildren
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/challenges': typeof ChallengesRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
   '/leaderboard': typeof LeaderboardRoute
@@ -138,6 +146,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/challenges': typeof ChallengesRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
   '/games': typeof GamesRouteWithChildren
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/challenges'
     | '/check-in'
     | '/community'
     | '/games'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/challenges'
     | '/check-in'
     | '/community'
     | '/leaderboard'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/challenges'
     | '/check-in'
     | '/community'
     | '/games'
@@ -208,6 +220,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  ChallengesRoute: typeof ChallengesRoute
   CheckInRoute: typeof CheckInRoute
   CommunityRoute: typeof CommunityRoute
   GamesRoute: typeof GamesRouteWithChildren
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/check-in'
       fullPath: '/check-in'
       preLoaderRoute: typeof CheckInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/challenges': {
+      id: '/challenges'
+      path: '/challenges'
+      fullPath: '/challenges'
+      preLoaderRoute: typeof ChallengesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -349,6 +369,7 @@ const GamesRouteWithChildren = GamesRoute._addFileChildren(GamesRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  ChallengesRoute: ChallengesRoute,
   CheckInRoute: CheckInRoute,
   CommunityRoute: CommunityRoute,
   GamesRoute: GamesRouteWithChildren,

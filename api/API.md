@@ -26,6 +26,8 @@ Google sign-in uses the server-side OpenID Connect authorization-code flow. `GET
 | Dashboard | GET | `/api/dashboard` | Progress, rank, quote, latest check-in |
 | Check-ins | GET | `/api/check-ins?page=1&limit=20` | Private check-in history with pagination |
 | Check-ins | POST | `/api/check-ins` | Save a completed check-in |
+| Challenges | GET | `/api/challenges/current` | Current weekly challenges and the member's completion state |
+| Challenges | POST | `/api/challenges/{id}/complete` | Complete one active challenge once and award its server-calculated XP |
 | Quotes | GET | `/api/quotes?category=...&page=1&limit=20` | List/filter quotes with pagination |
 | Quotes | POST | `/api/quotes/{id}/save` | Toggle a saved quote |
 | Community | GET | `/api/community/posts?page=1&limit=20` | List visible posts with pagination and replies |
@@ -43,6 +45,8 @@ Google sign-in uses the server-side OpenID Connect authorization-code flow. `GET
 | Leaderboard | GET | `/api/leaderboard?period=day&page=1&limit=10` | Ranked members for `day`, `week`, `month`, or `all` with pagination |
 
 All request bodies and response bodies are typed and visible in the generated OpenAPI schema. Validation errors use FastAPI's standard `422` response; missing authentication uses `401`; missing resources use `404`; duplicate or full resources use `409`.
+
+Challenges are self-attested wellbeing prompts. They never require a public post, photo, location, or private journal disclosure. Each approved member can complete a challenge once per weekly window; the database uniqueness constraint makes retries idempotent, and the API—not the browser—determines the XP award. Guest accounts cannot earn challenge XP.
 
 ## Local setup
 

@@ -45,6 +45,7 @@ import type { CheckIn, LeaderboardPeriod, Post, Quote } from '../lib/api'
 type Screen =
   | 'home'
   | 'check-in'
+  | 'challenges'
   | 'games'
   | 'leaderboard'
   | 'community'
@@ -65,6 +66,7 @@ const staffRoles = new Set(['admin', 'super_admin', 'manager', 'moderator'])
 const navItems: Array<{ href: string; label: string; icon: Icon }> = [
   { href: '/', label: 'Home', icon: House },
   { href: '/check-in', label: 'Daily Check-In', icon: Heart },
+  { href: '/challenges', label: 'Challenges', icon: Sparkle },
   { href: '/games', label: 'Games', icon: GameController },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/community', label: 'Community', icon: UsersThree },
@@ -561,6 +563,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
   const [resetMessage, setResetMessage] = useState('')
   const [passwordValue, setPasswordValue] = useState('')
   const [confirmPasswordValue, setConfirmPasswordValue] = useState('')
+  const [rememberMe, setRememberMe] = useState(true)
   const isLogin = mode === 'login'
   const googleAuth = useQuery({
     queryKey: ['google-auth-status'],
@@ -588,12 +591,13 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
       email: string
       password: string
       confirm_password?: string
+      remember_me?: boolean
     }) =>
       isLogin
         ? api.login({
             email: body.email,
             password: body.password,
-            remember_me: true,
+            remember_me: body.remember_me ?? false,
           })
         : api.register({
             name: body.name ?? '',
@@ -601,6 +605,11 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
             password: body.password,
             confirm_password: body.confirm_password ?? '',
           }),
+    retry: (failureCount, error) =>
+      error instanceof ApiError &&
+      [0, 502, 503, 504].includes(error.status) &&
+      failureCount < 2,
+    retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 5000),
     onSuccess: (result) => {
       setSubmitted(true)
       if (isLogin || !result.pending_approval) window.location.href = '/'
@@ -630,6 +639,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
       email,
       password,
       confirm_password: confirmPassword,
+      remember_me: rememberMe,
     })
   }
   return (
@@ -784,8 +794,13 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
           )}
           {isLogin ? (
             <div className="form-row">
-              <label className="checkbox-label">
-                <input type="checkbox" defaultChecked />{' '}
+              <label className="checkbox-label checkbox-label--remember">
+                <input
+                  name="remember_me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                />{' '}
                 <span>Remember me</span>
               </label>
               <button
@@ -2757,6 +2772,148 @@ function PromoCard({
   )
 }
 
+function ChallengesScreen() {
+  const queryClient = useQueryClient()
+  const challengesQuery = useQuery({
+    queryKey: ['current-challenges'],
+    queryFn: api.currentChallenges,
+  })
+  const [activeId, setActiveId] = useState<number | null>(null)
+  const [reflection, setReflection] = useState('')
+  const complete = useMutation({
+    mutationFn: ({ id, note }: { id: number; note?: string }) =>
+      api.completeChallenge(id, note),
+    onSuccess: () => {
+      setActiveId(null)
+      setReflection('')
+      void queryClient.invalidateQueries({ queryKey: ['current-challenges'] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      void queryClient.invalidateQueries({ queryKey: ['me'] })
+      void queryClient.invalidateQueries({ queryKey: ['leaderboard'] })
+    },
+  })
+  const data = challengesQuery.data
+  const incompleteChallenge = data?.challenges.find((challenge) => !challenge.completed)
+  const focusChallenge = data?.challenges.find((challenge) => challenge.id === activeId) ?? incompleteChallenge
+  const weekEnd = data
+    ? new Date(`${data.active_until}T12:00:00`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })
+    : ''
+
+  return (
+    <>
+      <PageHeader screen="challenges" />
+      <main className="page-content challenges-page">
+        <section className="challenges-hero">
+          <SectionHeading
+            eyebrow="Small steps, real care"
+            title="Your weekly challenges"
+            description="Gentle prompts to help you notice, connect, and care for yourself this week. There is no perfect way to complete them."
+          />
+          {data && (
+            <aside className="challenge-progress-card" aria-label="Weekly challenge progress">
+              <div className="challenge-progress-card__topline">
+                <span className="eyebrow">This week</span>
+                <Sparkle size={22} weight="fill" aria-hidden="true" />
+              </div>
+              <strong>{data.completed_count} of {data.total_count}</strong>
+              <span>challenges completed</span>
+              <div className="progress-track" aria-label={`${data.completed_count} of ${data.total_count} challenges completed`}>
+                <span style={{ width: `${data.total_count ? (data.completed_count / data.total_count) * 100 : 0}%` }} />
+              </div>
+              <div className="challenge-progress-card__meta">
+                <span><Trophy size={16} weight="fill" aria-hidden="true" /> {data.xp_earned} XP earned</span>
+                <span>Resets {weekEnd}</span>
+              </div>
+            </aside>
+          )}
+        </section>
+
+        {challengesQuery.isLoading && <ContentSkeleton rows={5} />}
+        {challengesQuery.isError && (
+          <div className="form-error challenge-error" role="alert">
+            <span>We could not load this week’s challenges.</span>
+            <button className="button button--secondary button--small" type="button" onClick={() => void challengesQuery.refetch()}>
+              Try again
+            </button>
+          </div>
+        )}
+        {challengesQuery.data?.challenges.length === 0 && !challengesQuery.isLoading && (
+          <EmptyState title="New prompts arrive next week" message="For now, take a gentle pause in Daily Check-In and come back when a new set is ready." />
+        )}
+        {data && data.challenges.length > 0 && (
+          <>
+            {focusChallenge && (
+              <section className={`challenge-feature challenge-feature--${focusChallenge.color}`} aria-labelledby="today-challenge-title">
+                <div className="challenge-feature__icon" aria-hidden="true">{focusChallenge.icon}</div>
+                <div className="challenge-feature__content">
+                  <span className="eyebrow">A gentle place to start</span>
+                  <h2 id="today-challenge-title">{focusChallenge.title}</h2>
+                  <p>{focusChallenge.description}</p>
+                  <button className="button button--primary" type="button" onClick={() => setActiveId(activeId === focusChallenge.id ? null : focusChallenge.id)} aria-expanded={activeId === focusChallenge.id}>
+                    {activeId === focusChallenge.id ? 'Close reflection' : 'I’m ready'} <ArrowRight size={17} aria-hidden="true" />
+                  </button>
+                  {activeId === focusChallenge.id && (
+                    <form className="challenge-reflection" onSubmit={(event) => { event.preventDefault(); complete.mutate({ id: focusChallenge.id, note: reflection }) }}>
+                      <label className="field-label" htmlFor="challenge-reflection">Add a note <span>(optional)</span></label>
+                      <textarea id="challenge-reflection" value={reflection} onChange={(event) => setReflection(event.target.value)} maxLength={500} placeholder="What did you notice?" />
+                      <div className="challenge-reflection__actions">
+                        <small>{reflection.length}/500 · A private note for you</small>
+                        <button className="button button--orange" type="submit" disabled={complete.isPending}>{complete.isPending ? 'Saving…' : `Complete · +${focusChallenge.xp} XP`}</button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </section>
+            )}
+            {complete.isError && <p className="form-error" role="alert">{complete.error.message}</p>}
+            {complete.isSuccess && <p className="form-success" role="status">Challenge completed — your XP has been added.</p>}
+            <section className="challenges-section" aria-labelledby="all-challenges-title">
+              <div className="section-row">
+                <div>
+                  <span className="eyebrow">Choose your pace</span>
+                  <h2 id="all-challenges-title">This week’s prompts</h2>
+                </div>
+                <span className="challenge-count">{data.completed_count}/{data.total_count} complete</span>
+              </div>
+              <div className="challenge-grid">
+                {data.challenges.map((challenge) => (
+                  <article className={`challenge-card challenge-card--${challenge.color}${challenge.completed ? ' challenge-card--completed' : ''}`} key={challenge.id}>
+                    <div className="challenge-card__header">
+                      <span className="challenge-card__icon" aria-hidden="true">{challenge.icon}</span>
+                      <span className="challenge-card__category">{challenge.category}</span>
+                      <span className="challenge-card__xp">+{challenge.xp} XP</span>
+                    </div>
+                    <h3>{challenge.title}</h3>
+                    <p>{challenge.description}</p>
+                    {challenge.completed ? (
+                      <div className="challenge-card__complete" role="status"><CheckCircle size={19} weight="fill" aria-hidden="true" /> Completed</div>
+                    ) : (
+                      <button className="button button--secondary button--small" type="button" onClick={() => { setActiveId(challenge.id); setReflection('') }}>
+                        Choose this challenge <ArrowRight size={15} aria-hidden="true" />
+                      </button>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
+        <section className="challenge-guide" aria-labelledby="challenge-guide-title">
+          <Sparkle size={23} weight="fill" aria-hidden="true" />
+          <div>
+            <h2 id="challenge-guide-title">How this works</h2>
+            <p>Pick the prompts that feel right, complete them in your own way, and collect a little XP for showing up. You never need to share a photo, location, or private details.</p>
+          </div>
+        </section>
+      </main>
+      <PageFooter />
+    </>
+  )
+}
+
 function GamesScreen() {
   const navigate = useNavigate()
   const [showAllGames, setShowAllGames] = useState(false)
@@ -4304,6 +4461,8 @@ function ProtectedApp({
       <ProfileScreen />
     ) : screen === 'check-in' ? (
       <CheckInScreen />
+    ) : screen === 'challenges' ? (
+      <ChallengesScreen />
     ) : screen === 'quotes' ? (
       <QuotesScreen />
     ) : screen === 'community' ? (

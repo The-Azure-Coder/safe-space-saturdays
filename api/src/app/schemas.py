@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
@@ -153,6 +153,35 @@ class CheckInResponse(CheckInRequest):
     model_config = ConfigDict(from_attributes=True)
     id: int
     created_at: datetime
+
+
+class ChallengeCompleteRequest(BaseModel):
+    reflection: str | None = Field(default=None, max_length=500)
+
+
+class ChallengeResponse(BaseModel):
+    id: int
+    slug: str
+    title: str
+    description: str
+    category: str
+    icon: str
+    color: str
+    xp: int
+    week_start: date
+    active_until: date
+    completed: bool
+    completed_at: datetime | None = None
+    reflection: str | None = None
+
+
+class ChallengesResponse(BaseModel):
+    week_start: date
+    active_until: date
+    completed_count: int
+    total_count: int
+    xp_earned: int
+    challenges: list[ChallengeResponse]
 
 
 class PostResponse(BaseModel):
