@@ -292,6 +292,8 @@ export const api = {
   logout: () => apiFetch<void>('/api/auth/logout', { method: 'POST' }),
   dashboard: () => apiFetch<Dashboard>('/api/dashboard'),
   currentChallenges: () => apiFetch<Challenges>('/api/challenges/current'),
+  challengeHistory: (page = 1, limit = 10) =>
+    apiFetch<Array<Challenge>>(`/api/challenges/history?page=${page}&limit=${limit}`),
   completeChallenge: (id: number, reflection?: string) =>
     apiFetch<Challenge>(`/api/challenges/${id}/complete`, {
       method: 'POST',

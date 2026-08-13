@@ -24,6 +24,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -948,6 +949,27 @@ async def complete_challenge(
     return challenge_out(challenge, completion)
 
 
+@router.get("/challenges/history", response_model=list[ChallengeResponse])
+async def challenge_history(
+    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 10
+) -> list[ChallengeResponse]:
+    if user.is_guest or not user.is_approved:
+        raise HTTPException(status_code=403, detail="Challenges are available to approved members")
+    page = max(page, 1)
+    limit = min(max(limit, 1), 50)
+    rows = (
+        await db.execute(
+            select(Challenge, ChallengeCompletion)
+            .join(ChallengeCompletion, ChallengeCompletion.challenge_id == Challenge.id)
+            .where(ChallengeCompletion.user_id == user.id)
+            .order_by(ChallengeCompletion.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+    return [challenge_out(challenge, completion) for challenge, completion in rows]
+
+
 @router.post("/check-ins", response_model=CheckInResponse, status_code=status.HTTP_201_CREATED)
 async def create_check_in(
     payload: CheckInRequest, user: CurrentUser, db: DbSession
@@ -1125,6 +1147,51 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
     )
 
 
+def normalise_upload(content: bytes, max_bytes: int) -> bytes:
+    """Decode and resize an image so stored uploads stay within the output budget."""
+    try:
+        with Image.open(io.BytesIO(content)) as source:
+            if source.width * source.height > 36_000_000:
+                raise HTTPException(
+                    status_code=413,
+                    detail="This image has too many pixels to process safely.",
+                )
+            source.load()
+            prepared = ImageOps.exif_transpose(source)
+            if prepared.mode not in {"RGB", "RGBA"}:
+                prepared = prepared.convert("RGBA" if "transparency" in prepared.info else "RGB")
+            prepared.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
+    except (Image.DecompressionBombError, UnidentifiedImageError, OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=415, detail="The uploaded file is not a valid image"
+        ) from exc
+
+    quality = 88
+    scale = 1.0
+    while quality >= 42:
+        candidate = prepared.copy()
+        if scale < 1:
+            candidate.thumbnail(
+                (max(320, int(prepared.width * scale)), max(320, int(prepared.height * scale))),
+                Image.Resampling.LANCZOS,
+            )
+        output = io.BytesIO()
+        candidate.save(output, format="WEBP", quality=quality, method=6)
+        encoded = output.getvalue()
+        if len(encoded) <= max_bytes:
+            return encoded
+        if quality > 42:
+            quality -= 8
+        else:
+            scale *= 0.8
+            quality = 82
+
+    raise HTTPException(
+        status_code=413,
+        detail="This image could not be resized below the upload limit.",
+    )
+
+
 async def save_post_image(image: UploadFile) -> str:
     settings = get_settings()
     allowed_types = {
@@ -1135,14 +1202,21 @@ async def save_post_image(image: UploadFile) -> str:
     image_format = allowed_types.get(image.content_type or "")
     if image_format is None:
         raise HTTPException(status_code=415, detail="Only JPEG, PNG, and WebP images are supported")
-    content = await image.read(settings.max_upload_bytes + 1)
-    if len(content) > settings.max_upload_bytes:
-        raise HTTPException(status_code=413, detail="Image must be 10 MB or smaller")
+    source_limit = getattr(
+        settings, "max_source_upload_bytes", settings.max_upload_bytes * 4
+    )
+    content = await image.read(source_limit + 1)
+    if len(content) > source_limit:
+        raise HTTPException(
+            status_code=413,
+            detail="This image is too large to process. Please choose an image under 40 MB.",
+        )
     signature = image_format[1]
     if not content.startswith(signature) or (
         image_format[0] == "webp" and content[8:12] != b"WEBP"
     ):
         raise HTTPException(status_code=415, detail="The uploaded file is not a valid image")
+    content = normalise_upload(content, settings.max_upload_bytes)
     if settings.use_cloudinary:
         if not all(
             (
@@ -1164,7 +1238,7 @@ async def save_post_image(image: UploadFile) -> str:
                 io.BytesIO(content),
                 folder="safe-space-saturdays",
                 resource_type="image",
-                format=image_format[0],
+                format="webp",
             )
         except Exception as exc:
             raise HTTPException(
@@ -1174,7 +1248,7 @@ async def save_post_image(image: UploadFile) -> str:
         if not isinstance(secure_url, str) or not secure_url.startswith("https://"):
             raise HTTPException(status_code=502, detail="Image storage returned an invalid URL")
         return secure_url
-    filename = f"{uuid4().hex}.{image_format[0]}"
+    filename = f"{uuid4().hex}.webp"
     destination: Path = settings.upload_dir / filename
     await asyncio.to_thread(destination.write_bytes, content)
     return f"/uploads/{filename}"

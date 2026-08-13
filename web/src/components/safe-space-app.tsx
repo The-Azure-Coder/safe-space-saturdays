@@ -81,6 +81,8 @@ const moods = [
   { label: 'Struggling', icon: '😔' },
 ]
 
+const MAX_SOURCE_IMAGE_BYTES = 40_000_000
+
 type GameDefinition = {
   id?: number
   name: string
@@ -2384,9 +2386,9 @@ function CommunityScreen() {
     if (!file) return
     if (
       !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
-      file.size > 10_000_000
+      file.size > MAX_SOURCE_IMAGE_BYTES
     ) {
-      setImageError('Choose a JPEG, PNG, or WebP image smaller than 10 MB.')
+      setImageError('Choose a JPEG, PNG, or WebP image under 40 MB. Larger images are resized automatically.')
       setImageFile(undefined)
       event.currentTarget.value = ''
       return
@@ -2869,7 +2871,17 @@ function ChallengesScreen() {
               </section>
             )}
             {complete.isError && <p className="form-error" role="alert">{complete.error.message}</p>}
-            {complete.isSuccess && <p className="form-success" role="status">Challenge completed — your XP has been added.</p>}
+            {complete.isSuccess && (
+              <section className="challenge-celebration" role="status" aria-label="Challenge completed">
+                <span className="challenge-celebration__icon" aria-hidden="true"><Sparkle size={23} weight="fill" /></span>
+                <div>
+                  <span className="eyebrow">A little win to keep</span>
+                  <strong>Challenge complete · +{complete.data.xp} XP</strong>
+                  <p>That was worth celebrating. Your progress is waiting for you on your profile.</p>
+                </div>
+                <Link className="button button--secondary button--small" to="/profile">View progress</Link>
+              </section>
+            )}
             <section className="challenges-section" aria-labelledby="all-challenges-title">
               <div className="section-row">
                 <div>
@@ -3647,6 +3659,7 @@ function ProfileScreen() {
   const [repliedPage, setRepliedPage] = useState(1)
   const [savedQuotesPage, setSavedQuotesPage] = useState(1)
   const [checkInsPage, setCheckInsPage] = useState(1)
+  const [challengeHistoryPage, setChallengeHistoryPage] = useState(1)
   const [avatarError, setAvatarError] = useState('')
   const [theme, setTheme] = useState<
     'sage' | 'night' | 'purple' | 'crimson' | 'high-contrast'
@@ -3706,6 +3719,11 @@ function ProfileScreen() {
     queryFn: () => api.checkIns(checkInsPage, 5),
     enabled: activeTab === 'activity',
   })
+  const challengeHistory = useQuery({
+    queryKey: ['challenge-history', challengeHistoryPage],
+    queryFn: () => api.challengeHistory(challengeHistoryPage, 10),
+    enabled: activeTab === 'activity',
+  })
   const saveAvatar = useMutation({
     mutationFn: api.updateAvatar,
     onSuccess: (user) => {
@@ -3758,8 +3776,8 @@ function ProfileScreen() {
   const handleAvatarChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    if (!file.type.startsWith('image/') || file.size > 2_000_000) {
-      setAvatarError('Choose an image smaller than 2 MB.')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > MAX_SOURCE_IMAGE_BYTES) {
+      setAvatarError('Choose a JPEG, PNG, or WebP image under 40 MB. Larger images are resized automatically.')
       return
     }
     setAvatarError('')
@@ -3943,7 +3961,7 @@ function ProfileScreen() {
                   </p>
                 )}
                 <small className="field-help">
-                  JPG, PNG, or WebP. Maximum 2 MB.
+                  JPG, PNG, or WebP. Images up to 40 MB are resized automatically to fit the 10 MB storage limit.
                 </small>
                 <button
                   className="button button--primary button--small"
@@ -3968,7 +3986,46 @@ function ProfileScreen() {
               {(likedPosts.isLoading ||
                 repliedPosts.isLoading ||
                 savedQuotes.isLoading ||
-                checkIns.isLoading) && <ContentSkeleton rows={3} />}
+                checkIns.isLoading ||
+                challengeHistory.isLoading) && <ContentSkeleton rows={3} />}
+              <section className="profile-card challenge-history-card">
+                <div className="challenge-history-card__header">
+                  <div>
+                    <span className="eyebrow">Little wins</span>
+                    <div className="card-title"><Sparkle size={22} weight="fill" /><span>Challenge garden</span></div>
+                    <p className="profile-card__intro">A gentle record of the moments you chose to show up.</p>
+                  </div>
+                  <Link className="button button--secondary button--small" to="/challenges">Find a prompt</Link>
+                </div>
+                {challengeHistory.isError ? (
+                  <p className="form-error" role="alert">We could not load your challenge garden. Please try again shortly.</p>
+                ) : (challengeHistory.data ?? []).length > 0 ? (
+                  <div className="challenge-history-list">
+                    {(challengeHistory.data ?? []).map((challenge) => (
+                      <article className={`challenge-history-item challenge-history-item--${challenge.color}`} key={`${challenge.id}-${challenge.completed_at}`}>
+                        <span className="challenge-history-item__icon" aria-hidden="true">{challenge.icon}</span>
+                        <div>
+                          <strong>{challenge.title}</strong>
+                          <small>{challenge.completed_at ? new Date(challenge.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Completed'} · {challenge.category}</small>
+                        </div>
+                        <span className="challenge-history-item__xp">+{challenge.xp} XP</span>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="profile-empty-state challenge-history-empty">
+                    <p>Your completed challenges will bloom here.</p>
+                    <Link className="button button--secondary button--small" to="/challenges">Start your first challenge</Link>
+                  </div>
+                )}
+                <PaginationControls
+                  page={challengeHistoryPage}
+                  itemCount={challengeHistory.data?.length ?? 0}
+                  pageSize={10}
+                  onPageChange={setChallengeHistoryPage}
+                  label="Completed challenges"
+                />
+              </section>
               <section className="profile-card">
                 <div className="card-title">
                   <Heart size={22} weight="fill" />

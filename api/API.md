@@ -22,11 +22,12 @@ Google sign-in uses the server-side OpenID Connect authorization-code flow. `GET
 | Auth | POST | `/api/auth/logout` | End the current session |
 | Auth | GET | `/api/auth/me` | Current user |
 | Auth | PATCH | `/api/auth/me` | Update display name |
-| Auth | POST | `/api/auth/me/avatar` | Save a JPEG, PNG, or WebP profile picture (maximum 10 MB) |
+| Auth | POST | `/api/auth/me/avatar` | Save a JPEG, PNG, or WebP profile picture; source images up to 40 MB are resized to the 10 MB output limit |
 | Dashboard | GET | `/api/dashboard` | Progress, rank, quote, latest check-in |
 | Check-ins | GET | `/api/check-ins?page=1&limit=20` | Private check-in history with pagination |
 | Check-ins | POST | `/api/check-ins` | Save a completed check-in |
 | Challenges | GET | `/api/challenges/current` | Current weekly challenges and the member's completion state |
+| Challenges | GET | `/api/challenges/history?page=1&limit=10` | Completed challenge history for the current member |
 | Challenges | POST | `/api/challenges/{id}/complete` | Complete one active challenge once and award its server-calculated XP |
 | Quotes | GET | `/api/quotes?category=...&page=1&limit=20` | List/filter quotes with pagination |
 | Quotes | POST | `/api/quotes/{id}/save` | Toggle a saved quote |
@@ -34,7 +35,7 @@ Google sign-in uses the server-side OpenID Connect authorization-code flow. `GET
 | Community | GET | `/api/community/activity/liked?page=1&limit=10` | Posts the current member liked or loved |
 | Community | GET | `/api/community/activity/replied?page=1&limit=10` | Posts the current member replied to |
 | Community | POST | `/api/community/posts` | Create a post |
-| Community | POST | `/api/community/posts/with-image` | Create a post with a JPEG, PNG, or WebP image (maximum 10 MB) |
+| Community | POST | `/api/community/posts/with-image` | Create a post with a JPEG, PNG, or WebP image; source images up to 40 MB are resized to the 10 MB output limit |
 | Community | POST | `/api/community/posts/{id}/reactions` | Toggle or change a `like`, `dislike`, or `love` reaction |
 | Community | POST | `/api/community/posts/{id}/comments` | Add a comment |
 | Games | GET | `/api/games?page=1&limit=20` | Featured games with pagination |

@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     upload_dir: Path = DEFAULT_UPLOAD_DIR
     max_upload_bytes: int = 10_000_000
+    max_source_upload_bytes: int = 40_000_000
     redis_url: str = "redis://localhost:6379/0"
     realtime_node_id: str = socket.gethostname()
     use_cloudinary: bool = False

@@ -55,7 +55,7 @@ test('a member can choose and complete a weekly challenge', async ({ page }) => 
   await page.getByRole('button', { name: 'I’m ready' }).click()
   await page.getByLabel('Add a note').fill('A warm patch of sunlight.')
   await page.getByRole('button', { name: 'Complete · +10 XP' }).click()
-  await expect(page.getByText('Challenge completed — your XP has been added.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('status', { name: 'Challenge completed' })).toContainText('Challenge complete · +10 XP')
   await expect(page.getByText('1 of 1')).toBeVisible()
   await expect(page.getByText('Completed', { exact: true })).toBeVisible()
 })
