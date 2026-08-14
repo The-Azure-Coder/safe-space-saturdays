@@ -25,7 +25,7 @@ export class ApiError extends Error {
   }
 }
 
-export const MAX_API_WAKE_RETRIES = 8
+export const MAX_API_WAKE_RETRIES = 12
 export const API_REQUEST_TIMEOUT_MS = 45_000
 
 export function shouldRetryApiRequest(failureCount: number, error: unknown): boolean {

@@ -36,21 +36,27 @@ export function ServerWakeLoader({
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
 
   useEffect(() => {
+    setElapsedSeconds(0)
     if (exhausted) return
     const timer = window.setInterval(
       () => setElapsedSeconds((current) => current + 1),
       1_000,
     )
     return () => window.clearInterval(timer)
-  }, [exhausted])
+  }, [attempt, exhausted])
 
-  const message = exhausted
-    ? 'The server is taking longer than expected. Your place is safe, and you can try again.'
+  const progress = exhausted ? 100 : Math.min((elapsedSeconds / 45) * 100, 96)
+  const remaining = Math.max(1, 45 - elapsedSeconds)
+  const phase = exhausted
+    ? 'Still waiting for the server'
     : elapsedSeconds >= 30
-      ? 'Still reconnecting. Your room and progress are being kept safe.'
+      ? 'Finishing the wake-up'
       : elapsedSeconds >= 12
-        ? 'This can take a little longer after a quiet spell. We will keep trying for you.'
-        : content[context].opening
+        ? 'Loading your space'
+        : 'Starting the server'
+  const message = exhausted
+    ? 'The server is still waking. We will keep your place safe while you try again.'
+    : content[context].opening
 
   return (
     <section
@@ -59,25 +65,23 @@ export function ServerWakeLoader({
       aria-live={exhausted ? 'assertive' : 'polite'}
       aria-atomic="true"
     >
-      <div className="server-wake-loader__visual" aria-hidden="true">
-        <span className="server-wake-loader__halo" />
-        <GameController size={35} weight="duotone" />
-        <Sparkle
-          className="server-wake-loader__spark server-wake-loader__spark--one"
-          size={15}
-          weight="fill"
-        />
-        <Sparkle
-          className="server-wake-loader__spark server-wake-loader__spark--two"
-          size={11}
-          weight="fill"
-        />
+      <div className="server-wake-loader__topline">
+        <span className="server-wake-loader__icon" aria-hidden="true">
+          <GameController size={18} weight="duotone" />
+          <Sparkle size={8} weight="fill" />
+        </span>
+        <span>{phase}</span>
+        <small>Attempt {attempt + 1}</small>
       </div>
       <div className="server-wake-loader__copy">
-        <strong>
-          {exhausted ? 'We could not reconnect yet' : content[context].title}
-        </strong>
+        <strong>{exhausted ? 'Your space is still here' : content[context].title}</strong>
         <p>{message}</p>
+      </div>
+      <div className="server-wake-loader__progress" aria-label={`${Math.round(progress)} percent of this server check complete`}>
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <div className="server-wake-loader__countdown" aria-live="polite">
+        {exhausted ? 'Ready when the server responds' : `Checking for up to ${remaining}s · we keep trying automatically`}
       </div>
       {exhausted ? (
         <button
