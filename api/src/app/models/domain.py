@@ -249,8 +249,8 @@ class GameMatchPlayer(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    match_id: Mapped[str] = mapped_column(
-        ForeignKey("game_matches.id", ondelete="CASCADE"), index=True
+    match_id: Mapped[str | None] = mapped_column(
+        ForeignKey("game_matches.id", ondelete="CASCADE"), nullable=True, index=True
     )
     seat_index: Mapped[int] = mapped_column(Integer)
     user_id: Mapped[int | None] = mapped_column(

@@ -317,6 +317,41 @@ async def grant_game_win_reward(db: AsyncSession, user_id: int, match_id: str) -
     return await grant_game_reward(db, user_id, match_id, "win", 10)
 
 
+async def grant_completed_game_rewards(
+    db: AsyncSession,
+    player_ids: dict[int, int],
+    match_id: str,
+    winner: int | None,
+) -> None:
+    """Reconcile rewards for every human when a match reaches a terminal state."""
+    for user_id, seat in player_ids.items():
+        await grant_game_participation_reward(db, user_id, match_id)
+        if winner is not None and seat == winner:
+            await grant_game_win_reward(db, user_id, match_id)
+
+
+async def grant_community_post_reward(db: AsyncSession, user_id: int, post_id: int) -> bool:
+    key = f"community-post:{post_id}:{user_id}"
+    existing = await db.scalar(select(RewardLedger).where(RewardLedger.idempotency_key == key))
+    if existing is not None:
+        return False
+    user = await db.get(User, user_id)
+    if user is None:
+        return False
+    user.xp += 5
+    user.level = max(1, user.xp // 250 + 1)
+    db.add(
+        RewardLedger(
+            user_id=user_id,
+            match_id=None,
+            kind="community_post",
+            xp=5,
+            idempotency_key=key,
+        )
+    )
+    return True
+
+
 def game_type_for_name(name: str) -> str | None:
     normalized = name.casefold()
     if normalized == "ludo":
@@ -1352,6 +1387,8 @@ async def create_post(payload: PostCreateRequest, user: CurrentUser, db: DbSessi
     db.add(post)
     await db.commit()
     await db.refresh(post)
+    await grant_community_post_reward(db, user.id, post.id)
+    await db.commit()
     return await post_out(post, user.id, db)
 
 
@@ -1369,6 +1406,8 @@ async def share_quote_to_community(quote_id: int, user: CurrentUser, db: DbSessi
     db.add(post)
     await db.commit()
     await db.refresh(post)
+    await grant_community_post_reward(db, user.id, post.id)
+    await db.commit()
     return await post_out(post, user.id, db)
 
 
@@ -1388,6 +1427,8 @@ async def create_post_with_image(
     db.add(post)
     await db.commit()
     await db.refresh(post)
+    await grant_community_post_reward(db, user.id, post.id)
+    await db.commit()
     return await post_out(post, user.id, db)
 
 
@@ -1929,9 +1970,9 @@ async def play_move(
     if persisted is not None:
         await record_state(db, persisted, user.id, {"column": payload.column}, match.snapshot())
     await grant_game_participation_reward(db, user.id, match.id)
-    if match.state.winner == 1 and not match.reward_granted:
-        await grant_game_win_reward(db, user.id, match.id)
-        match.reward_granted = True
+    if match.state.winner is not None or match.state.draw:
+        await grant_completed_game_rewards(db, match.player_ids, match.id, match.state.winner)
+        match.reward_granted = match.state.winner is not None
         if persisted is not None:
             persisted.status = "completed"
         await db.commit()
@@ -2013,6 +2054,10 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                         db, persisted, user.id, {"column": message["column"]}, match.snapshot()
                     )
                 await grant_game_participation_reward(db, user.id, match.id)
+                if match.state.winner is not None or match.state.draw:
+                    await grant_completed_game_rewards(
+                        db, match.player_ids, match.id, match.state.winner
+                    )
                 await db.commit()
             await realtime_bus.publish(
                 match_channel(match.id),
@@ -2021,11 +2066,8 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                     "payload": {"type": "state", "state": match.snapshot()},
                 },
             )
-            if match.state.winner == 1 and not match.reward_granted:
-                async with session_factory() as db:
-                    await grant_game_win_reward(db, user.id, match.id)
-                    await db.commit()
-                    match.reward_granted = True
+            if match.state.winner is not None or match.state.draw:
+                match.reward_granted = match.state.winner is not None
     except WebSocketDisconnect:
         match.sockets.pop(websocket, None)
     finally:
@@ -2105,9 +2147,11 @@ async def game_session_action(
         elif match.state.get("winner") is not None or match.state.get("draw", False):
             persisted.status = "completed"
     await grant_game_participation_reward(db, user.id, match.id)
-    if match.state.get("winner") == 0 and not match.reward_granted:
-        await grant_game_win_reward(db, user.id, match.id)
-        match.reward_granted = True
+    if match.state.get("winner") is not None or match.state.get("draw", False):
+        await grant_completed_game_rewards(
+            db, match.player_ids, match.id, match.state.get("winner")
+        )
+        match.reward_granted = match.state.get("winner") is not None
     await db.commit()
     await realtime_bus.publish(
         match_channel(match.id),
@@ -2170,9 +2214,11 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                     elif match.state.get("winner") is not None or match.state.get("draw", False):
                         persisted.status = "completed"
                 await grant_game_participation_reward(db, user.id, match.id)
-                if match.state.get("winner") == 0 and not match.reward_granted:
-                    await grant_game_win_reward(db, user.id, match.id)
-                    match.reward_granted = True
+                if match.state.get("winner") is not None or match.state.get("draw", False):
+                    await grant_completed_game_rewards(
+                        db, match.player_ids, match.id, match.state.get("winner")
+                    )
+                    match.reward_granted = match.state.get("winner") is not None
                 await db.commit()
             await realtime_bus.publish(
                 match_channel(match.id),
