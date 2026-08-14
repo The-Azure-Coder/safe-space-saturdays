@@ -4,7 +4,9 @@ import { CloudArrowUp, GameController, Heartbeat } from '@phosphor-icons/react'
 
 import { API_HEALTH_URL } from '../lib/api'
 
-const PROBE_TIMEOUT_MS = 15_000
+// Render cold starts regularly take 40-60 seconds. Keep a single wake request
+// alive long enough for Render to finish instead of cancelling and restarting it.
+const PROBE_TIMEOUT_MS = 90_000
 const RETRY_DELAY_MS = 1_000
 const EXPECTED_WAKE_SECONDS = 55
 
@@ -12,10 +14,10 @@ type WakeState = 'checking' | 'finishing' | 'ready'
 
 function estimatedProgress(elapsedSeconds: number): number {
   if (elapsedSeconds <= EXPECTED_WAKE_SECONDS)
-    return Math.round(4 + (elapsedSeconds / EXPECTED_WAKE_SECONDS) * 88)
+    return Math.round(4 + (elapsedSeconds / EXPECTED_WAKE_SECONDS) * 91)
   return Math.min(
-    98,
-    Math.round(92 + ((elapsedSeconds - EXPECTED_WAKE_SECONDS) / 120) * 6),
+    99,
+    Math.round(95 + ((elapsedSeconds - EXPECTED_WAKE_SECONDS) / 180) * 4),
   )
 }
 
@@ -145,7 +147,13 @@ export function ApiWakeGate({ children }: PropsWithChildren) {
           <i style={{ left: `${progress}%` }} />
         </div>
         <div className="api-wake-console__meta">
-          <strong>{progress}% estimated</strong>
+          <strong>
+            {state === 'finishing'
+              ? '100% ready'
+              : remainingEstimate > 0
+                ? `${progress}% estimated`
+                : 'Final readiness check'}
+          </strong>
           <span>
             {remainingEstimate > 0
               ? `Usually ready in about ${remainingEstimate}s`

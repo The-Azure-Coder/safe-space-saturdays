@@ -5,21 +5,15 @@ test.setTimeout(120_000)
 const email = `browser-${Date.now()}@example.com`
 const password = 'safe-space-password-123'
 
-test('the startup loader probes Render until the API reports ready', async ({
+test('the startup loader keeps one long Render wake request alive', async ({
   page,
 }) => {
   let healthChecks = 0
   await page.route('**/health/ready**', async (route) => {
     healthChecks += 1
-    if (healthChecks < 3) {
-      await route.fulfill({
-        status: 503,
-        contentType: 'application/json',
-        body: JSON.stringify({ status: 'unavailable', service: 'api' }),
-      })
-      return
-    }
-    await new Promise((resolve) => setTimeout(resolve, 700))
+    // Longer than the previous 15-second timeout. The request must not be
+    // cancelled and restarted while Render is still booting.
+    await new Promise((resolve) => setTimeout(resolve, 17_000))
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -46,11 +40,14 @@ test('the startup loader probes Render until the API reports ready', async ({
   await expect(progress).toBeVisible()
   await expect(progress).toHaveAttribute('aria-valuenow', /\d+/)
   await expect(page.getByText(/API readiness check \d+/)).toBeVisible()
-  await expect.poll(() => healthChecks).toBeGreaterThanOrEqual(3)
-  await expect(progress).toHaveAttribute('aria-valuenow', '100')
+  await expect.poll(() => healthChecks).toBe(1)
+  await expect(progress).toHaveAttribute('aria-valuenow', '100', {
+    timeout: 25_000,
+  })
   await expect(
     page.getByRole('heading', { name: 'Welcome back' }),
   ).toBeVisible()
+  expect(healthChecks).toBe(1)
 })
 
 test('a visitor can register and reach the authenticated home screen', async ({
