@@ -3490,10 +3490,14 @@ function LeaderboardScreen() {
     queryKey: ['leaderboard', period, page],
     queryFn: () => api.leaderboard(period, page, 10),
     refetchInterval: 60_000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
   const progress = useQuery({
     queryKey: ['leaderboard-me', period],
     queryFn: () => api.leaderboardMe(period),
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
   const entries = leaderboard.data ?? []
   const isRefreshing = leaderboard.isFetching || progress.isFetching
