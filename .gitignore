@@ -5,6 +5,10 @@ web/.output/
 web/.tanstack/
 web/dist/
 web/test-results/
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/.env
 api/.venv/
 api/.pytest_cache/
 api/.mypy_cache/

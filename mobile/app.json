@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Safe Space Saturdays",
+    "slug": "safe-space-saturdays",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "safespacesaturdays",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router", "expo-secure-store"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.safespacesaturdays.app"
+    },
+    "android": {
+      "package": "com.safespacesaturdays.app"
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      }
+    }
+  }
+}

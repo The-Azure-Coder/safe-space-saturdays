@@ -1,0 +1,9 @@
+import { Link } from 'expo-router'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { themes } from '@/theme'
+
+const games = [{ name: 'Ludo', copy: 'A warm, competitive classic for up to four players.' }, { name: 'Connect Four', copy: 'Build a line, block a move, and play together.' }, { name: 'Scribble', copy: 'Draw, guess, and share a few laughs.' }]
+
+export default function Games() { return <ScrollView contentContainerStyle={styles.page}><Text style={styles.eyebrow}>PLAY TOGETHER</Text><Text style={styles.title}>Game night, your way.</Text><Text style={styles.copy}>Join a room, invite a friend, or start with a bot.</Text>{games.map((game) => <View key={game.name} style={styles.card}><View style={styles.icon}><Text style={styles.iconText}>✦</Text></View><Text style={styles.name}>{game.name}</Text><Text style={styles.cardCopy}>{game.copy}</Text><Link href="/games" style={styles.link}>Find a room</Link></View>)}</ScrollView> }
+
+const styles = StyleSheet.create({ page: { backgroundColor: themes.sage.background, flexGrow: 1, padding: 24, paddingTop: 62 }, eyebrow: { color: themes.sage.primary, fontSize: 12, fontWeight: '800', letterSpacing: 2 }, title: { color: themes.sage.text, fontSize: 34, fontWeight: '800', marginTop: 12 }, copy: { color: themes.sage.muted, fontSize: 16, lineHeight: 24, marginBottom: 20, marginTop: 10 }, card: { backgroundColor: themes.sage.surface, borderColor: themes.sage.border, borderRadius: 22, borderWidth: 1, marginBottom: 14, padding: 20 }, icon: { alignItems: 'center', backgroundColor: '#e5efe0', borderRadius: 14, height: 42, justifyContent: 'center', width: 42 }, iconText: { color: themes.sage.primary, fontSize: 21 }, name: { color: themes.sage.text, fontSize: 21, fontWeight: '800', marginTop: 14 }, cardCopy: { color: themes.sage.muted, fontSize: 14, lineHeight: 21, marginTop: 5 }, link: { color: themes.sage.primary, fontSize: 14, fontWeight: '800', marginTop: 14 } })

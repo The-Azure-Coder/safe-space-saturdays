@@ -4,7 +4,9 @@ The API is FastAPI-based and exposes OpenAPI documentation at `/docs` and `/redo
 
 ## Authentication
 
-`POST /api/auth/register` and `POST /api/auth/login` set an HTTP-only `safe_space_session` cookie. Browser clients should send requests with credentials enabled. `POST /api/auth/logout` clears the session. Protected endpoints return `401` when no valid session is present.
+`POST /api/auth/register` and `POST /api/auth/login` set an HTTP-only `safe_space_session` cookie and return an `access_token` for native clients. Browser clients should send requests with credentials enabled. Native clients should send `Authorization: Bearer <access_token>`, store the token in platform secure storage, and use `POST /api/auth/refresh` to rotate it. `POST /api/auth/logout` accepts either the cookie or bearer token. Protected endpoints return `401` when no valid session is present.
+
+Game WebSockets accept the same bearer token through the `Authorization` header, which allows native multiplayer clients to reconnect without browser cookies.
 
 Google sign-in uses the server-side OpenID Connect authorization-code flow. `GET /api/auth/google/start` creates signed, short-lived `state` and `nonce` values before redirecting to Google. The callback validates those values and Google's signed ID token, links an existing account only by a verified email, and then creates the same HTTP-only session used by password login. The Google access and ID tokens are never sent to the browser or stored by the application.
 
@@ -16,6 +18,7 @@ Google sign-in uses the server-side OpenID Connect authorization-code flow. `GET
 | Health | GET | `/health/ready` | PostgreSQL readiness |
 | Auth | POST | `/api/auth/register` | Create an account |
 | Auth | POST | `/api/auth/login` | Start a session |
+| Auth | POST | `/api/auth/refresh` | Rotate a native or browser session token |
 | Auth | GET | `/api/auth/google/status` | Report whether Google sign-in is configured |
 | Auth | GET | `/api/auth/google/start` | Start Google OpenID Connect sign-in |
 | Auth | GET | `/api/auth/google/callback` | Validate Google identity and start a session |

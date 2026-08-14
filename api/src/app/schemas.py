@@ -39,6 +39,7 @@ class LoginRequest(BaseModel):
 
 class AuthResponse(BaseModel):
     user: UserResponse
+    access_token: str | None = None
     pending_approval: bool = False
     message: str | None = None
 

@@ -1,0 +1,11 @@
+import { Link } from 'expo-router'
+import { StyleSheet, Text, View } from 'react-native'
+import { useAuth } from '@/auth'
+import { themes } from '@/theme'
+
+export default function Home() {
+  const { user } = useAuth()
+  return <View style={styles.page}><Text style={styles.eyebrow}>SAFE SPACE SATURDAYS</Text><Text style={styles.title}>Welcome back, {user?.name.split(' ')[0]}.</Text><Text style={styles.copy}>A small check-in can change the shape of a day.</Text><View style={styles.hero}><Text style={styles.heroTitle}>How are you arriving today?</Text><Text style={styles.heroCopy}>Take a quiet moment to notice what you need.</Text><Link href="/check-in" style={styles.button}>Open daily check-in</Link></View><View style={styles.row}><View style={styles.stat}><Text style={styles.statNumber}>{user?.streak ?? 0}</Text><Text style={styles.statLabel}>day streak</Text></View><View style={styles.stat}><Text style={styles.statNumber}>{user?.level ?? 1}</Text><Text style={styles.statLabel}>level</Text></View><View style={styles.stat}><Text style={styles.statNumber}>{user?.xp ?? 0}</Text><Text style={styles.statLabel}>XP earned</Text></View></View></View>
+}
+
+const styles = StyleSheet.create({ page: { flex: 1, padding: 24, paddingTop: 62, backgroundColor: themes.sage.background }, eyebrow: { color: themes.sage.primary, fontSize: 12, fontWeight: '800', letterSpacing: 2 }, title: { color: themes.sage.text, fontSize: 34, fontWeight: '800', marginTop: 12 }, copy: { color: themes.sage.muted, fontSize: 16, lineHeight: 24, marginTop: 10 }, hero: { backgroundColor: themes.sage.primary, borderRadius: 24, marginTop: 32, padding: 24 }, heroTitle: { color: '#fffdf8', fontSize: 24, fontWeight: '800' }, heroCopy: { color: '#e6f0e6', fontSize: 15, lineHeight: 22, marginTop: 8 }, button: { alignSelf: 'flex-start', backgroundColor: themes.sage.accent, borderRadius: 13, color: '#fffdf8', fontSize: 14, fontWeight: '800', marginTop: 20, overflow: 'hidden', paddingHorizontal: 16, paddingVertical: 12 }, row: { flexDirection: 'row', gap: 10, marginTop: 18 }, stat: { backgroundColor: themes.sage.surface, borderColor: themes.sage.border, borderRadius: 18, borderWidth: 1, flex: 1, padding: 15 }, statNumber: { color: themes.sage.text, fontSize: 23, fontWeight: '800' }, statLabel: { color: themes.sage.muted, fontSize: 12, marginTop: 4 } })

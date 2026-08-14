@@ -619,7 +619,7 @@ def current_checkin_streak(checkin_dates: Iterable[date], today: date) -> int:
 
 async def set_session(
     response: Response, db: AsyncSession, user: User, remember_me: bool = True
-) -> None:
+) -> str:
     user.last_seen_at = datetime.now(UTC)
     token, token_hash = new_session_token()
     db.add(Session(user_id=user.id, token_hash=token_hash, expires_at=session_expiry(remember_me)))
@@ -632,6 +632,7 @@ async def set_session(
         samesite="none" if get_settings().cookie_secure else "lax",
         max_age=60 * 60 * 24 * (get_settings().session_ttl_days if remember_me else 1),
     )
+    return token
 
 
 def clear_google_oauth_cookie(response: Response) -> None:
@@ -755,10 +756,14 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
     db.add(user)
     await db.flush()
     if is_approved:
-        await set_session(response, db, user)
-        return AuthResponse(user=user_response(user))
+        token = await set_session(response, db, user)
+        return AuthResponse(user=user_response(user), access_token=token)
     await db.commit()
-    return AuthResponse(user=user_response(user), pending_approval=True, message="Your account is awaiting approval before you can sign in.")
+    return AuthResponse(
+        user=user_response(user),
+        pending_approval=True,
+        message="Your account is awaiting approval before you can sign in.",
+    )
 
 
 @router.post("/auth/login", response_model=AuthResponse)
@@ -768,14 +773,39 @@ async def login(payload: LoginRequest, response: Response, db: DbSession) -> Aut
     if user is None or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.is_approved:
-        raise HTTPException(status_code=403, detail="Your account is awaiting approval before you can sign in")
-    await set_session(response, db, user, payload.remember_me)
-    return AuthResponse(user=user_response(user))
+        raise HTTPException(
+            status_code=403,
+            detail="Your account is awaiting approval before you can sign in",
+        )
+    token = await set_session(response, db, user, payload.remember_me)
+    return AuthResponse(user=user_response(user), access_token=token)
+
+
+@router.post("/auth/refresh", response_model=AuthResponse)
+async def refresh_auth(
+    request: Request, response: Response, user: CurrentUser, db: DbSession
+) -> AuthResponse:
+    """Rotate a valid session token for native clients and long-lived sessions."""
+    old_token = request.cookies.get(get_settings().session_cookie_name)
+    authorization = request.headers.get("Authorization", "")
+    if not old_token and authorization.startswith("Bearer "):
+        old_token = authorization[7:]
+    if old_token:
+        import hashlib
+
+        token_hash = hashlib.sha256(old_token.encode()).hexdigest()
+        await db.execute(delete(Session).where(Session.token_hash == token_hash))
+        await db.commit()
+    token = await set_session(response, db, user, True)
+    return AuthResponse(user=user_response(user), access_token=token)
 
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(request: Request, response: Response, db: DbSession) -> None:
     token = request.cookies.get(get_settings().session_cookie_name)
+    authorization = request.headers.get("Authorization", "")
+    if not token and authorization.startswith("Bearer "):
+        token = authorization[7:]
     if token:
         import hashlib
 
@@ -1919,6 +1949,9 @@ async def play_move(
 
 async def websocket_user(websocket: WebSocket) -> User | None:
     token = websocket.cookies.get(get_settings().session_cookie_name)
+    authorization = websocket.headers.get("authorization", "")
+    if not token and authorization.startswith("Bearer "):
+        token = authorization[7:]
     if not token:
         return None
     import hashlib
