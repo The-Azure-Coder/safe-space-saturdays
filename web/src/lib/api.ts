@@ -25,6 +25,17 @@ export class ApiError extends Error {
   }
 }
 
+export const MAX_API_WAKE_RETRIES = 8
+
+export function shouldRetryApiRequest(failureCount: number, error: unknown): boolean {
+  if (failureCount >= MAX_API_WAKE_RETRIES || !(error instanceof ApiError)) return false
+  return error.status === 0 || error.status >= 500
+}
+
+export function apiRetryDelay(attemptIndex: number): number {
+  return Math.min(1_200 * 2 ** attemptIndex, 8_000)
+}
+
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit,

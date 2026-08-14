@@ -83,3 +83,28 @@ test('login remember-me preference is aligned and toggleable', async ({ page }) 
   await expect(rememberMe).not.toBeChecked()
   await expect(rememberMe).toHaveCSS('width', '19px')
 })
+
+test('the games page recovers automatically while the API wakes up', async ({ page }) => {
+  let sessionAttempts = 0
+  await page.route('**/api/auth/me', (route) => {
+    sessionAttempts += 1
+    if (sessionAttempts < 3) {
+      void route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ detail: 'Server waking up' }) })
+      return
+    }
+    void route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 27, name: 'Hugo', email: 'hugo@example.com', avatar_url: null,
+        is_online: true, role: 'member', xp: 20, streak: 1, level: 1, is_approved: true,
+      }),
+    })
+  })
+  await page.route('**/api/games**', (route) => route.fulfill({ contentType: 'application/json', body: '[]' }))
+
+  await page.goto('/games')
+  await expect(page.getByRole('status')).toContainText('Waking the game server')
+  await page.waitForFunction(() => document.documentElement.dataset.clientReady === 'true', undefined, { timeout: 110_000 })
+  await expect.poll(() => sessionAttempts, { timeout: 110_000 }).toBeGreaterThanOrEqual(3)
+  await expect(page.getByRole('heading', { name: 'Games' })).toBeVisible({ timeout: 30_000 })
+})

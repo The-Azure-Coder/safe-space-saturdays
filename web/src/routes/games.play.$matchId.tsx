@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, CaretDown, Robot, Sparkle, Trophy, UserCircle } from '@phosphor-icons/react'
 
-import { API_URL, api } from '../lib/api'
+import { ServerWakeLoader } from '../components/server-wake-loader'
+import { API_URL, api, apiRetryDelay, shouldRetryApiRequest } from '../lib/api'
 import type { Match } from '../lib/api'
 import { connectFourSeat } from '../lib/connect-four'
 import { GameRoomControls } from '../components/game-room-controls'
@@ -19,10 +21,21 @@ function ConnectFourScreen() {
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null)
   const [ending, setEnding] = useState(false)
   const socket = useRef<WebSocket | null>(null)
+  const matchQuery = useQuery({
+    queryKey: ['connect-four-match', matchId],
+    queryFn: () => api.match(matchId),
+    retry: shouldRetryApiRequest,
+    retryDelay: apiRetryDelay,
+  })
 
   useEffect(() => {
-    let active = true
-    void api.match(matchId).then((value) => { if (active) setMatch(value) }).catch((reason: Error) => setError(reason.message))
+    if (!matchQuery.data) return
+    setMatch(matchQuery.data)
+    setError('')
+  }, [matchQuery.data])
+
+  useEffect(() => {
+    if (!matchQuery.data) return
     const connection = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/api/games/matches/${matchId}/ws`)
     socket.current = connection
     connection.onmessage = (event) => {
@@ -43,13 +56,15 @@ function ConnectFourScreen() {
       }
     }
     connection.onerror = () => setError('Connection lost. Your board is safe — refresh to reconnect.')
-    return () => { active = false; connection.close() }
-  }, [matchId])
+    return () => connection.close()
+  }, [matchId, matchQuery.data])
 
   const board = match?.board ?? EMPTY_BOARD
   const winning = useMemo(() => new Set((match?.winning_cells ?? []).map(([row, column]) => `${row}-${column}`)), [match?.winning_cells])
-  if (!match && !error)
-    return <main className="page-content game-play-page connect-four-page"><div className="api-loader">Preparing the Connect Four board…</div></main>
+  if (!match && matchQuery.isPending)
+    return <main className="page-content game-play-page connect-four-page"><ServerWakeLoader context="game" attempt={matchQuery.failureCount} /></main>
+  if (!match && matchQuery.isError)
+    return <main className="page-content game-play-page connect-four-page"><ServerWakeLoader context="game" attempt={matchQuery.failureCount} exhausted onRetry={() => void matchQuery.refetch()} /></main>
   let previewRow: number | null = null
   if (hoveredColumn !== null) {
     for (let row = board.length - 1; row >= 0; row -= 1) {

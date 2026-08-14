@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, CheckCircle, Copy, GameController, Hourglass, UsersThree } from '@phosphor-icons/react'
+import { ArrowLeft, CheckCircle, Copy, GameController, UsersThree } from '@phosphor-icons/react'
 
-import { ApiError, api, assetUrl } from '../lib/api'
+import { ServerWakeLoader } from '../components/server-wake-loader'
+import { ApiError, api, apiRetryDelay, assetUrl, shouldRetryApiRequest } from '../lib/api'
 
 export const Route = createFileRoute('/games/rooms/$roomId')({ component: GameRoomLobby })
 
@@ -17,14 +18,16 @@ function GameRoomLobby() {
     queryKey: ['room', roomId],
     queryFn: () => api.room(roomId),
     enabled: Number.isInteger(roomId) && roomId > 0,
-    retry: false,
+    retry: shouldRetryApiRequest,
+    retryDelay: apiRetryDelay,
     refetchInterval: 1500,
   })
   const participants = useQuery({
     queryKey: ['room-participants', roomId],
     queryFn: () => api.roomParticipants(roomId),
     enabled: Number.isInteger(roomId) && roomId > 0,
-    retry: false,
+    retry: shouldRetryApiRequest,
+    retryDelay: apiRetryDelay,
     refetchInterval: 1500,
   })
   const ready = useMutation({
@@ -74,7 +77,9 @@ function GameRoomLobby() {
   }, [navigate, room.error])
 
   if (room.isLoading || participants.isLoading)
-    return <main className="page-content game-lobby-page"><div className="api-loader"><Hourglass size={20} /> Preparing the lobby…</div></main>
+    return <main className="page-content game-lobby-page"><ServerWakeLoader context="lobby" attempt={Math.max(room.failureCount, participants.failureCount)} /></main>
+  if (!room.data && (room.isError || participants.isError))
+    return <main className="page-content game-lobby-page"><ServerWakeLoader context="lobby" attempt={Math.max(room.failureCount, participants.failureCount)} exhausted onRetry={() => { void room.refetch(); void participants.refetch() }} /></main>
   if (!room.data) return null
 
   const currentRoom = room.data

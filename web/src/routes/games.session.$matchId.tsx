@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, Sparkle, Trophy } from '@phosphor-icons/react'
 
@@ -10,8 +11,9 @@ import { TriviaGame } from '../components/trivia-game'
 import type { TriviaState } from '../components/trivia-game'
 import { ScribbleGame } from '../components/scribble-game'
 import { GameRoomControls } from '../components/game-room-controls'
+import { ServerWakeLoader } from '../components/server-wake-loader'
 import type { ScribbleState } from '../components/scribble-game'
-import { API_URL, api } from '../lib/api'
+import { API_URL, api, apiRetryDelay, shouldRetryApiRequest } from '../lib/api'
 import type { GameSession } from '../lib/api'
 
 export const Route = createFileRoute('/games/session/$matchId')({ component: GameSessionScreen })
@@ -23,18 +25,28 @@ function GameSessionScreen() {
   const [error, setError] = useState('')
   const [ending, setEnding] = useState(false)
   const socket = useRef<WebSocket | null>(null)
+  const gameSession = useQuery({
+    queryKey: ['game-session', matchId],
+    queryFn: () => api.gameSession(matchId),
+    retry: shouldRetryApiRequest,
+    retryDelay: apiRetryDelay,
+  })
+
   useEffect(() => {
-    let active = true
-    void api.gameSession(matchId).then((value) => {
-      viewerSeat.current = Number(value.state.seat_index ?? 0)
-      if (active) setMatch(value)
-    }).catch((reason: Error) => setError(reason.message))
+    if (!gameSession.data) return
+    viewerSeat.current = Number(gameSession.data.state.seat_index ?? 0)
+    setMatch(gameSession.data)
+    setError('')
+  }, [gameSession.data])
+
+  useEffect(() => {
+    if (!gameSession.data) return
     const connection = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/api/games/sessions/${matchId}/ws`)
     socket.current = connection
     connection.onmessage = (event) => {
-      const message = JSON.parse(event.data) as { type: string; match?: GameSession; detail?: string }
-      if (message.type === 'drawing_segment' && (message as { segment?: ScribbleState['live_stroke'] }).segment) {
-        const segment = (message as { segment: ScribbleState['live_stroke'] }).segment
+      const message = JSON.parse(event.data) as { type: string; match?: GameSession; detail?: string; segment?: ScribbleState['live_stroke'] }
+      if (message.type === 'drawing_segment' && message.segment) {
+        const segment = message.segment
         setMatch((current) => current ? { ...current, state: { ...current.state, live_stroke: segment } } : current)
       }
       if (message.type === 'state' && message.match) {
@@ -51,8 +63,8 @@ function GameSessionScreen() {
       if (message.type === 'error') setError(message.detail ?? 'That action was not accepted')
     }
     connection.onerror = () => setError('Connection lost. Refresh to reconnect.')
-    return () => { active = false; connection.close() }
-  }, [matchId])
+    return () => connection.close()
+  }, [gameSession.data, matchId])
   const send = (action: Record<string, unknown>) => {
     setError('')
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'action', action }))
@@ -70,6 +82,10 @@ function GameSessionScreen() {
     }
   }
   const state = match?.state
+  if (!match && gameSession.isPending)
+    return <main className="page-content game-play-page"><ServerWakeLoader context="game" attempt={gameSession.failureCount} /></main>
+  if (!match && gameSession.isError)
+    return <main className="page-content game-play-page"><ServerWakeLoader context="game" attempt={gameSession.failureCount} exhausted onRetry={() => void gameSession.refetch()} /></main>
   const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
   const players = state?.players ?? []

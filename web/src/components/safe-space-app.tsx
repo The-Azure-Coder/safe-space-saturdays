@@ -39,8 +39,9 @@ import {
   X,
 } from '@phosphor-icons/react'
 
-import { ApiError, api, assetUrl, googleLoginUrl } from '../lib/api'
+import { ApiError, api, apiRetryDelay, assetUrl, googleLoginUrl, shouldRetryApiRequest } from '../lib/api'
 import type { CheckIn, LeaderboardPeriod, Post, Quote } from '../lib/api'
+import { ServerWakeLoader } from './server-wake-loader'
 
 type Screen =
   | 'home'
@@ -2353,7 +2354,7 @@ function CommunityScreen() {
       setImageFile(undefined)
       if (imageInput.current) imageInput.current.value = ''
       if (page === 1) {
-        queryClient.setQueryData<Post[]>(['posts', page], (current = []) => [
+        queryClient.setQueryData<Array<Post>>(['posts', page], (current = []) => [
           newPost,
           ...current.filter((post) => post.id !== newPost.id),
         ].slice(0, 10))
@@ -2365,7 +2366,7 @@ function CommunityScreen() {
     mutationFn: ({ id, kind }: { id: number; kind: 'like' | 'dislike' }) =>
       api.react(id, kind),
     onSuccess: (updatedPost) => {
-      queryClient.setQueryData<Post[]>(['posts', page], (current = []) =>
+      queryClient.setQueryData<Array<Post>>(['posts', page], (current = []) =>
         current.map((post) => post.id === updatedPost.id ? updatedPost : post),
       )
       void queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' })
@@ -3009,7 +3010,11 @@ function GamesScreen() {
     },
   })
   const availableGames: Array<GameDefinition> = gamesQuery.data?.length
-    ? gamesQuery.data.map((game) => ({ ...game, color: game.color }))
+    ? gamesQuery.data.map((game) => ({
+        ...game,
+        color: game.color,
+        description: games.find((fallback) => fallback.name === game.name)?.description ?? 'A friendly game to enjoy together.',
+      }))
     : games.map((game, index) => ({ ...game, id: index + 1 }))
   const selectedGame = availableGames.find((game) => game.id === roomGameId)
   const maxRoomPlayers = gameRoomCapacity(selectedGame?.name)
@@ -3250,7 +3255,7 @@ function GamesScreen() {
                       {shareRoomId === room.id && <div className="room-share-popover" role="menu">
                         <button type="button" role="menuitem" onClick={() => {
                           const inviteUrl = `${window.location.origin}/games/rooms/invite/${room.invite_token}`
-                          void navigator.clipboard?.writeText(inviteUrl).then(() => {
+                          void navigator.clipboard.writeText(inviteUrl).then(() => {
                             setCopiedRoomId(room.id)
                             setShareRoomId(null)
                             window.setTimeout(() => setCopiedRoomId((current) => current === room.id ? null : current), 1800)
@@ -4483,31 +4488,29 @@ function ProtectedApp({
   screen: Exclude<Screen, 'login' | 'registration'>
 }) {
   const navigate = useNavigate()
-  const isBrowser = typeof window !== 'undefined'
+  const [sessionCheckEnabled, setSessionCheckEnabled] = useState(false)
+  useEffect(() => setSessionCheckEnabled(true), [])
   const currentUser = useQuery({
     queryKey: ['me'],
     queryFn: api.me,
-    retry: false,
-    enabled: isBrowser,
+    retry: shouldRetryApiRequest,
+    retryDelay: apiRetryDelay,
+    enabled: sessionCheckEnabled,
   })
   const isUnauthenticated = currentUser.error instanceof ApiError && currentUser.error.status === 401
   useEffect(() => {
     if (isUnauthenticated) navigate({ to: '/login', replace: true })
   }, [isUnauthenticated, navigate])
-  if (!isBrowser || currentUser.isLoading)
+  if (!sessionCheckEnabled || currentUser.isPending)
     return (
       <main className="page-content auth-gate">
-        <ApiLoader label="Checking your safe space session…" />
+        <ServerWakeLoader context={screen === 'games' ? 'game' : 'session'} attempt={currentUser.failureCount} />
       </main>
     )
   if (currentUser.isError && !isUnauthenticated)
     return (
       <main className="page-content auth-gate">
-        <div className="auth-gate__error" role="alert">
-          <strong>Your session is still here.</strong>
-          <span>We couldn’t reach the server. Please try again.</span>
-          <button className="button button--small button--primary" type="button" onClick={() => void currentUser.refetch()}>Try again</button>
-        </div>
+        <ServerWakeLoader context={screen === 'games' ? 'game' : 'session'} attempt={currentUser.failureCount} exhausted onRetry={() => void currentUser.refetch()} />
       </main>
     )
   if (isUnauthenticated || !currentUser.data) return null

@@ -95,8 +95,8 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !strokes.length) {
-      if (!strokes.length && drawnStrokeKeysRef.current.size) {
-        const context = canvas?.getContext('2d')
+      if (canvas && !strokes.length && drawnStrokeKeysRef.current.size) {
+        const context = canvas.getContext('2d')
         if (context) context.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight)
         drawnStrokeKeysRef.current.clear()
       }
