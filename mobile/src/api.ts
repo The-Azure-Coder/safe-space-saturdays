@@ -35,6 +35,7 @@ type AuthResponse = {
 const tokenKey = 'safe-space-access-token'
 const apiUrl = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '')
 const requestTimeoutMs = 45_000
+export const googleLoginUrl = `${apiUrl}/api/auth/google/start?mobile=true`
 export const assetUrl = (path: string | null) => path && path.startsWith('/') ? `${apiUrl}${path}` : path
 
 export class MobileApiError extends Error {
@@ -123,6 +124,11 @@ export async function login(email: string, password: string) {
   })
   await saveToken(result.access_token)
   return result.user
+}
+
+export async function loginWithGoogleToken(token: string) {
+  await saveToken(token)
+  return restoreSession()
 }
 
 export async function register(name: string, email: string, password: string) {

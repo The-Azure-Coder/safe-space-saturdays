@@ -135,6 +135,7 @@ CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 STAFF_ROLES = {"admin", "super_admin", "manager", "moderator"}
 LEADERBOARD_PERIOD_DAYS = {"day": 1, "week": 7, "month": 30}
 GOOGLE_OAUTH_COOKIE = "safe_space_google_oauth"
+GOOGLE_MOBILE_COOKIE = "safe_space_google_mobile"
 
 
 def can_manage_roles(user: User) -> bool:
@@ -672,6 +673,7 @@ async def set_session(
 
 def clear_google_oauth_cookie(response: Response) -> None:
     response.delete_cookie(GOOGLE_OAUTH_COOKIE, path="/api/auth/google")
+    response.delete_cookie(GOOGLE_MOBILE_COOKIE, path="/api/auth/google")
 
 
 def google_oauth_error_response(error: str) -> RedirectResponse:
@@ -691,7 +693,7 @@ async def google_oauth_status() -> GoogleAuthStatusResponse:
 
 
 @router.get("/auth/google/start", include_in_schema=False)
-async def google_oauth_start() -> RedirectResponse:
+async def google_oauth_start(mobile: bool = False) -> RedirectResponse:
     settings = get_settings()
     if not google_oauth_configured(settings):
         raise HTTPException(status_code=503, detail="Google sign-in is not available")
@@ -709,6 +711,16 @@ async def google_oauth_start() -> RedirectResponse:
         max_age=settings.google_oauth_state_ttl_seconds,
         path="/api/auth/google",
     )
+    if mobile:
+        response.set_cookie(
+            GOOGLE_MOBILE_COOKIE,
+            "safespacesaturdays://oauth",
+            httponly=True,
+            secure=settings.cookie_secure,
+            samesite="lax",
+            max_age=settings.google_oauth_state_ttl_seconds,
+            path="/api/auth/google",
+        )
     return response
 
 
@@ -764,12 +776,21 @@ async def google_oauth_callback(
         await db.commit()
         return google_oauth_error_response("pending_approval")
 
-    response = RedirectResponse(
-        frontend_oauth_redirect(settings),
-        status_code=status.HTTP_303_SEE_OTHER,
-    )
+    mobile_redirect = request.cookies.get(GOOGLE_MOBILE_COOKIE)
+    if mobile_redirect == "safespacesaturdays://oauth":
+        response = RedirectResponse(
+            "safespacesaturdays://oauth",
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        token = await set_session(response, db, user)
+        response.headers["location"] = f"safespacesaturdays://oauth?{urlencode({'token': token})}"
+    else:
+        response = RedirectResponse(
+            frontend_oauth_redirect(settings),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        await set_session(response, db, user)
     clear_google_oauth_cookie(response)
-    await set_session(response, db, user)
     return response
 
 

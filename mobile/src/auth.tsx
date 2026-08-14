@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
-import { login, logout, register, restoreSession, type User } from './api'
+import { login, loginWithGoogleToken, logout, register, restoreSession, type User } from './api'
 
 type AuthContextValue = {
   user: User | null
   loading: boolean
   error: string | null
   signIn: (email: string, password: string) => Promise<void>
+  signInWithGoogleToken: (token: string) => Promise<void>
   signUp: (name: string, email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
 }
@@ -32,6 +33,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setError(null)
       try { setUser(await login(email, password)) } catch (reason) {
         const message = reason instanceof Error ? reason.message : 'Unable to sign in'
+        setError(message)
+        throw reason
+      }
+    },
+    async signInWithGoogleToken(token) {
+      setError(null)
+      try { setUser(await loginWithGoogleToken(token)) } catch (reason) {
+        const message = reason instanceof Error ? reason.message : 'Unable to finish Google sign-in'
         setError(message)
         throw reason
       }

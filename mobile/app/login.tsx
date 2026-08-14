@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { Link, router } from 'expo-router'
+import * as Linking from 'expo-linking'
+import * as WebBrowser from 'expo-web-browser'
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useAuth } from '@/auth'
+import { googleLoginUrl } from '@/api'
 import { themes } from '@/theme'
 
 export default function Login() {
-  const { signIn, error } = useAuth()
+  const { signIn, signInWithGoogleToken, error } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -13,11 +16,30 @@ export default function Login() {
     setBusy(true)
     try { await signIn(email.trim(), password); router.replace('/(tabs)') } catch { /* message is rendered below */ } finally { setBusy(false) }
   }
+  const googleSignIn = async () => {
+    setBusy(true)
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(googleLoginUrl, 'safespacesaturdays://oauth')
+      if (result.type !== 'success' || !result.url) return
+      const parsed = Linking.parse(result.url)
+      const token = typeof parsed.queryParams?.token === 'string' ? parsed.queryParams.token : null
+      if (!token) throw new Error('Google sign-in did not return a session. Please try again.')
+      await signInWithGoogleToken(token)
+      router.replace('/(tabs)')
+    } catch (reason) {
+      // The auth context owns the API error; this also covers browser cancellations.
+      if (reason instanceof Error && reason.message !== 'The operation was canceled.') throw reason
+    } finally { setBusy(false) }
+  }
   return <View style={styles.page}>
     <Text style={styles.eyebrow}>SAFE SPACE SATURDAYS</Text>
     <Text style={styles.title}>Welcome back{`\n`}to your safe space.</Text>
-    <Text style={styles.copy}>Talk. Listen. Support. Heal. Grow.</Text>
+      <Text style={styles.copy}>Talk. Listen. Support. Heal. Grow.</Text>
     <View style={styles.card}>
+      <Pressable disabled={busy} onPress={() => void googleSignIn()} style={[styles.googleButton, busy && styles.disabled]}>
+        <Text style={styles.googleMark}>G</Text><Text style={styles.googleText}>Continue with Google</Text>
+      </Pressable>
+      <View style={styles.divider}><View style={styles.dividerLine} /><Text style={styles.dividerText}>or use email</Text><View style={styles.dividerLine} /></View>
       <Text style={styles.label}>Email</Text>
       <TextInput autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} style={styles.input} placeholder="you@example.com" placeholderTextColor={themes.sage.muted} />
       <Text style={styles.label}>Password</Text>
@@ -41,6 +63,7 @@ const styles = StyleSheet.create({
   input: { color: themes.sage.text, backgroundColor: themes.sage.background, borderColor: themes.sage.border, borderRadius: 13, borderWidth: 1, fontSize: 16, paddingHorizontal: 15, paddingVertical: 13 },
   button: { alignItems: 'center', backgroundColor: themes.sage.primary, borderRadius: 14, marginTop: 20, minHeight: 50, justifyContent: 'center' },
   buttonText: { color: '#fffdf8', fontSize: 16, fontWeight: '800' },
+  googleButton: { alignItems: 'center', borderColor: themes.sage.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', gap: 10, justifyContent: 'center', minHeight: 50 }, googleMark: { color: '#4285F4', fontSize: 19, fontWeight: '900' }, googleText: { color: themes.sage.text, fontSize: 15, fontWeight: '800' }, divider: { alignItems: 'center', flexDirection: 'row', gap: 9, marginVertical: 18 }, dividerLine: { backgroundColor: themes.sage.border, flex: 1, height: 1 }, dividerText: { color: themes.sage.muted, fontSize: 11, fontWeight: '700' },
   pressed: { opacity: 0.82 }, disabled: { opacity: 0.5 }, error: { color: '#b24747', fontSize: 13, marginTop: 12 },
   signup: { color: themes.sage.muted, fontSize: 14, marginTop: 20, textAlign: 'center' }, link: { color: themes.sage.primary, fontWeight: '800' },
 })
