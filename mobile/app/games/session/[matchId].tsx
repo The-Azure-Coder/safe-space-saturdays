@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocalSearchParams } from 'expo-router'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useState } from 'react'
 import { mobileApi } from '@/api'
 import { ErrorState, Header, Page } from '@/ui'
 import { themes } from '@/theme'
@@ -38,7 +39,10 @@ export default function MobileGameSession() {
       <View style={styles.card}>
         {game === 'connect-four' && <ConnectFour state={state} enabled={isMyTurn} onAction={submit} />}
         {game === 'ludo' && <Ludo state={state} enabled={isMyTurn} onAction={submit} />}
-        {game !== 'connect-four' && game !== 'ludo' && <GenericGame state={state} enabled={isMyTurn} onAction={submit} />}
+        {game === 'dominoes' && <Dominoes state={state} enabled={isMyTurn} onAction={submit} />}
+        {game === 'bingo' && <Bingo state={state} enabled={isMyTurn} onAction={submit} />}
+        {game === 'trivia' && <Trivia state={state} enabled={isMyTurn} onAction={submit} />}
+        {game === 'scribble' && <Scribble state={state} enabled={isMyTurn} onAction={submit} />}
       </View>
       {state.last_event ? <Text style={styles.event}>{String(state.last_event)}</Text> : null}
       {state.winner !== undefined && state.winner !== null ? <Text style={styles.result}>Winner: player {String(Number(state.winner) + 1)}</Text> : null}
@@ -75,9 +79,27 @@ function Ludo({ state, enabled, onAction }: { state: Record<string, any>; enable
   </View>
 }
 
-function GenericGame({ state, enabled, onAction }: { state: Record<string, any>; enabled: boolean; onAction: (action: Record<string, unknown>) => Promise<void> }) {
-  const action = state.phase === 'roll' ? 'roll' : state.phase === 'choosing' ? 'choose_word' : null
-  return <View><Text style={styles.instruction}>Your game is connected and updating live.</Text>{action ? <Pressable disabled={!enabled} onPress={() => void onAction({ action })} style={[styles.action, !enabled && styles.disabled]}><Text style={styles.actionText}>{action === 'roll' ? 'Roll dice' : 'Choose a word'}</Text></Pressable> : null}</View>
+function Dominoes({ state, enabled, onAction }: { state: Record<string, any>; enabled: boolean; onAction: (action: Record<string, unknown>) => Promise<void> }) {
+  const hand = Array.isArray(state.hands?.[state.seat_index]) ? state.hands[state.seat_index] : []
+  const moves = Array.isArray(state.legal_moves) ? state.legal_moves : []
+  return <View><Text style={styles.instruction}>Board: {(state.board ?? []).map((tile: number[]) => `${tile[0]}|${tile[1]}`).join('  ') || 'Double six opens the round.'}</Text><View style={styles.tileRow}>{hand.map((tile: number[], index: number) => { const move = moves.find((candidate: any) => candidate.tile_index === index); return <Pressable key={`${tile.join('-')}-${index}`} disabled={!enabled || !move} onPress={() => void onAction({ tile_index: index, side: move?.sides?.[0] ?? 'right' })} style={[styles.tile, move && styles.glow]}><Text style={styles.tileText}>{tile[0]} | {tile[1]}</Text></Pressable> })}</View>{enabled && moves.length === 0 ? <Pressable onPress={() => void onAction({ pass: true })} style={styles.action}><Text style={styles.actionText}>Pass turn</Text></Pressable> : null}</View>
+}
+
+function Bingo({ state, enabled, onAction }: { state: Record<string, any>; enabled: boolean; onAction: (action: Record<string, unknown>) => Promise<void> }) {
+  const card = (state.card ?? []) as number[][]; const marked = (state.marked ?? []) as boolean[][]
+  return <View><Text style={styles.instruction}>Mark the called numbers, then claim a line.</Text><View style={styles.bingo}>{card.map((row, r) => row.map((number, c) => <View key={`${r}-${c}`} style={[styles.bingoCell, marked[r]?.[c] && styles.bingoMarked]}><Text style={styles.bingoText}>{number || '★'}</Text></View>))}</View><Pressable disabled={!enabled} onPress={() => void onAction({ action: 'draw' })} style={[styles.action, !enabled && styles.disabled]}><Text style={styles.actionText}>Draw next number</Text></Pressable><Pressable disabled={!enabled} onPress={() => void onAction({ action: 'claim' })} style={[styles.secondaryAction, !enabled && styles.disabled]}><Text style={styles.secondaryText}>Claim bingo</Text></Pressable></View>
+}
+
+function Trivia({ state, enabled, onAction }: { state: Record<string, any>; enabled: boolean; onAction: (action: Record<string, unknown>) => Promise<void> }) {
+  if (state.phase === 'board') return <View><Text style={styles.instruction}>Choose a category and point value.</Text><View style={styles.clueGrid}>{(state.board ?? []).flatMap((row: any) => row.values.map((value: number) => <Pressable key={`${row.category}-${value}`} disabled={!enabled || (state.used_clues ?? []).includes(`${row.category}:${value}`)} onPress={() => void onAction({ action: 'select_clue', category: row.category, value })} style={styles.clue}><Text style={styles.clueText}>{row.category} · {value}</Text></Pressable>))}</View></View>
+  if (state.phase === 'reveal') return <View><Text style={styles.instruction}>Answer revealed. Continue to the next clue.</Text><Pressable onPress={() => void onAction({ action: 'next' })} style={styles.action}><Text style={styles.actionText}>Next clue</Text></Pressable></View>
+  return <View><Text style={styles.instruction}>{state.question}</Text>{(state.options ?? []).map((option: string, index: number) => <Pressable key={option} disabled={!enabled} onPress={() => void onAction({ answer: index })} style={[styles.option, !enabled && styles.disabled]}><Text style={styles.optionText}>{String.fromCharCode(65 + index)}. {option}</Text></Pressable>)}</View>
+}
+
+function Scribble({ state, enabled, onAction }: { state: Record<string, any>; enabled: boolean; onAction: (action: Record<string, unknown>) => Promise<void> }) {
+  const [guess, setGuess] = useState('')
+  if (state.phase === 'choosing' && state.is_drawer) return <View><Text style={styles.instruction}>Choose the word you can draw best.</Text>{(state.word_choices ?? []).map((word: string) => <Pressable key={word} onPress={() => void onAction({ action: 'choose_word', word })} style={styles.option}><Text style={styles.optionText}>{word}</Text></Pressable>)}</View>
+  return <View><Text style={styles.instruction}>{state.is_drawer ? `Draw: ${state.word ?? 'your chosen word'}` : `Guess: ${state.hint ?? '___'}`}</Text>{state.is_drawer && state.phase === 'drawing' ? <Pressable onPress={() => void onAction({ action: 'end_turn' })} style={styles.action}><Text style={styles.actionText}>Finish drawing</Text></Pressable> : null}{!state.is_drawer && ['drawing', 'guessing'].includes(state.phase) ? <><TextInput value={guess} onChangeText={setGuess} placeholder="Your guess" placeholderTextColor={themes.sage.muted} style={styles.input} /><Pressable disabled={!guess.trim()} onPress={() => { void onAction({ action: 'guess', text: guess }); setGuess('') }} style={[styles.action, !guess.trim() && styles.disabled]}><Text style={styles.actionText}>Send guess</Text></Pressable></> : null}</View>
 }
 
 const styles = StyleSheet.create({
@@ -101,4 +123,19 @@ const styles = StyleSheet.create({
   token: { alignItems: 'center', backgroundColor: '#e5efe0', borderRadius: 14, justifyContent: 'center', minHeight: 60, minWidth: 60, padding: 8 },
   glow: { borderColor: themes.sage.accent, borderWidth: 3 },
   tokenText: { color: themes.sage.text, fontSize: 11, fontWeight: '800' },
+  tileRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 20 },
+  tile: { backgroundColor: '#f7f0df', borderRadius: 9, padding: 12 },
+  tileText: { color: '#243d32', fontWeight: '800' },
+  bingo: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginVertical: 18 },
+  bingoCell: { alignItems: 'center', backgroundColor: '#f7f0df', borderRadius: 7, height: 50, justifyContent: 'center', width: 50 },
+  bingoMarked: { backgroundColor: themes.sage.accent },
+  bingoText: { color: '#243d32', fontWeight: '800' },
+  secondaryAction: { alignItems: 'center', borderColor: themes.sage.border, borderRadius: 12, borderWidth: 1, justifyContent: 'center', marginTop: 12, minHeight: 48 },
+  secondaryText: { color: themes.sage.text, fontWeight: '800' },
+  clueGrid: { gap: 8, marginTop: 18 },
+  clue: { backgroundColor: '#e5efe0', borderRadius: 10, padding: 12 },
+  clueText: { color: themes.sage.primary, fontWeight: '800' },
+  option: { backgroundColor: '#e5efe0', borderRadius: 12, marginTop: 10, padding: 14 },
+  optionText: { color: themes.sage.text, fontSize: 15, fontWeight: '700' },
+  input: { backgroundColor: themes.sage.background, borderColor: themes.sage.border, borderRadius: 12, borderWidth: 1, color: themes.sage.text, fontSize: 16, marginTop: 14, padding: 13 },
 })

@@ -34,6 +34,7 @@ type AuthResponse = {
 
 const tokenKey = 'safe-space-access-token'
 const apiUrl = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+export const assetUrl = (path: string | null) => path && path.startsWith('/') ? `${apiUrl}${path}` : path
 
 export class MobileApiError extends Error {
   constructor(public status: number, message: string) {
@@ -79,6 +80,29 @@ async function request<T>(path: string, init?: RequestInit, canRefresh = true): 
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+async function upload(path: string, uri: string, name = 'profile.jpg') {
+  const token = await readToken()
+  const body = new FormData()
+  body.append('image', { uri, name, type: 'image/jpeg' } as unknown as Blob)
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+  const response = await fetch(`${apiUrl}${path}`, { method: 'POST', headers, body })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { detail?: string } | null
+    throw new MobileApiError(response.status, payload?.detail ?? 'The image could not be uploaded')
+  }
+  return response.json() as Promise<User>
+}
+
+async function uploadPost(text: string, uri: string) {
+  const token = await readToken()
+  const body = new FormData()
+  body.append('text', text)
+  body.append('image', { uri, name: 'community.jpg', type: 'image/jpeg' } as unknown as Blob)
+  const response = await fetch(`${apiUrl}/api/community/posts/with-image`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : undefined, body })
+  if (!response.ok) throw new MobileApiError(response.status, 'The post image could not be uploaded')
+  return response.json() as Promise<Post>
 }
 
 export async function login(email: string, password: string) {
@@ -128,6 +152,8 @@ export const mobileApi = {
   quotes: (savedOnly = false) => request<Quote[]>(`/api/quotes?page=1&limit=20${savedOnly ? '&saved_only=true' : ''}`),
   saveQuote: (id: number) => request<Quote>(`/api/quotes/${id}/save`, { method: 'POST' }),
   submitQuote: (body: { text: string; author: string; category: 'Encouragement' | 'Rest' | 'Growth' | 'Connection' }) => request<Quote>('/api/quotes/submissions', { method: 'POST', body: JSON.stringify(body) }),
+  updateAvatar: (uri: string) => upload('/api/auth/me/avatar', uri),
+  createPostWithImage: (text: string, uri: string) => uploadPost(text, uri),
   leaderboard: (period: 'day' | 'week' | 'month' | 'all') => request<LeaderboardEntry[]>(`/api/leaderboard?period=${period}&page=1&limit=20`),
   leaderboardMe: (period: 'day' | 'week' | 'month' | 'all') => request<LeaderboardEntry>(`/api/leaderboard/me?period=${period}`),
   games: () => request<Game[]>('/api/games?page=1&limit=20'),
