@@ -1,0 +1,13 @@
+# Local dependencies and generated exports are never part of the native build.
+node_modules
+.expo
+.expo-export
+.tmp-export-*
+
+# This is an old Expo starter kept locally for reference, not the app source.
+safespacesaturdays
+
+# Local-only environment files.
+.env
+.env.*
+!.env.example
