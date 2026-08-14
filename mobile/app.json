@@ -6,13 +6,14 @@
     "orientation": "portrait",
     "scheme": "safespacesaturdays",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-router", "expo-secure-store"],
+    "plugins": ["expo-router", "expo-secure-store", "expo-image-picker", "expo-notifications"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.safespacesaturdays.app"
     },
     "android": {
-      "package": "com.safespacesaturdays.app"
+      "package": "com.safespacesaturdays.app",
+      "permissions": ["NOTIFICATIONS", "READ_MEDIA_IMAGES"]
     },
     "extra": {
       "router": {

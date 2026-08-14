@@ -8,6 +8,8 @@ web/test-results/
 mobile/node_modules/
 mobile/.expo/
 mobile/dist/
+mobile/.expo-export/
+mobile/.tmp-export-*/
 mobile/.env
 api/.venv/
 api/.pytest_cache/

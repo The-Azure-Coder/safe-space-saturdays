@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocalSearchParams } from 'expo-router'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { PanResponder } from 'react-native'
+import Svg, { Polyline } from 'react-native-svg'
 import { mobileApi } from '@/api'
 import { ErrorState, Header, Page } from '@/ui'
 import { themes } from '@/theme'
@@ -99,7 +101,15 @@ function Trivia({ state, enabled, onAction }: { state: Record<string, any>; enab
 function Scribble({ state, enabled, onAction }: { state: Record<string, any>; enabled: boolean; onAction: (action: Record<string, unknown>) => Promise<void> }) {
   const [guess, setGuess] = useState('')
   if (state.phase === 'choosing' && state.is_drawer) return <View><Text style={styles.instruction}>Choose the word you can draw best.</Text>{(state.word_choices ?? []).map((word: string) => <Pressable key={word} onPress={() => void onAction({ action: 'choose_word', word })} style={styles.option}><Text style={styles.optionText}>{word}</Text></Pressable>)}</View>
-  return <View><Text style={styles.instruction}>{state.is_drawer ? `Draw: ${state.word ?? 'your chosen word'}` : `Guess: ${state.hint ?? '___'}`}</Text>{state.is_drawer && state.phase === 'drawing' ? <Pressable onPress={() => void onAction({ action: 'end_turn' })} style={styles.action}><Text style={styles.actionText}>Finish drawing</Text></Pressable> : null}{!state.is_drawer && ['drawing', 'guessing'].includes(state.phase) ? <><TextInput value={guess} onChangeText={setGuess} placeholder="Your guess" placeholderTextColor={themes.sage.muted} style={styles.input} /><Pressable disabled={!guess.trim()} onPress={() => { void onAction({ action: 'guess', text: guess }); setGuess('') }} style={[styles.action, !guess.trim() && styles.disabled]}><Text style={styles.actionText}>Send guess</Text></Pressable></> : null}</View>
+  return <View><Text style={styles.instruction}>{state.is_drawer ? `Draw: ${state.word ?? 'your chosen word'}` : `Guess: ${state.hint ?? '___'}`}</Text>{state.is_drawer && state.phase === 'drawing' ? <DrawingCanvas state={state} onAction={onAction} /> : null}{!state.is_drawer && ['drawing', 'guessing'].includes(state.phase) ? <><TextInput value={guess} onChangeText={setGuess} placeholder="Your guess" placeholderTextColor={themes.sage.muted} style={styles.input} /><Pressable disabled={!guess.trim()} onPress={() => { void onAction({ action: 'guess', text: guess }); setGuess('') }} style={[styles.action, !guess.trim() && styles.disabled]}><Text style={styles.actionText}>Send guess</Text></Pressable></> : null}</View>
+}
+
+function DrawingCanvas({ state, onAction }: { state: Record<string, any>; onAction: (action: Record<string, unknown>) => Promise<void> }) {
+  const [color, setColor] = useState('#17231e'); const [draft, setDraft] = useState<{ x: number; y: number }[]>([]); const draftRef = useRef<{ x: number; y: number }[]>([]); const width = 320; const height = 240
+  const drawPoints = (points: { x: number; y: number }[]) => points.map((point) => `${point.x * width},${point.y * height}`).join(' ')
+  const responder = PanResponder.create({ onStartShouldSetPanResponder: () => true, onPanResponderGrant: (event) => { const point = { x: Math.max(0, Math.min(1, event.nativeEvent.locationX / width)), y: Math.max(0, Math.min(1, event.nativeEvent.locationY / height)) }; draftRef.current = [point]; setDraft([point]) }, onPanResponderMove: (event) => { const point = { x: Math.max(0, Math.min(1, event.nativeEvent.locationX / width)), y: Math.max(0, Math.min(1, event.nativeEvent.locationY / height)) }; draftRef.current = [...draftRef.current, point]; setDraft(draftRef.current) }, onPanResponderRelease: () => { const points = draftRef.current; if (points.length >= 2) void onAction({ action: 'stroke', points, color, size: color === '#fffdf8' ? 18 : 5, erase: color === '#fffdf8' }); draftRef.current = []; setDraft([]) } })
+  const strokes = [...(state.strokes ?? []), ...(draft.length > 1 ? [{ points: draft, color, size: 5 }] : [])]
+  return <View><View style={styles.canvas} {...responder.panHandlers}><Svg width={width} height={height}>{strokes.map((stroke: any, index: number) => <Polyline key={index} points={drawPoints(stroke.points)} fill="none" stroke={stroke.color} strokeWidth={stroke.size} strokeLinecap="round" strokeLinejoin="round" />)}</Svg></View><View style={styles.palette}>{['#17231e', '#df6f5b', '#4d83c4', '#e4b74c', '#8a5cc7', '#fffdf8'].map((option) => <Pressable key={option} onPress={() => setColor(option)} style={[styles.swatch, { backgroundColor: option }, color === option && styles.selectedSwatch]} />)}<Pressable onPress={() => void onAction({ action: 'clear' })} style={styles.clear}><Text style={styles.clearText}>Clear</Text></Pressable></View><Pressable onPress={() => void onAction({ action: 'end_turn' })} style={styles.action}><Text style={styles.actionText}>Finish drawing</Text></Pressable></View>
 }
 
 const styles = StyleSheet.create({
@@ -138,4 +148,10 @@ const styles = StyleSheet.create({
   option: { backgroundColor: '#e5efe0', borderRadius: 12, marginTop: 10, padding: 14 },
   optionText: { color: themes.sage.text, fontSize: 15, fontWeight: '700' },
   input: { backgroundColor: themes.sage.background, borderColor: themes.sage.border, borderRadius: 12, borderWidth: 1, color: themes.sage.text, fontSize: 16, marginTop: 14, padding: 13 },
+  canvas: { backgroundColor: '#fffdf8', borderColor: themes.sage.border, borderRadius: 14, borderWidth: 1, height: 240, marginTop: 16, overflow: 'hidden', width: '100%' },
+  palette: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
+  swatch: { borderColor: '#ffffff', borderRadius: 99, borderWidth: 1, height: 28, width: 28 },
+  selectedSwatch: { borderColor: themes.sage.primary, borderWidth: 3 },
+  clear: { borderColor: themes.sage.border, borderRadius: 9, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7 },
+  clearText: { color: themes.sage.primary, fontWeight: '800' },
 })

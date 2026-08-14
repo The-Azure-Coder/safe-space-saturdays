@@ -39,3 +39,5 @@ export const themes = {
 
 export type ThemeName = keyof typeof themes
 export type ThemeColors = (typeof themes)[ThemeName]
+
+export const themeNames: ThemeName[] = ['sage', 'night', 'purple', 'crimson']
