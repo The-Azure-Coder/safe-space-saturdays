@@ -13,6 +13,18 @@ export type User = {
   level: number
 }
 
+export type Quote = { id: number; text: string; author: string; category: string; is_featured: boolean; saved: boolean }
+export type CheckIn = { id: number; mood: string; needs: string[]; energy: number; stress: number; thoughts: string | null; gratitude: string | null; completed: boolean; created_at: string }
+export type Dashboard = { user: User; featured_quote: Quote | null; latest_check_in: CheckIn | null; rank: number; level_progress: number }
+export type Challenge = { id: number; slug: string; title: string; description: string; category: string; icon: string; color: string; xp: number; week_start: string; active_until: string; completed: boolean; completed_at: string | null; reflection: string | null }
+export type Challenges = { week_start: string; active_until: string; completed_count: number; total_count: number; xp_earned: number; challenges: Challenge[] }
+export type Post = { id: number; user_id: number; author_name: string; author_avatar_url: string | null; author_is_online: boolean; text: string; image_url: string | null; post_type: string; quote_id: number | null; like_count: number; dislike_count: number; user_reaction: string | null; comments: Comment[]; comment_count: number; created_at: string }
+export type Comment = { id: number; user_id: number; author_name: string; author_avatar_url: string | null; text: string; created_at: string }
+export type LeaderboardEntry = { rank: number; user: User }
+export type Game = { id: number; name: string; description: string; color: string; min_players: number; max_players: number; is_featured: boolean }
+export type Room = { id: number; name: string; game_id: number; game_name: string; host_id: number; host_name: string; status: string; max_players: number; participant_count: number; bot_difficulty: string; invite_token: string }
+export type GameSession = { match_id: string; game: string; state: Record<string, any> }
+
 type AuthResponse = {
   user: User
   access_token?: string | null
@@ -41,7 +53,7 @@ export async function clearToken() {
   await SecureStore.deleteItemAsync(tokenKey)
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, canRefresh = true): Promise<T> {
   const token = await readToken()
   const headers = new Headers(init?.headers)
   headers.set('Content-Type', 'application/json')
@@ -53,6 +65,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new MobileApiError(0, 'We could not reach Safe Space Saturdays yet.')
   }
   if (!response.ok) {
+    if (response.status === 401 && token && canRefresh && path !== '/api/auth/refresh') {
+      try {
+        const refreshed = await request<AuthResponse>('/api/auth/refresh', { method: 'POST' }, false)
+        await saveToken(refreshed.access_token)
+        return request<T>(path, init, false)
+      } catch {
+        await clearToken()
+      }
+    }
     const body = await response.json().catch(() => null) as { detail?: unknown } | null
     throw new MobileApiError(response.status, typeof body?.detail === 'string' ? body.detail : 'Something went wrong')
   }
@@ -92,4 +113,31 @@ export async function logout() {
   } finally {
     await clearToken()
   }
+}
+
+export const mobileApi = {
+  dashboard: () => request<Dashboard>('/api/dashboard'),
+  checkIns: (page = 1) => request<CheckIn[]>(`/api/check-ins?page=${page}&limit=20`),
+  createCheckIn: (body: Omit<CheckIn, 'id' | 'created_at'>) => request<CheckIn>('/api/check-ins', { method: 'POST', body: JSON.stringify(body) }),
+  challenges: () => request<Challenges>('/api/challenges/current'),
+  completeChallenge: (id: number, reflection?: string) => request<Challenge>(`/api/challenges/${id}/complete`, { method: 'POST', body: JSON.stringify({ reflection: reflection?.trim() || null }) }),
+  posts: (page = 1) => request<Post[]>(`/api/community/posts?page=${page}&limit=10`),
+  createPost: (text: string) => request<Post>('/api/community/posts', { method: 'POST', body: JSON.stringify({ text }) }),
+  react: (id: number, kind: 'like' | 'dislike') => request<Post>(`/api/community/posts/${id}/reactions`, { method: 'POST', body: JSON.stringify({ kind }) }),
+  reply: (id: number, text: string) => request<Comment>(`/api/community/posts/${id}/comments`, { method: 'POST', body: JSON.stringify({ text }) }),
+  quotes: (savedOnly = false) => request<Quote[]>(`/api/quotes?page=1&limit=20${savedOnly ? '&saved_only=true' : ''}`),
+  saveQuote: (id: number) => request<Quote>(`/api/quotes/${id}/save`, { method: 'POST' }),
+  submitQuote: (body: { text: string; author: string; category: 'Encouragement' | 'Rest' | 'Growth' | 'Connection' }) => request<Quote>('/api/quotes/submissions', { method: 'POST', body: JSON.stringify(body) }),
+  leaderboard: (period: 'day' | 'week' | 'month' | 'all') => request<LeaderboardEntry[]>(`/api/leaderboard?period=${period}&page=1&limit=20`),
+  leaderboardMe: (period: 'day' | 'week' | 'month' | 'all') => request<LeaderboardEntry>(`/api/leaderboard/me?period=${period}`),
+  games: () => request<Game[]>('/api/games?page=1&limit=20'),
+  rooms: () => request<Room[]>('/api/games/rooms?page=1&limit=20'),
+  room: (id: number) => request<Room>(`/api/games/rooms/${id}`),
+  roomParticipants: (id: number) => request<Array<{ user_id: number; display_name: string; ready: boolean; player_type: string }>>(`/api/games/rooms/${id}/participants`),
+  createRoom: (body: { game_id: number; name: string; max_players: number; fill_with_bots?: boolean }) => request<Room>('/api/games/rooms', { method: 'POST', body: JSON.stringify(body) }),
+  joinRoom: (id: number) => request<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
+  setRoomReady: (id: number) => request<Room>(`/api/games/rooms/${id}/ready`, { method: 'POST' }),
+  createSession: (roomId: number, fillWithBots = true) => request<GameSession>('/api/games/sessions', { method: 'POST', body: JSON.stringify({ room_id: roomId, fill_with_bots: fillWithBots }) }),
+  gameSession: (id: string) => request<GameSession>(`/api/games/sessions/${id}`),
+  gameAction: (id: string, action: Record<string, unknown>) => request<GameSession>(`/api/games/sessions/${id}/actions`, { method: 'POST', body: JSON.stringify({ action }) }),
 }

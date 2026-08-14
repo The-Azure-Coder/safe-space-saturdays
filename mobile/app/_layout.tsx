@@ -10,7 +10,12 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="challenges" />
+          <Stack.Screen name="leaderboard" />
+          <Stack.Screen name="check-in" />
+          <Stack.Screen name="quotes" />
+        </Stack>
       </AuthProvider>
     </QueryClientProvider>
   )
