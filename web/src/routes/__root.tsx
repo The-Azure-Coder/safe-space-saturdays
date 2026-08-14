@@ -9,6 +9,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import appCss from '../styles.css?url'
 import type { RouterContext } from '../router-context'
 import { queryClient } from '../query-client'
+import { ApiWakeGate } from '../components/api-wake-gate'
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
@@ -58,7 +59,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <ApiWakeGate>{children}</ApiWakeGate>
         </QueryClientProvider>
         <Scripts />
       </body>

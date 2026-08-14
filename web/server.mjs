@@ -63,7 +63,11 @@ const server = http.createServer(async (nodeRequest, nodeResponse) => {
     const protocol = nodeRequest.headers['x-forwarded-proto'] || 'http'
     const host = nodeRequest.headers.host || `localhost:${port}`
     const requestUrl = new URL(nodeRequest.url || '/', `${protocol}://${host}`)
-    if (requestUrl.pathname.startsWith('/api/') || requestUrl.pathname.startsWith('/uploads/')) {
+    if (
+      requestUrl.pathname.startsWith('/api/') ||
+      requestUrl.pathname.startsWith('/uploads/') ||
+      requestUrl.pathname === '/health/ready'
+    ) {
       proxyHttp(nodeRequest, nodeResponse, requestUrl)
       return
     }

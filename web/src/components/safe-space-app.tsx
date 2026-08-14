@@ -681,7 +681,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
         {(formError || mutation.isError) && (
           <div className="form-error" role="alert">
             {formError ||
-              mutation.error?.message ||
+              (mutation.error instanceof Error ? mutation.error.message : '') ||
               'We could not complete that request.'}
             </div>
         )}

@@ -1,4 +1,5 @@
-const CONFIGURED_API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+const CONFIGURED_API_URL =
+  import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 // In production, route API traffic through the web origin. This keeps the
 // httpOnly session cookie first-party on mobile browsers that block cookies
@@ -7,6 +8,8 @@ export const API_URL =
   typeof window !== 'undefined' && import.meta.env.PROD
     ? window.location.origin
     : CONFIGURED_API_URL
+
+export const API_HEALTH_URL = `${API_URL}/health/ready`
 
 export const googleLoginUrl = `${API_URL}/api/auth/google/start`
 
@@ -28,8 +31,12 @@ export class ApiError extends Error {
 export const MAX_API_WAKE_RETRIES = 12
 export const API_REQUEST_TIMEOUT_MS = 45_000
 
-export function shouldRetryApiRequest(failureCount: number, error: unknown): boolean {
-  if (failureCount >= MAX_API_WAKE_RETRIES || !(error instanceof ApiError)) return false
+export function shouldRetryApiRequest(
+  failureCount: number,
+  error: unknown,
+): boolean {
+  if (failureCount >= MAX_API_WAKE_RETRIES || !(error instanceof ApiError))
+    return false
   return error.status === 0 || error.status >= 500
 }
 
@@ -46,7 +53,10 @@ export async function apiFetch<T>(
     headers.set('Content-Type', 'application/json')
   let response: Response
   const controller = new AbortController()
-  const timeout = window.setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS)
+  const timeout = window.setTimeout(
+    () => controller.abort(),
+    API_REQUEST_TIMEOUT_MS,
+  )
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...init,
@@ -68,7 +78,9 @@ export async function apiFetch<T>(
   if (!response.ok) {
     const contentType = response.headers.get('content-type') ?? ''
     const body = contentType.includes('application/json')
-      ? ((await response.json().catch(() => null)) as { detail?: unknown } | null)
+      ? ((await response.json().catch(() => null)) as {
+          detail?: unknown
+        } | null)
       : null
     const detail = Array.isArray(body?.detail)
       ? body.detail
@@ -224,7 +236,10 @@ export type RoomParticipant = {
   is_host: boolean
 }
 export type LeaderboardPeriod = 'day' | 'week' | 'month' | 'all'
-export type RoomInvite = Pick<Room, 'id' | 'name' | 'game' | 'players' | 'max_players' | 'status'> & { invite_token: string }
+export type RoomInvite = Pick<
+  Room,
+  'id' | 'name' | 'game' | 'players' | 'max_players' | 'status'
+> & { invite_token: string }
 export type Match = {
   match_id: string
   room_id: number
@@ -272,7 +287,8 @@ export type BugReport = {
 }
 
 export const api = {
-  googleAuthStatus: () => apiFetch<{ enabled: boolean }>('/api/auth/google/status'),
+  googleAuthStatus: () =>
+    apiFetch<{ enabled: boolean }>('/api/auth/google/status'),
   register: (body: {
     name: string
     email: string
@@ -285,7 +301,11 @@ export const api = {
       message?: string | null
     }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { email: string; password: string; remember_me: boolean }) =>
-    apiFetch<{ user: User; pending_approval?: boolean; message?: string | null }>('/api/auth/login', {
+    apiFetch<{
+      user: User
+      pending_approval?: boolean
+      message?: string | null
+    }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -313,7 +333,9 @@ export const api = {
   dashboard: () => apiFetch<Dashboard>('/api/dashboard'),
   currentChallenges: () => apiFetch<Challenges>('/api/challenges/current'),
   challengeHistory: (page = 1, limit = 10) =>
-    apiFetch<Array<Challenge>>(`/api/challenges/history?page=${page}&limit=${limit}`),
+    apiFetch<Array<Challenge>>(
+      `/api/challenges/history?page=${page}&limit=${limit}`,
+    ),
   completeChallenge: (id: number, reflection?: string) =>
     apiFetch<Challenge>(`/api/challenges/${id}/complete`, {
       method: 'POST',
@@ -401,14 +423,22 @@ export const api = {
   roomParticipants: (id: number) =>
     apiFetch<Array<RoomParticipant>>(`/api/games/rooms/${id}/participants`),
   roomInvite: (token: string) =>
-    apiFetch<RoomInvite>(`/api/games/rooms/invite/${encodeURIComponent(token)}`),
+    apiFetch<RoomInvite>(
+      `/api/games/rooms/invite/${encodeURIComponent(token)}`,
+    ),
   joinRoomInvite: (token: string) =>
-    apiFetch<Room>(`/api/games/rooms/invite/${encodeURIComponent(token)}/join`, { method: 'POST' }),
+    apiFetch<Room>(
+      `/api/games/rooms/invite/${encodeURIComponent(token)}/join`,
+      { method: 'POST' },
+    ),
   joinGuestRoom: (token: string, name: string) =>
-    apiFetch<{ room: Room; user: User }>(`/api/games/rooms/invite/${encodeURIComponent(token)}/guest`, {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    }),
+    apiFetch<{ room: Room; user: User }>(
+      `/api/games/rooms/invite/${encodeURIComponent(token)}/guest`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      },
+    ),
   createMatch: (body: {
     room_id: number
     with_bot: boolean
@@ -439,7 +469,9 @@ export const api = {
   endRoom: (id: number) =>
     apiFetch<void>(`/api/games/rooms/${id}`, { method: 'DELETE' }),
   cleanupBotRooms: () =>
-    apiFetch<{ deleted: number }>('/api/games/rooms/cleanup-bot-rooms', { method: 'POST' }),
+    apiFetch<{ deleted: number }>('/api/games/rooms/cleanup-bot-rooms', {
+      method: 'POST',
+    }),
   gameSession: (id: string) =>
     apiFetch<GameSession>(`/api/games/sessions/${id}`),
   gameAction: (id: string, action: Record<string, any>) =>
