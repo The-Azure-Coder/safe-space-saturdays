@@ -10,7 +10,8 @@
       "expo-router",
       "expo-secure-store",
       "expo-image-picker",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-web-browser"
     ],
     "ios": {
       "supportsTablet": true,
