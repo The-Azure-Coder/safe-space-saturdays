@@ -34,6 +34,7 @@ type AuthResponse = {
 
 const tokenKey = 'safe-space-access-token'
 const apiUrl = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '')
+const requestTimeoutMs = 45_000
 export const assetUrl = (path: string | null) => path && path.startsWith('/') ? `${apiUrl}${path}` : path
 
 export class MobileApiError extends Error {
@@ -50,6 +51,16 @@ async function saveToken(token: string | null | undefined) {
   if (token) await SecureStore.setItemAsync(tokenKey, token)
 }
 
+async function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs)
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 export async function clearToken() {
   await SecureStore.deleteItemAsync(tokenKey)
 }
@@ -61,9 +72,9 @@ async function request<T>(path: string, init?: RequestInit, canRefresh = true): 
   if (token) headers.set('Authorization', `Bearer ${token}`)
   let response: Response
   try {
-    response = await fetch(`${apiUrl}${path}`, { ...init, headers })
+    response = await fetchWithTimeout(`${apiUrl}${path}`, { ...init, headers })
   } catch {
-    throw new MobileApiError(0, 'We could not reach Safe Space Saturdays yet.')
+    throw new MobileApiError(0, 'Safe Space is taking a little longer to wake up. Please try again shortly.')
   }
   if (!response.ok) {
     if (response.status === 401 && token && canRefresh && path !== '/api/auth/refresh') {
@@ -87,7 +98,7 @@ async function upload(path: string, uri: string, name = 'profile.jpg') {
   const body = new FormData()
   body.append('image', { uri, name, type: 'image/jpeg' } as unknown as Blob)
   const headers = token ? { Authorization: `Bearer ${token}` } : undefined
-  const response = await fetch(`${apiUrl}${path}`, { method: 'POST', headers, body })
+  const response = await fetchWithTimeout(`${apiUrl}${path}`, { method: 'POST', headers, body })
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { detail?: string } | null
     throw new MobileApiError(response.status, payload?.detail ?? 'The image could not be uploaded')
@@ -100,7 +111,7 @@ async function uploadPost(text: string, uri: string) {
   const body = new FormData()
   body.append('text', text)
   body.append('image', { uri, name: 'community.jpg', type: 'image/jpeg' } as unknown as Blob)
-  const response = await fetch(`${apiUrl}/api/community/posts/with-image`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : undefined, body })
+  const response = await fetchWithTimeout(`${apiUrl}/api/community/posts/with-image`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : undefined, body })
   if (!response.ok) throw new MobileApiError(response.status, 'The post image could not be uploaded')
   return response.json() as Promise<Post>
 }

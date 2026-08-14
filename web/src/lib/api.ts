@@ -26,6 +26,7 @@ export class ApiError extends Error {
 }
 
 export const MAX_API_WAKE_RETRIES = 8
+export const API_REQUEST_TIMEOUT_MS = 45_000
 
 export function shouldRetryApiRequest(failureCount: number, error: unknown): boolean {
   if (failureCount >= MAX_API_WAKE_RETRIES || !(error instanceof ApiError)) return false
@@ -44,17 +45,25 @@ export async function apiFetch<T>(
   if (!(init?.body instanceof FormData))
     headers.set('Content-Type', 'application/json')
   let response: Response
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS)
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...init,
+      signal: controller.signal,
       credentials: 'include',
       headers,
     })
   } catch {
+    const timedOut = controller.signal.aborted
     throw new ApiError(
       0,
-      'We could not reach Safe Space Saturdays. Please try again in a moment.',
+      timedOut
+        ? 'Safe Space is taking a little longer to wake up. We will keep trying for you.'
+        : 'We could not reach Safe Space Saturdays. Please try again in a moment.',
     )
+  } finally {
+    window.clearTimeout(timeout)
   }
   if (!response.ok) {
     const contentType = response.headers.get('content-type') ?? ''

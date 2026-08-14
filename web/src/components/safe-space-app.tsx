@@ -608,11 +608,8 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
             password: body.password,
             confirm_password: body.confirm_password ?? '',
           }),
-    retry: (failureCount, error) =>
-      error instanceof ApiError &&
-      [0, 502, 503, 504].includes(error.status) &&
-      failureCount < 2,
-    retryDelay: (attempt) => Math.min(1500 * 2 ** attempt, 5000),
+    retry: shouldRetryApiRequest,
+    retryDelay: apiRetryDelay,
     onSuccess: (result) => {
       setSubmitted(true)
       if (isLogin || !result.pending_approval) window.location.href = '/'
@@ -686,7 +683,10 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
             {formError ||
               mutation.error?.message ||
               'We could not complete that request.'}
-          </div>
+            </div>
+        )}
+        {mutation.isPending && (
+          <ServerWakeLoader context="auth" attempt={mutation.failureCount} />
         )}
         {googleAuth.data?.enabled !== false && (
           <>

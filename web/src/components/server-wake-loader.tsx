@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { GameController, Sparkle } from '@phosphor-icons/react'
 
-type WakeContext = 'game' | 'lobby' | 'session'
+type WakeContext = 'auth' | 'game' | 'lobby' | 'session'
 
 const content: Record<WakeContext, { title: string; opening: string }> = {
+  auth: {
+    title: 'Waking your safe space',
+    opening: 'Keeping your sign-in request safe while the server gets ready.',
+  },
   game: {
     title: 'Waking the game server',
     opening: 'Keeping your place while the game server gets ready.',
