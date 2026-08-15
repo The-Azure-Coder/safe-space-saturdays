@@ -9,7 +9,17 @@ export const API_URL =
     ? window.location.origin
     : CONFIGURED_API_URL
 
-export const API_HEALTH_URL = `${API_URL}/health/ready`
+// Wake Render's API directly. The web proxy returns an immediate 502 while the
+// API service is asleep, which prevents the browser from holding one request
+// open long enough for the cold start to finish. The API explicitly allows the
+// web origin for this health request; normal app traffic remains first-party.
+const canWakeApiDirectly =
+  !/^(https?:\/\/)?(localhost|127\.0\.0\.1)(:\d+)?$/i.test(
+    CONFIGURED_API_URL,
+  )
+export const API_HEALTH_URL = `${
+  canWakeApiDirectly ? CONFIGURED_API_URL : API_URL
+}/health/ready`
 
 export const googleLoginUrl = `${API_URL}/api/auth/google/start`
 
