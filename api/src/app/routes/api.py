@@ -2291,36 +2291,30 @@ async def list_winners(
     del user
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    totals = (
+    recent_wins = (
         await db.execute(
             select(
+                RewardLedger.id,
                 RewardLedger.user_id,
                 User.name,
                 User.avatar_url,
-                func.sum(RewardLedger.xp).label("points"),
-                func.count(RewardLedger.id).label("wins"),
-                func.max(RewardLedger.created_at).label("latest_win"),
+                RewardLedger.xp,
+                RewardLedger.match_id,
+                RewardLedger.created_at,
             )
             .join(User, User.id == RewardLedger.user_id)
             .where(RewardLedger.kind == "game_win", User.is_guest.is_(False))
-            .group_by(RewardLedger.user_id, User.name, User.avatar_url)
-            .order_by(func.sum(RewardLedger.xp).desc(), func.max(RewardLedger.created_at).desc(), User.name.asc())
+            .order_by(RewardLedger.created_at.desc(), RewardLedger.id.desc())
             .offset((page - 1) * limit)
             .limit(limit)
         )
     ).all()
     result: list[dict[str, object]] = []
-    for position, row in enumerate(totals, start=(page - 1) * limit + 1):
-        latest = await db.scalar(
-            select(RewardLedger)
-            .where(RewardLedger.user_id == row.user_id, RewardLedger.kind == "game_win")
-            .order_by(RewardLedger.created_at.desc())
-            .limit(1)
-        )
+    for position, row in enumerate(recent_wins, start=(page - 1) * limit + 1):
         # Older reward rows may not have a persisted match id. Never pass a
         # NULL identity to AsyncSession.get(), which emits a SQLAlchemy
         # warning and can become an error in a future release.
-        game_name = latest.match_id if latest and latest.match_id else None
+        game_name = row.match_id
         match = await db.get(GameMatch, game_name) if game_name else None
         game_label = (match.game_type.replace("-", " ").title() if match else "Game")
         result.append(
@@ -2328,11 +2322,11 @@ async def list_winners(
                 "position": position,
                 "name": row.name,
                 "avatar_url": row.avatar_url,
-                "points": int(row.points or 0),
-                "match_points": int(latest.xp if latest else 0),
-                "wins": int(row.wins or 0),
+                "points": int(row.xp or 0),
+                "match_points": int(row.xp or 0),
+                "wins": 1,
                 "game": game_label,
-                "created_at": row.latest_win,
+                "created_at": row.created_at,
             }
         )
     return result
