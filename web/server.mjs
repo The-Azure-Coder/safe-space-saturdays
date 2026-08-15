@@ -58,11 +58,49 @@ function proxyHttp(nodeRequest, nodeResponse, requestUrl) {
   nodeRequest.pipe(upstream)
 }
 
+async function proxyReadiness(nodeResponse, requestUrl) {
+  const target = apiTarget()
+  target.pathname = '/health/ready'
+  target.search = requestUrl.search
+  const deadline = Date.now() + 90_000
+  let attempt = 0
+
+  while (Date.now() < deadline) {
+    attempt += 1
+    try {
+      const response = await fetch(target, {
+        headers: { accept: 'application/json' },
+        cache: 'no-store',
+      })
+      const body = await response.arrayBuffer()
+      if (response.ok) {
+        console.log(`API readiness proxy succeeded on attempt ${attempt}`)
+        nodeResponse.statusCode = response.status
+        response.headers.forEach((value, key) => nodeResponse.setHeader(key, value))
+        nodeResponse.end(Buffer.from(body))
+        return
+      }
+    } catch (error) {
+      console.warn(`API readiness proxy attempt ${attempt} failed`, error)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+
+  console.warn(`API readiness proxy timed out after ${attempt} attempts`)
+  nodeResponse.statusCode = 504
+  nodeResponse.setHeader('content-type', 'application/json')
+  nodeResponse.end(JSON.stringify({ detail: 'The API is still waking up' }))
+}
+
 const server = http.createServer(async (nodeRequest, nodeResponse) => {
   try {
     const protocol = nodeRequest.headers['x-forwarded-proto'] || 'http'
     const host = nodeRequest.headers.host || `localhost:${port}`
     const requestUrl = new URL(nodeRequest.url || '/', `${protocol}://${host}`)
+    if (requestUrl.pathname === '/api/system/ready') {
+      await proxyReadiness(nodeResponse, requestUrl)
+      return
+    }
     if (
       requestUrl.pathname.startsWith('/api/') ||
       requestUrl.pathname.startsWith('/uploads/') ||
