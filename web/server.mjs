@@ -58,38 +58,52 @@ function proxyHttp(nodeRequest, nodeResponse, requestUrl) {
   nodeRequest.pipe(upstream)
 }
 
-async function proxyReadiness(nodeResponse, requestUrl) {
-  const target = apiTarget()
-  target.pathname = '/health/ready'
-  target.search = requestUrl.search
-  const deadline = Date.now() + 90_000
-  let attempt = 0
+let readinessState = 'idle'
+let readinessProbe = null
 
-  while (Date.now() < deadline) {
-    attempt += 1
-    try {
-      const response = await fetch(target, {
-        headers: { accept: 'application/json' },
-        cache: 'no-store',
-      })
-      const body = await response.arrayBuffer()
-      if (response.ok) {
-        console.log(`API readiness proxy succeeded on attempt ${attempt}`)
-        nodeResponse.statusCode = response.status
-        response.headers.forEach((value, key) => nodeResponse.setHeader(key, value))
-        nodeResponse.end(Buffer.from(body))
-        return
+function startReadinessProbe() {
+  if (readinessProbe || readinessState === 'ready') return
+  readinessState = 'warming'
+  readinessProbe = (async () => {
+    const target = apiTarget()
+    target.pathname = '/health/ready'
+    target.search = ''
+    const deadline = Date.now() + 90_000
+    let attempt = 0
+
+    while (Date.now() < deadline) {
+      attempt += 1
+      try {
+        const response = await fetch(target, {
+          headers: { accept: 'application/json' },
+          cache: 'no-store',
+        })
+        const body = await response.json().catch(() => null)
+        if (response.ok && body?.status === 'ready') {
+          readinessState = 'ready'
+          console.log(`API readiness background probe succeeded on attempt ${attempt}`)
+          return
+        }
+        console.warn(`API readiness background probe attempt ${attempt} returned ${response.status}`)
+      } catch (error) {
+        console.warn(`API readiness background probe attempt ${attempt} failed`, error)
       }
-    } catch (error) {
-      console.warn(`API readiness proxy attempt ${attempt} failed`, error)
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
     }
-    await new Promise((resolve) => setTimeout(resolve, 1_000))
-  }
 
-  console.warn(`API readiness proxy timed out after ${attempt} attempts`)
-  nodeResponse.statusCode = 504
+    readinessState = 'idle'
+    console.warn(`API readiness background probe timed out after ${attempt} attempts`)
+  })().finally(() => {
+    readinessProbe = null
+  })
+}
+
+async function proxyReadiness(nodeResponse) {
+  startReadinessProbe()
+  nodeResponse.statusCode = readinessState === 'ready' ? 200 : 202
+  nodeResponse.setHeader('cache-control', 'no-store')
   nodeResponse.setHeader('content-type', 'application/json')
-  nodeResponse.end(JSON.stringify({ detail: 'The API is still waking up' }))
+  nodeResponse.end(JSON.stringify({ status: readinessState, service: 'api' }))
 }
 
 const server = http.createServer(async (nodeRequest, nodeResponse) => {
@@ -98,7 +112,7 @@ const server = http.createServer(async (nodeRequest, nodeResponse) => {
     const host = nodeRequest.headers.host || `localhost:${port}`
     const requestUrl = new URL(nodeRequest.url || '/', `${protocol}://${host}`)
     if (requestUrl.pathname === '/api/system/ready') {
-      await proxyReadiness(nodeResponse, requestUrl)
+      await proxyReadiness(nodeResponse)
       return
     }
     if (
