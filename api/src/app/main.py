@@ -40,12 +40,21 @@ app.add_middleware(
 )
 
 
+def is_same_origin_proxy_request(request: Request, origin: str) -> bool:
+    """Allow the mono-service proxy's public origin without stale env config."""
+    forwarded_host = request.headers.get("x-forwarded-host")
+    forwarded_proto = request.headers.get("x-forwarded-proto", "https")
+    if not forwarded_host or forwarded_proto not in {"http", "https"}:
+        return False
+    return origin == f"{forwarded_proto}://{forwarded_host}"
+
+
 @app.middleware("http")
 async def security_headers_and_origin_check(request: Request, call_next):
     has_session = request.cookies.get(settings.session_cookie_name)
     if request.method in {"POST", "PUT", "PATCH", "DELETE"} and has_session:
         origin = request.headers.get("origin")
-        if origin and origin not in settings.api_cors_origins:
+        if origin and origin not in settings.api_cors_origins and not is_same_origin_proxy_request(request, origin):
             return JSONResponse({"detail": "Origin is not allowed"}, status_code=403)
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")

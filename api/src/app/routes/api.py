@@ -2287,8 +2287,11 @@ async def list_winners(
             .order_by(RewardLedger.created_at.desc())
             .limit(1)
         )
-        game_name = latest.match_id if latest else "Game"
-        match = await db.get(GameMatch, game_name) if latest else None
+        # Older reward rows may not have a persisted match id. Never pass a
+        # NULL identity to AsyncSession.get(), which emits a SQLAlchemy
+        # warning and can become an error in a future release.
+        game_name = latest.match_id if latest and latest.match_id else None
+        match = await db.get(GameMatch, game_name) if game_name else None
         game_label = (match.game_type.replace("-", " ").title() if match else "Game")
         result.append(
             {
