@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, CheckCircle, Copy, GameController, UsersThree } from '@phosphor-icons/react'
 
-import { ServerWakeLoader } from '../components/server-wake-loader'
+import { GeneralLoader } from '../components/general-loader'
 import { ApiError, api, apiRetryDelay, assetUrl, shouldRetryApiRequest } from '../lib/api'
 
 export const Route = createFileRoute('/games/rooms/$roomId')({ component: GameRoomLobby })
@@ -77,9 +77,9 @@ function GameRoomLobby() {
   }, [navigate, room.error])
 
   if (room.isLoading || participants.isLoading)
-    return <main className="page-content game-lobby-page"><ServerWakeLoader context="lobby" attempt={Math.max(room.failureCount, participants.failureCount)} /></main>
+    return <main className="page-content game-lobby-page"><GeneralLoader label="Loading your game room…" /></main>
   if (!room.data && (room.isError || participants.isError))
-    return <main className="page-content game-lobby-page"><ServerWakeLoader context="lobby" attempt={Math.max(room.failureCount, participants.failureCount)} exhausted onRetry={() => { void room.refetch(); void participants.refetch() }} /></main>
+    return <main className="page-content game-lobby-page"><GeneralLoader label="Reconnecting to your game room…" onRetry={() => { void room.refetch(); void participants.refetch() }} /></main>
   if (!room.data) return null
 
   const currentRoom = room.data

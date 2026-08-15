@@ -41,7 +41,7 @@ import {
 
 import { ApiError, api, apiRetryDelay, assetUrl, googleLoginUrl, shouldRetryApiRequest } from '../lib/api'
 import type { CheckIn, LeaderboardPeriod, Post, Quote } from '../lib/api'
-import { ServerWakeLoader } from './server-wake-loader'
+import { GeneralLoader } from './general-loader'
 
 type Screen =
   | 'home'
@@ -422,17 +422,6 @@ function SectionHeading({
   )
 }
 
-function ApiLoader({ label = 'Making a little space…' }: { label?: string }) {
-  return (
-    <div className="api-loader" role="status" aria-live="polite">
-      <span className="api-loader__spark" aria-hidden="true">
-        ✦
-      </span>
-      <span>{label}</span>
-    </div>
-  )
-}
-
 function ContentSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="content-skeleton" aria-label="Loading content">
@@ -685,9 +674,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
               'We could not complete that request.'}
             </div>
         )}
-        {mutation.isPending && (
-          <ServerWakeLoader context="auth" attempt={mutation.failureCount} />
-        )}
+        {mutation.isPending && <GeneralLoader label="Signing you in…" />}
         {googleAuth.data?.enabled !== false && (
           <>
             <a className="google-auth-button" href={googleLoginUrl}>
@@ -867,7 +854,7 @@ function HomeScreen() {
       <main className="page-content home-page">
         <WelcomeCarousel />
         {dashboard.isLoading && (
-          <ApiLoader label="Gathering your safe-space details…" />
+          <GeneralLoader label="Gathering your safe-space details…" />
         )}
         <section className="stats-grid">
           <StatCard
@@ -1287,7 +1274,7 @@ function AdminScreen() {
       <>
         <PageHeader screen="admin" />
         <main className="page-content">
-          <ApiLoader label="Loading admin workspace…" />
+          <GeneralLoader label="Loading admin workspace…" />
         </main>
       </>
     )
@@ -1323,7 +1310,7 @@ function AdminScreen() {
               <span className="eyebrow">Overview</span>
               <h2>Admin dashboard</h2>
             </div>
-            {adminDashboard.isFetching && <ApiLoader label="Updating…" />}
+            {adminDashboard.isFetching && <GeneralLoader label="Updating…" />}
           </div>
           {adminDashboard.isLoading ? (
             <ContentSkeleton rows={1} />
@@ -4508,13 +4495,13 @@ function ProtectedApp({
   if (!sessionCheckEnabled || currentUser.isPending)
     return (
       <main className="page-content auth-gate">
-        <ServerWakeLoader context={screen === 'games' ? 'game' : 'session'} attempt={currentUser.failureCount} />
+        <GeneralLoader label="Checking your safe-space session…" />
       </main>
     )
   if (currentUser.isError && !isUnauthenticated)
     return (
       <main className="page-content auth-gate">
-        <ServerWakeLoader context={screen === 'games' ? 'game' : 'session'} attempt={currentUser.failureCount} exhausted onRetry={() => void currentUser.refetch()} />
+        <GeneralLoader label="Reconnecting to your safe space…" onRetry={() => void currentUser.refetch()} />
       </main>
     )
   if (isUnauthenticated || !currentUser.data) return null

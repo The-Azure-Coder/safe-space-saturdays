@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, CaretDown, Robot, Sparkle, Trophy, UserCircle } from '@phosphor-icons/react'
 
-import { ServerWakeLoader } from '../components/server-wake-loader'
+import { GeneralLoader } from '../components/general-loader'
 import { API_URL, api, apiRetryDelay, shouldRetryApiRequest } from '../lib/api'
 import type { Match } from '../lib/api'
 import { connectFourSeat } from '../lib/connect-four'
@@ -62,9 +62,9 @@ function ConnectFourScreen() {
   const board = match?.board ?? EMPTY_BOARD
   const winning = useMemo(() => new Set((match?.winning_cells ?? []).map(([row, column]) => `${row}-${column}`)), [match?.winning_cells])
   if (!match && matchQuery.isPending)
-    return <main className="page-content game-play-page connect-four-page"><ServerWakeLoader context="game" attempt={matchQuery.failureCount} /></main>
+    return <main className="page-content game-play-page connect-four-page"><GeneralLoader label="Loading your game…" /></main>
   if (!match && matchQuery.isError)
-    return <main className="page-content game-play-page connect-four-page"><ServerWakeLoader context="game" attempt={matchQuery.failureCount} exhausted onRetry={() => void matchQuery.refetch()} /></main>
+    return <main className="page-content game-play-page connect-four-page"><GeneralLoader label="Reconnecting to your game…" onRetry={() => void matchQuery.refetch()} /></main>
   let previewRow: number | null = null
   if (hoveredColumn !== null) {
     for (let row = board.length - 1; row >= 0; row -= 1) {

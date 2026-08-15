@@ -11,7 +11,7 @@ import { TriviaGame } from '../components/trivia-game'
 import type { TriviaState } from '../components/trivia-game'
 import { ScribbleGame } from '../components/scribble-game'
 import { GameRoomControls } from '../components/game-room-controls'
-import { ServerWakeLoader } from '../components/server-wake-loader'
+import { GeneralLoader } from '../components/general-loader'
 import type { ScribbleState } from '../components/scribble-game'
 import { API_URL, api, apiRetryDelay, shouldRetryApiRequest } from '../lib/api'
 import type { GameSession } from '../lib/api'
@@ -83,9 +83,9 @@ function GameSessionScreen() {
   }
   const state = match?.state
   if (!match && gameSession.isPending)
-    return <main className="page-content game-play-page"><ServerWakeLoader context="game" attempt={gameSession.failureCount} /></main>
+    return <main className="page-content game-play-page"><GeneralLoader label="Loading your game…" /></main>
   if (!match && gameSession.isError)
-    return <main className="page-content game-play-page"><ServerWakeLoader context="game" attempt={gameSession.failureCount} exhausted onRetry={() => void gameSession.refetch()} /></main>
+    return <main className="page-content game-play-page"><GeneralLoader label="Reconnecting to your game…" onRetry={() => void gameSession.refetch()} /></main>
   const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
   const players = state?.players ?? []
