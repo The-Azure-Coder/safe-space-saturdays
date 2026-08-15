@@ -60,9 +60,15 @@ function proxyHttp(nodeRequest, nodeResponse, requestUrl) {
 
 let readinessState = 'idle'
 let readinessProbe = null
+let readinessReadyAt = 0
+const READINESS_CACHE_MS = 30_000
 
 function startReadinessProbe() {
-  if (readinessProbe || readinessState === 'ready') return
+  if (
+    readinessProbe ||
+    (readinessState === 'ready' && Date.now() - readinessReadyAt < READINESS_CACHE_MS)
+  )
+    return
   readinessState = 'warming'
   readinessProbe = (async () => {
     const target = apiTarget()
@@ -81,6 +87,7 @@ function startReadinessProbe() {
         const body = await response.json().catch(() => null)
         if (response.ok && body?.status === 'ready') {
           readinessState = 'ready'
+          readinessReadyAt = Date.now()
           console.log(`API readiness background probe succeeded on attempt ${attempt}`)
           return
         }
