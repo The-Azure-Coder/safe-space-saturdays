@@ -1,20 +1,22 @@
 services:
   - type: web
-    name: safe-space-saturdays-api
+    name: safe-space-saturdays
     runtime: docker
     plan: free
     repo: https://github.com/The-Azure-Coder/safe-space-saturdays.git
-    branch: pre-prod
+    branch: mono-repo
     autoDeployTrigger: commit
-    dockerfilePath: ./api/Dockerfile
-    dockerContext: ./api
-    healthCheckPath: /health/ready
+    dockerfilePath: ./Dockerfile.monorepo
+    dockerContext: .
+    healthCheckPath: /
     envVars:
       - key: APP_ENV
         value: production
       - key: COOKIE_SECURE
         value: "true"
       - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
         sync: false
       - key: API_CORS_ORIGINS
         sync: false
@@ -40,17 +42,5 @@ services:
         sync: false
       - key: GOOGLE_OAUTH_REDIRECT_URI
         sync: false
-
-  - type: web
-    name: safe-space-saturdays-web
-    runtime: docker
-    plan: free
-    repo: https://github.com/The-Azure-Coder/safe-space-saturdays.git
-    branch: pre-prod
-    autoDeployTrigger: commit
-    dockerfilePath: ./web/Dockerfile
-    dockerContext: ./web
-    healthCheckPath: /
-    envVars:
       - key: VITE_API_URL
-        sync: false
+        value: http://127.0.0.1:8000
