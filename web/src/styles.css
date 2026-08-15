@@ -1071,6 +1071,13 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .room-share-popover button:hover, .room-share-popover button:focus-visible { background: var(--sage-pale); color: var(--sage-dark); }
 .room-change-control { flex: 0 0 auto; }
 .game-play-actions__right { display: flex; align-items: center; gap: 10px; }
+.game-play-actions__right > .button--danger { min-height: 40px; border: 2px solid color-mix(in srgb, #9b4d36 58%, var(--line)); background: color-mix(in srgb, #fff3ee 88%, var(--paper)); color: #713322; font-weight: 800; box-shadow: 0 3px 10px rgb(113 51 34 / 14%); }
+.game-play-actions__right > .button--danger:hover, .game-play-actions__right > .button--danger:focus-visible { border-color: #9b4d36; background: #9b4d36; color: #fff; }
+@media (max-width: 640px) {
+  .game-play-actions { align-items: stretch; flex-direction: column; }
+  .game-play-actions__right { justify-content: flex-end; flex-wrap: wrap; }
+  .game-play-actions__right > .button--danger { min-height: 44px; padding-inline: 16px; font-size: 13px; }
+}
 .game-room-controls { display: flex; align-items: center; gap: 8px; }
 .game-room-controls__label { color: var(--muted); font-size: 12px; font-weight: 700; }
 .game-room-controls__select { position: relative; display: inline-flex; align-items: center; }

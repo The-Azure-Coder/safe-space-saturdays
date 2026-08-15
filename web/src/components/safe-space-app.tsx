@@ -3225,7 +3225,9 @@ function GamesScreen() {
                       {room.name}
                     </strong>
                     <small>
-                      {room.players} / {room.max_players} players
+                      {room.status === 'active' && room.fill_with_bots
+                        ? `${room.max_players} / ${room.max_players} players · bot match`
+                        : `${room.players} / ${room.max_players} players`}
                     </small>
                   </div>
                   {room.invite_token && (
