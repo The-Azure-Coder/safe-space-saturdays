@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { GameController, Sparkle } from '@phosphor-icons/react'
 
+import { API_HEALTH_URL } from '../lib/api'
+
 type WakeContext = 'auth' | 'game' | 'lobby' | 'session'
 
 const content: Record<WakeContext, { title: string; opening: string }> = {
@@ -38,11 +40,24 @@ export function ServerWakeLoader({
 
   useEffect(() => {
     if (exhausted) return undefined
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 90_000)
+    void fetch(`${API_HEALTH_URL}?wake=${Date.now()}`, {
+      cache: 'no-store',
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    }).catch(() => {
+      // The query owning this loader will retry while the API wakes.
+    })
     const timer = window.setInterval(
       () => setElapsedSeconds(Math.floor((Date.now() - startedAt.current) / 1_000)),
       1_000,
     )
-    return () => window.clearInterval(timer)
+    return () => {
+      controller.abort()
+      window.clearTimeout(timeout)
+      window.clearInterval(timer)
+    }
   }, [exhausted])
 
   const progress = exhausted
