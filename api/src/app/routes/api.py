@@ -959,9 +959,18 @@ async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
         .order_by(CheckIn.created_at.desc())
         .limit(1)
     )
-    quote = await db.scalar(
-        select(Quote).where(Quote.is_featured.is_(True)).order_by(Quote.id).limit(1)
-    )
+    # Rotate through the approved library once per calendar day. The ordinal
+    # makes the choice stable for everyone during a day without storing a
+    # mutable "current quote" row or returning the first featured quote forever.
+    approved_quotes = select(Quote).where(Quote.approval_status == "approved").order_by(Quote.id)
+    quote_count = await db.scalar(
+        select(func.count(Quote.id)).where(Quote.approval_status == "approved")
+    ) or 0
+    quote = None
+    if quote_count:
+        quote = await db.scalar(
+            approved_quotes.offset(date.today().toordinal() % quote_count).limit(1)
+        )
     rank = (
         await db.scalar(
             select(func.count(User.id)).where(User.is_guest.is_(False), User.xp > user.xp)
