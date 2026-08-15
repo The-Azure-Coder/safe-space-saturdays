@@ -133,7 +133,28 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 
 STAFF_ROLES = {"admin", "super_admin", "manager", "moderator"}
-LEADERBOARD_PERIOD_DAYS = {"day": 1, "week": 7, "month": 30}
+
+
+def leaderboard_period_start(period: str, now: datetime | None = None) -> datetime:
+    """Return the inclusive UTC start of a leaderboard period.
+
+    The weekly leaderboard is calendar-based: Sunday starts a new week. Using
+    a rolling seven-day window made a user's "This Week" score change at an
+    unexpected time and meant it did not reset consistently for everyone.
+    """
+    current = now or datetime.now(UTC)
+    current = current.astimezone(UTC)
+    today = current.date()
+    if period == "day":
+        start_date = today
+    elif period == "week":
+        # Python weekday(): Monday=0 ... Sunday=6.
+        start_date = today - timedelta(days=(today.weekday() + 1) % 7)
+    elif period == "month":
+        start_date = today.replace(day=1)
+    else:
+        raise ValueError(f"Unsupported leaderboard period: {period}")
+    return datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
 GOOGLE_OAUTH_COOKIE = "safe_space_google_oauth"
 GOOGLE_MOBILE_COOKIE = "safe_space_google_mobile"
 
@@ -2314,7 +2335,7 @@ def leaderboard_query(period: str):
     if period == "all":
         return select(User, User.xp.label("ranking_xp")).where(member_filter)
 
-    start = datetime.now(UTC) - timedelta(days=LEADERBOARD_PERIOD_DAYS[period])
+    start = leaderboard_period_start(period)
     reward_totals = (
         select(
             RewardLedger.user_id,
