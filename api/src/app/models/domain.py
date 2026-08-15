@@ -288,7 +288,7 @@ class RewardLedger(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     match_id: Mapped[str] = mapped_column(
-        ForeignKey("game_matches.id", ondelete="CASCADE"), index=True
+        ForeignKey("game_matches.id", ondelete="SET NULL"), nullable=True, index=True
     )
     kind: Mapped[str] = mapped_column(String(40))
     xp: Mapped[int] = mapped_column(Integer)
