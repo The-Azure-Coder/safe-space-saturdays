@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GameController, Sparkle } from '@phosphor-icons/react'
 
 type WakeContext = 'auth' | 'game' | 'lobby' | 'session'
@@ -34,22 +34,26 @@ export function ServerWakeLoader({
   onRetry?: () => void
 }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const startedAt = useRef(Date.now())
 
   useEffect(() => {
-    setElapsedSeconds(0)
-    if (exhausted) return
+    if (exhausted) return undefined
     const timer = window.setInterval(
-      () => setElapsedSeconds((current) => current + 1),
+      () => setElapsedSeconds(Math.floor((Date.now() - startedAt.current) / 1_000)),
       1_000,
     )
     return () => window.clearInterval(timer)
-  }, [attempt, exhausted])
+  }, [exhausted])
 
-  const progress = exhausted ? 100 : Math.min((elapsedSeconds / 45) * 100, 96)
+  const progress = exhausted
+    ? 100
+    : elapsedSeconds <= 45
+      ? Math.round(5 + (elapsedSeconds / 45) * 90)
+      : Math.min(99, Math.round(95 + ((elapsedSeconds - 45) / 180) * 4))
   const remaining = Math.max(1, 45 - elapsedSeconds)
   const phase = exhausted
     ? 'Still waiting for the server'
-    : elapsedSeconds >= 30
+    : elapsedSeconds >= 45
       ? 'Finishing the wake-up'
       : elapsedSeconds >= 12
         ? 'Loading your space'
@@ -81,7 +85,11 @@ export function ServerWakeLoader({
         <span style={{ width: `${progress}%` }} />
       </div>
       <div className="server-wake-loader__countdown" aria-live="polite">
-        {exhausted ? 'Ready when the server responds' : `Checking for up to ${remaining}s · we keep trying automatically`}
+        {exhausted
+          ? 'Ready when the server responds'
+          : elapsedSeconds >= 45
+            ? 'Final readiness check · we keep trying automatically'
+            : `Usually ready in about ${remaining}s · we keep trying automatically`}
       </div>
       {exhausted ? (
         <button
