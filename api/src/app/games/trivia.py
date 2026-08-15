@@ -28,6 +28,18 @@ QUESTION_BANK: tuple[dict[str, Any], ...] = (
     {"category": "Anime", "value": 100, "question": "In Pokémon, what kind of creature is Pikachu?", "options": ["A Pokémon", "A dragon", "A robot", "A wizard"], "correct": 0},
     {"category": "Anime", "value": 200, "question": "What is the name of the young ninja hero in Naruto?", "options": ["Naruto Uzumaki", "Goku", "Edward Elric", "Tanjiro Kamado"], "correct": 0},
     {"category": "Anime", "value": 300, "question": "In Spirited Away, what kind of place does Chihiro's family enter?", "options": ["A spirit world", "A space station", "A pirate ship", "A sports arena"], "correct": 0},
+    {"category": "History", "value": 100, "question": "Which ancient civilization built Machu Picchu?", "options": ["The Inca", "The Romans", "The Vikings", "The Maya"], "correct": 0},
+    {"category": "History", "value": 200, "question": "The Rosetta Stone helped scholars decipher which writing system?", "options": ["Egyptian hieroglyphs", "Cuneiform", "Linear B", "Sanskrit"], "correct": 0},
+    {"category": "History", "value": 300, "question": "The Peace of Westphalia is commonly associated with ending which conflict?", "options": ["The Thirty Years' War", "The Hundred Years' War", "The Crimean War", "The War of the Roses"], "correct": 0},
+    {"category": "Geography", "value": 100, "question": "Which is the largest ocean on Earth?", "options": ["Pacific", "Atlantic", "Indian", "Arctic"], "correct": 0},
+    {"category": "Geography", "value": 200, "question": "Which river flows through Cairo?", "options": ["The Nile", "The Danube", "The Ganges", "The Amazon"], "correct": 0},
+    {"category": "Geography", "value": 300, "question": "What is the only country that borders both the Caspian Sea and the Persian Gulf?", "options": ["Iran", "Iraq", "Kazakhstan", "Azerbaijan"], "correct": 0},
+    {"category": "Arts & Culture", "value": 100, "question": "Who painted the Mona Lisa?", "options": ["Leonardo da Vinci", "Michelangelo", "Raphael", "Caravaggio"], "correct": 0},
+    {"category": "Arts & Culture", "value": 200, "question": "In music, what does 'adagio' generally indicate?", "options": ["Slowly", "Very loudly", "Quickly", "With repeated notes"], "correct": 0},
+    {"category": "Arts & Culture", "value": 300, "question": "Which novel begins with the line about April being the cruellest month?", "options": ["The Waste Land", "Ulysses", "The Great Gatsby", "Mrs Dalloway"], "correct": 0},
+    {"category": "Gaming", "value": 100, "question": "In chess, which piece can jump over other pieces?", "options": ["Knight", "Bishop", "Rook", "Queen"], "correct": 0},
+    {"category": "Gaming", "value": 200, "question": "In a standard deck-building game, what does RNG commonly mean?", "options": ["Random Number Generation", "Rapid Network Gameplay", "Real-time Navigation Grid", "Rule-based New Game"], "correct": 0},
+    {"category": "Gaming", "value": 300, "question": "In game design, what is a Nash equilibrium describing?", "options": ["A stable strategy profile where no player benefits by changing alone", "The maximum frame rate of a game", "A level with no possible solution", "A randomised loot table"], "correct": 0},
 )
 
 CATEGORIES = tuple(dict.fromkeys(question["category"] for question in QUESTION_BANK))
@@ -36,14 +48,17 @@ CLUES = {(question["category"], question["value"]): question for question in QUE
 
 def _load_question(state: dict[str, Any], category: str, value: int) -> None:
     question = CLUES[(category, value)]
+    options = list(question["options"])
+    correct_option = options[question["correct"]]
+    random.shuffle(options)
     state.update(
         question=question["question"],
         question_index=len(state.get("used_clues", [])),
-        options=list(question["options"]),
+        options=options,
         category=category,
         value=value,
         clue_key=f"{category}:{value}",
-        correct=question["correct"],
+        correct=options.index(correct_option),
         phase="question",
         current_player=0,
         selected_answers=[None, None],
@@ -58,6 +73,8 @@ def new_trivia_state(
     rng: random.Random, player_count: int = 2, bot_players: tuple[int, ...] = (1,)
 ) -> dict[str, Any]:
     player_count = max(2, min(2, player_count))
+    categories = list(CATEGORIES)
+    rng.shuffle(categories)
     state: dict[str, Any] = {
         "game": "trivia",
         "current_player": 0,
@@ -65,9 +82,9 @@ def new_trivia_state(
         "draw": False,
         "question_index": 0,
         "question_count": ROUND_LENGTH,
-        "categories": list(CATEGORIES),
+        "categories": categories,
         "point_values": list(POINT_VALUES),
-        "board": [{"category": category, "values": list(POINT_VALUES)} for category in CATEGORIES],
+        "board": [{"category": category, "values": list(POINT_VALUES)} for category in categories],
         "used_clues": [],
         "clues": {f"{category}:{value}": question for (category, value), question in CLUES.items()},
         "scores": [0 for _ in range(player_count)],
@@ -145,6 +162,7 @@ def apply_trivia_action(
         state["selected_answers"] = [None, None]
         state["answer_points"] = [0, 0]
         state["deadline"] = None
+        state["current_player"] = (int(state.get("current_player", 0)) + 1) % len(state["players"])
         state["last_event"] = f"{state['players'][state['current_player']]['name']} chooses the next clue."
         state["action_count"] += 1
         return state
