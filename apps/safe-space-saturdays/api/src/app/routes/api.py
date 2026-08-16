@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import io
 import secrets
 from collections import Counter
@@ -30,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_session, session_factory
+from app.email_service import send_transactional_email
 from app.games.connect_four import ConnectFourState, IllegalMove
 from app.games.manager import LiveMatch, match_manager
 from app.games.multi import (
@@ -45,6 +47,7 @@ from app.games.trivia import normalise_trivia_state
 from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
     BugReport,
+    CommunityApplication,
     CheckIn,
     Challenge,
     ChallengeCompletion,
@@ -82,6 +85,9 @@ from app.schemas import (
     BugReportCreateRequest,
     BugReportResponse,
     BugReportUpdateRequest,
+    CommunityApplicationCreateRequest,
+    CommunityApplicationResponse,
+    CommunityApplicationUpdateRequest,
     ChangePasswordRequest,
     ChallengeCompleteRequest,
     ChallengeResponse,
@@ -165,6 +171,41 @@ def can_manage_roles(user: User) -> bool:
 
 def can_manage_content(user: User) -> bool:
     return user.role in {"admin", "super_admin", "manager"}
+
+
+def can_review_community_applications(user: User) -> bool:
+    return user.role in {"admin", "super_admin", "manager"}
+
+
+def community_application_response(application: CommunityApplication) -> CommunityApplicationResponse:
+    return CommunityApplicationResponse.model_validate(application)
+
+
+def invite_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+async def send_application_invite(application: CommunityApplication, token: str) -> bool:
+    settings = get_settings()
+    invite_url = f"{settings.public_app_url.rstrip('/')}/api/community-applications/invite/{token}"
+    html = (
+        f"<p>Hi {application.name},</p>"
+        "<p>Your Safe Space Saturdays community application was approved. "
+        "We would love to welcome you into the circle.</p>"
+        f'<p><a href="{invite_url}">Join the WhatsApp community</a></p>'
+        "<p>This private invite expires in 7 days and can be used once.</p>"
+    )
+    text = (
+        f"Hi {application.name},\n\nYour Safe Space Saturdays application was approved. "
+        f"Join the WhatsApp community here: {invite_url}\n\n"
+        "This private invite expires in 7 days and can be used once."
+    )
+    return await send_transactional_email(
+        recipient=application.email,
+        subject="Your Safe Space Saturdays invitation",
+        html=html,
+        text=text,
+    )
 
 
 def match_response(match: LiveMatch, user_id: int | None = None) -> MatchResponse:
@@ -2435,6 +2476,148 @@ async def leaderboard_me(
         rank=rank,
         user=user_response(user).model_copy(update={"xp": current_xp}),
     )
+
+
+@router.post("/community-applications", response_model=CommunityApplicationResponse, status_code=status.HTTP_201_CREATED)
+async def create_community_application(
+    payload: CommunityApplicationCreateRequest,
+    db: DbSession,
+) -> CommunityApplicationResponse:
+    if not payload.consent:
+        raise HTTPException(status_code=422, detail="Please consent to being contacted")
+    if payload.website and payload.website.strip():
+        # Honeypot: acknowledge automated submissions without storing them.
+        raise HTTPException(status_code=422, detail="Please try again")
+    email = str(payload.email).lower()
+    existing = await db.scalar(
+        select(CommunityApplication).where(
+            CommunityApplication.email == email,
+            CommunityApplication.status == "pending",
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="An application for this email is already under review")
+    application = CommunityApplication(
+        name=payload.name.strip(),
+        email=email,
+        phone=payload.phone.strip() if payload.phone else None,
+        message=payload.message.strip(),
+    )
+    db.add(application)
+    await db.commit()
+    await db.refresh(application)
+    return community_application_response(application)
+
+
+@router.get("/community-applications/invite/{token}", include_in_schema=False)
+async def use_community_application_invite(token: str, db: DbSession) -> RedirectResponse:
+    application = await db.scalar(
+        select(CommunityApplication).where(
+            CommunityApplication.invite_token_hash == invite_token_hash(token),
+            CommunityApplication.status == "approved",
+        )
+    )
+    settings = get_settings()
+    now = datetime.now(UTC)
+    if (
+        application is None
+        or application.invite_used_at is not None
+        or application.invite_expires_at is None
+        or application.invite_expires_at <= now
+        or not settings.whatsapp_group_invite_url
+    ):
+        raise HTTPException(status_code=404, detail="This community invitation is no longer available")
+    application.invite_used_at = now
+    await db.commit()
+    return RedirectResponse(settings.whatsapp_group_invite_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/admin/community-applications", response_model=list[CommunityApplicationResponse])
+async def admin_community_applications(
+    admin: CurrentAdmin,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    application_status: str | None = None,
+) -> list[CommunityApplicationResponse]:
+    if admin.role not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Staff access required")
+    page = max(page, 1)
+    limit = min(max(limit, 1), 100)
+    query = select(CommunityApplication).order_by(CommunityApplication.created_at.desc())
+    if application_status:
+        if application_status not in {"pending", "approved", "rejected"}:
+            raise HTTPException(status_code=422, detail="Invalid application status")
+        query = query.where(CommunityApplication.status == application_status)
+    rows = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
+    return [community_application_response(row) for row in rows]
+
+
+async def review_community_application(
+    application_id: int,
+    payload: CommunityApplicationUpdateRequest,
+    admin: User,
+    db: AsyncSession,
+) -> CommunityApplicationResponse:
+    if not can_review_community_applications(admin):
+        raise HTTPException(status_code=403, detail="Application approval access required")
+    application = await db.get(CommunityApplication, application_id)
+    if application is None:
+        raise HTTPException(status_code=404, detail="Community application not found")
+    application.status = payload.status
+    application.admin_note = payload.admin_note.strip() if payload.admin_note else None
+    application.reviewed_by = admin.id
+    application.reviewed_at = datetime.now(UTC)
+    token: str | None = None
+    if payload.status == "approved":
+        token = secrets.token_urlsafe(32)
+        application.invite_token_hash = invite_token_hash(token)
+        application.invite_expires_at = datetime.now(UTC) + timedelta(days=7)
+        application.invite_used_at = None
+    else:
+        application.invite_token_hash = None
+        application.invite_expires_at = None
+        application.invite_used_at = None
+        application.email_sent_at = None
+    await db.commit()
+    if token is not None and await send_application_invite(application, token):
+        application.email_sent_at = datetime.now(UTC)
+        await db.commit()
+    await db.refresh(application)
+    return community_application_response(application)
+
+
+@router.patch("/admin/community-applications/{application_id}", response_model=CommunityApplicationResponse)
+async def update_community_application(
+    application_id: int,
+    payload: CommunityApplicationUpdateRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> CommunityApplicationResponse:
+    return await review_community_application(application_id, payload, admin, db)
+
+
+@router.post("/admin/community-applications/{application_id}/resend", response_model=CommunityApplicationResponse)
+async def resend_community_application(
+    application_id: int,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> CommunityApplicationResponse:
+    if not can_review_community_applications(admin):
+        raise HTTPException(status_code=403, detail="Application approval access required")
+    application = await db.get(CommunityApplication, application_id)
+    if application is None or application.status != "approved":
+        raise HTTPException(status_code=409, detail="Only approved applications can receive an invite")
+    token = secrets.token_urlsafe(32)
+    application.invite_token_hash = invite_token_hash(token)
+    application.invite_expires_at = datetime.now(UTC) + timedelta(days=7)
+    application.invite_used_at = None
+    await db.commit()
+    if await send_application_invite(application, token):
+        application.email_sent_at = datetime.now(UTC)
+        await db.commit()
+    await db.refresh(application)
+    return community_application_response(application)
 
 
 @router.get("/admin/bug-reports", response_model=list[BugReportResponse])

@@ -40,7 +40,7 @@ import {
 } from '@phosphor-icons/react'
 
 import { ApiError, api, apiRetryDelay, assetUrl, googleLoginUrl, shouldRetryApiRequest } from '../lib/api'
-import type { CheckIn, LeaderboardPeriod, Post, Quote } from '../lib/api'
+import type { CheckIn, CommunityApplication, LeaderboardPeriod, Post, Quote } from '../lib/api'
 import { GeneralLoader } from './general-loader'
 
 type Screen =
@@ -55,6 +55,7 @@ type Screen =
   | 'registration'
   | 'profile'
   | 'admin'
+  | 'contact'
 
 type Icon = ComponentType<{
   size?: number
@@ -393,6 +394,7 @@ function PageFooter() {
       <span className="footer-leaf">❧</span>
       <span className="footer-heart">♡</span>
       <span>You are not alone. You belong here.</span>
+      <Link className="page-footer__link" to="/contact">Join the community</Link>
       <span className="footer-leaf footer-leaf--right">❧</span>
     </footer>
   )
@@ -1209,8 +1211,9 @@ function formatCooldown(milliseconds: number) {
 
 function AdminScreen() {
   const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
-  const [tab, setTab] = useState<'reports' | 'users' | 'quotes'>('reports')
+  const [tab, setTab] = useState<'reports' | 'users' | 'quotes' | 'applications'>('reports')
   const [reportStatus, setReportStatus] = useState('')
+  const [applicationStatus, setApplicationStatus] = useState('pending')
   const [search, setSearch] = useState('')
   const [quoteText, setQuoteText] = useState('')
   const [quoteAuthor, setQuoteAuthor] = useState('Safe Space Saturdays')
@@ -1233,6 +1236,11 @@ function AdminScreen() {
   const quotes = useQuery({
     queryKey: ['admin-quotes'],
     queryFn: () => api.adminQuotes(1, 100),
+    enabled: Boolean(profile.data && staffRoles.has(profile.data.role)),
+  })
+  const applications = useQuery({
+    queryKey: ['admin-community-applications', applicationStatus],
+    queryFn: () => api.adminCommunityApplications(1, 50, applicationStatus),
     enabled: Boolean(profile.data && staffRoles.has(profile.data.role)),
   })
   const reportUpdate = useMutation({
@@ -1267,6 +1275,15 @@ function AdminScreen() {
     mutationFn: ({ id, quote, approval_status }: { id: number; quote: { text: string; author: string; category: string; is_featured: boolean }; approval_status: string }) =>
       api.updateAdminQuote(id, { text: quote.text, author: quote.author, category: quote.category, is_featured: quote.is_featured, approval_status }),
     onSuccess: () => quotes.refetch(),
+  })
+  const applicationUpdate = useMutation({
+    mutationFn: ({ id, status, admin_note }: { id: number; status: CommunityApplication['status']; admin_note?: string }) =>
+      api.updateCommunityApplication(id, { status, admin_note }),
+    onSuccess: () => applications.refetch(),
+  })
+  const applicationResend = useMutation({
+    mutationFn: api.resendCommunityApplication,
+    onSuccess: () => applications.refetch(),
   })
   if (profile.isLoading)
     return (
@@ -1326,6 +1343,15 @@ function AdminScreen() {
         </section>
         <div className="admin-tabs" role="tablist" aria-label="Admin sections">
           <button
+            className={tab === 'applications' ? 'admin-tab admin-tab--active' : 'admin-tab'}
+            role="tab"
+            aria-selected={tab === 'applications'}
+            onClick={() => setTab('applications')}
+            type="button"
+          >
+            <EnvelopeSimple size={18} /> Applications
+          </button>
+          <button
             className={
               tab === 'reports' ? 'admin-tab admin-tab--active' : 'admin-tab'
             }
@@ -1359,6 +1385,46 @@ function AdminScreen() {
             <Quotes size={18} /> Quotes
           </button>
         </div>
+        {tab === 'applications' && (
+          <section className="admin-panel">
+            <div className="admin-panel__toolbar">
+              <div>
+                <h2>Community applications</h2>
+                <p>Review requests to join the private WhatsApp community.</p>
+              </div>
+              <select aria-label="Filter community applications" value={applicationStatus} onChange={(event) => setApplicationStatus(event.target.value)}>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+                <option value="">All applications</option>
+              </select>
+            </div>
+            {applications.isLoading && <ContentSkeleton rows={3} />}
+            {applications.data?.length ? (
+              <div className="admin-list">
+                {applications.data.map((application) => (
+                  <article className="admin-list-item application-list-item" key={application.id}>
+                    <div className="admin-list-item__top">
+                      <div>
+                        <span className={`status-badge status-badge--${application.status}`}>{application.status}</span>
+                        <h3>{application.name}</h3>
+                        <small>{application.email}{application.phone ? ` · ${application.phone}` : ''} · {new Date(application.created_at).toLocaleString()}</small>
+                      </div>
+                      <select aria-label={`Update application for ${application.email}`} value={application.status} onChange={(event) => applicationUpdate.mutate({ id: application.id, status: event.target.value as CommunityApplication['status'], admin_note: application.admin_note ?? undefined })}>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approve</option>
+                        <option value="rejected">Reject</option>
+                      </select>
+                    </div>
+                    <p>{application.message}</p>
+                    {application.status === 'approved' && <button className="button button--secondary button--small" type="button" onClick={() => applicationResend.mutate(application.id)} disabled={applicationResend.isPending}>{applicationResend.isPending ? 'Sending…' : application.email_sent_at ? 'Resend invite email' : 'Send invite email'}</button>}
+                    {application.status === 'approved' && <small className="admin-list-item__meta">{application.email_sent_at ? `Invite email sent ${new Date(application.email_sent_at).toLocaleString()}.` : 'Email not sent yet — check Brevo settings and resend.'}</small>}
+                  </article>
+                ))}
+              </div>
+            ) : (!applications.isLoading && <div className="admin-empty"><EnvelopeSimple size={28} /><p>No applications in this view.</p></div>)}
+          </section>
+        )}
         {tab === 'reports' && (
           <section className="admin-panel">
             <div className="admin-panel__toolbar">
@@ -4482,9 +4548,75 @@ function ProfileScreen() {
   )
 }
 
+function ContactScreen() {
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
+  const mutation = useMutation({
+    mutationFn: api.createCommunityApplication,
+    onSuccess: () => setSubmitted(true),
+    onError: (cause) => setError(cause instanceof Error ? cause.message : 'We could not send your application.'),
+  })
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError('')
+    const data = new FormData(event.currentTarget)
+    mutation.mutate({
+      name: String(data.get('name') ?? '').trim(),
+      email: String(data.get('email') ?? '').trim(),
+      phone: String(data.get('phone') ?? '').trim() || undefined,
+      message: String(data.get('message') ?? '').trim(),
+      consent: data.get('consent') === 'on',
+      website: String(data.get('website') ?? ''),
+    })
+  }
+  return (
+    <>
+      <header className="public-header">
+        <Logo />
+        <div className="public-header__actions">
+          <Link className="button button--secondary button--small" to="/login">Log in</Link>
+          <Link className="button button--primary button--small" to="/registration">Sign up</Link>
+        </div>
+      </header>
+      <main className="page-content contact-page">
+        <section className="contact-intro">
+          <span className="eyebrow">Come as you are</span>
+          <h1>Join the Safe Space circle <span className="heart-doodle" aria-hidden="true">♡</span></h1>
+          <p>Tell us a little about yourself and why this community feels like a good fit. A community steward will review your application and, if approved, send a private WhatsApp invite by email.</p>
+          <div className="contact-note"><ShieldCheck size={24} weight="fill" /><span><strong>Your details stay with our stewards.</strong><small>We only use this information to review your application and contact you about joining.</small></span></div>
+        </section>
+        <section className="form-card contact-form-card" aria-labelledby="contact-form-title">
+          {submitted ? (
+            <div className="contact-success" role="status">
+              <CheckCircle size={42} weight="fill" />
+              <h2>Application received.</h2>
+              <p>Thank you for reaching out. We’ll review your note and email you if your application is approved.</p>
+              <Link className="button button--secondary" to="/">Return home</Link>
+            </div>
+          ) : (
+            <form onSubmit={submit}>
+              <h2 id="contact-form-title">Tell us about you</h2>
+              <label className="field-label" htmlFor="community-name">Full name<input id="community-name" name="name" required minLength={2} maxLength={120} autoComplete="name" /></label>
+              <label className="field-label" htmlFor="community-email">Email address<input id="community-email" name="email" type="email" required autoComplete="email" /></label>
+              <label className="field-label" htmlFor="community-phone">Phone or WhatsApp number <span>(optional)</span><input id="community-phone" name="phone" maxLength={40} autoComplete="tel" /></label>
+              <label className="field-label" htmlFor="community-message">Why would you like to join?<textarea id="community-message" name="message" required minLength={10} maxLength={3000} rows={6} placeholder="Share only what feels comfortable…" /></label>
+              <label className="checkbox-label" htmlFor="community-consent"><input id="community-consent" name="consent" type="checkbox" required /> <span>I’m happy for Safe Space Saturdays to review this application and contact me about the community.</span></label>
+              <input className="contact-honeypot" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+              {error && <div className="form-error" role="alert">{error}</div>}
+              <button className="button button--primary button--wide" type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Sending application…' : 'Send application'}</button>
+            </form>
+          )}
+        </section>
+      </main>
+      <PageFooter />
+    </>
+  )
+}
+
 export function SafeSpaceApp({ screen }: { screen: Screen }) {
   if (screen === 'login' || screen === 'registration')
     return <AuthLayout mode={screen} />
+  if (screen === 'contact') return <ContactScreen />
   return <ProtectedApp screen={screen} />
 }
 

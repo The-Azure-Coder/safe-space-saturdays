@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     google_oauth_client_secret: str | None = None
     google_oauth_redirect_uri: str | None = None
     google_oauth_state_ttl_seconds: int = 600
+    brevo_api_key: str | None = None
+    email_from_address: str | None = None
+    email_from_name: str = "Safe Space Saturdays"
+    public_app_url: str = "http://localhost:3000"
+    whatsapp_group_invite_url: str | None = None
 
     @model_validator(mode="after")
     def require_secure_production_cookies(self) -> "Settings":

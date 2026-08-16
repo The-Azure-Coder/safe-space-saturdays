@@ -76,6 +76,35 @@ class BugReportResponse(BaseModel):
     updated_at: datetime
 
 
+class CommunityApplicationCreateRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=120)
+    email: EmailStr
+    phone: str | None = Field(default=None, max_length=40)
+    message: str = Field(min_length=10, max_length=3000)
+    consent: bool
+    website: str | None = Field(default=None, max_length=120)
+
+
+class CommunityApplicationUpdateRequest(BaseModel):
+    status: Literal["pending", "approved", "rejected"]
+    admin_note: str | None = Field(default=None, max_length=2000)
+
+
+class CommunityApplicationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    email: EmailStr
+    phone: str | None
+    message: str
+    status: str
+    admin_note: str | None
+    created_at: datetime
+    updated_at: datetime
+    reviewed_at: datetime | None
+    email_sent_at: datetime | None
+
+
 class AdminDashboardResponse(BaseModel):
     total_members: int
     pending_members: int
