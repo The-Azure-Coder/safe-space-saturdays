@@ -17,7 +17,7 @@ test('primary navigation changes screens without a document reload', async ({ pa
     ['Leaderboard', '/leaderboard'],
     ['Community', '/community'],
     ['Quotes', '/quotes'],
-    ['Home', '/'],
+    ['Contact', '/contact'],
   ] as const
 
   for (const [label, route] of routes) {

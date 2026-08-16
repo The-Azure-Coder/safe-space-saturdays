@@ -73,6 +73,7 @@ const navItems: Array<{ href: string; label: string; icon: Icon }> = [
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/community', label: 'Community', icon: UsersThree },
   { href: '/quotes', label: 'Quotes', icon: Quotes },
+  { href: '/contact', label: 'Contact', icon: EnvelopeSimple },
 ]
 
 const moods = [
