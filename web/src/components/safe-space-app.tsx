@@ -3174,7 +3174,7 @@ function GamesScreen() {
                   : 'game-grid game-grid--games-list'
               }
             >
-              {(showAllGames ? availableGames : availableGames.slice(0, 4)).map(
+              {(showAllGames ? availableGames : availableGames.slice(0, 7)).map(
                 (game) => (
                   <GameTile
                     game={game}
@@ -3184,7 +3184,7 @@ function GamesScreen() {
                 ),
               )}
             </div>
-            {availableGames.length > 4 && (
+            {availableGames.length > 7 && (
               <button
                 className="button button--secondary button--small games-view-more"
                 type="button"

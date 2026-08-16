@@ -5,6 +5,7 @@ from app.games.connect_four import IllegalMove
 from app.games.multi import apply_action, bot_action, new_state, normalise_domino_state, normalise_ludo_state
 from app.games.scribble import WORDS, progressive_hint
 from app.games.universal import UniversalMatch
+from app.games.abc_fast_slow import CATEGORIES
 
 
 def test_ludo_roll_without_legal_move_passes_turn(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,6 +60,32 @@ def test_ludo_six_releases_a_token_and_grants_another_roll(
     assert state["positions"][0][2] == 0
     assert state["current_player"] == 0
     assert state["phase"] == "roll"
+
+
+def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=(1,))
+    bot_submission = bot_action(state, 1)
+    apply_action(state, 0, {"action": "submit", "answers": bot_submission["answers"]})
+    apply_action(state, 1, bot_submission)
+    assert state["phase"] == "voting"
+    for player in (0, 1):
+        for target in range(2):
+            for category in CATEGORIES:
+                action = {"action": "vote", "target": target, "category": category, "valid": True}
+                apply_action(state, player, action)
+    assert state["phase"] == "round_result"
+    assert state["scores"] == [0, 0]  # identical answers are duplicates
+    apply_action(state, 0, {"action": "next_round"})
+    assert state["phase"] == "answering"
+    assert state["round"] == 2
+
+
+def test_abc_timeout_locks_blank_answers() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    state["deadline"] = 0
+    apply_action(state, 0, {"action": "timeout"})
+    assert state["submitted"][0] is True
+    assert state["answers"][0] == {category: "" for category in CATEGORIES}
 
 
 def test_ludo_capture_sends_an_opponent_home_and_grants_extra_turn(

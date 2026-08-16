@@ -1,4 +1,18 @@
 import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
+
+async function authenticate(page: Page) {
+  const email = `ui-quality-${Date.now()}-${Math.random().toString(16).slice(2)}@example.com`
+  await page.goto('/registration')
+  await page.waitForFunction(() => document.documentElement.dataset.clientReady === 'true', undefined, { timeout: 110_000 })
+  await page.getByLabel('Full name').fill('UI Quality Player')
+  await page.getByLabel('Email').fill(email)
+  await page.locator('input[name="password"]').fill('ui-quality-password-123')
+  await page.locator('input[name="confirm-password"]').fill('ui-quality-password-123')
+  await page.getByLabel(/I agree to the Safe Space Saturdays/).check()
+  await page.getByRole('button', { name: 'Create account' }).click()
+  await expect(page).toHaveURL(/\/$/)
+}
 
 const routes = [
   ['Home', '/'], ['Login', '/login'], ['Registration', '/registration'],
@@ -38,6 +52,7 @@ for (const [name, route] of routes) {
 }
 
 test('Mobile navigation is left-aligned when opened', async ({ page }) => {
+  await authenticate(page)
   await page.setViewportSize({ width: 375, height: 667 })
   await page.goto('/community', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Open navigation menu' }).click()
@@ -52,6 +67,7 @@ test('Mobile navigation is left-aligned when opened', async ({ page }) => {
 })
 
 test('Community stacks into one column on mobile', async ({ page }) => {
+  await authenticate(page)
   await page.setViewportSize({ width: 375, height: 667 })
   await page.goto('/community', { waitUntil: 'networkidle' })
   const layout = await page.locator('.community-layout').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)

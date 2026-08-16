@@ -138,6 +138,25 @@ class UniversalMatchManager:
                 await self.broadcast(match)
             bot_player = match.bot_player
             bot_players = match.bot_players or ((bot_player,) if bot_player is not None else ())
+            if match.game_type == "abc-fast-slow":
+                # ABC has simultaneous answer/review phases, so it does not use
+                # current_player as a turn gate. Advance each bot's outstanding
+                # submission or ballot at human-readable speed.
+                for _ in range(80):
+                    if match.state.get("phase") not in {"answering", "voting"}:
+                        break
+                    pending = (
+                        next((seat for seat in bot_players if not match.state["submitted"][seat]), None)
+                        if match.state.get("phase") == "answering"
+                        else next((seat for seat in bot_players if not match.state["voted"][seat]), None)
+                    )
+                    if pending is None:
+                        break
+                    if match.sockets:
+                        await asyncio.sleep(0.35)
+                    match.state = apply_action(match.state, int(pending), bot_action(match.state, int(pending)))
+                    await self.broadcast(match)
+                return match
             bot_turn = (
                 bool(bot_players)
                 and match.state.get("winner") is None

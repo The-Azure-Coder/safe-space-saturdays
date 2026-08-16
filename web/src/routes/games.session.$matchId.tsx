@@ -109,17 +109,38 @@ function GameSessionScreen() {
 }
 
 function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [now, setNow] = useState(() => Date.now() / 1000)
+  const timeoutSent = useRef(false)
+  const [votedKeys, setVotedKeys] = useState<Set<string>>(new Set())
+  useEffect(() => setAnswers({}), [state.round, state.letter])
+  useEffect(() => setVotedKeys(new Set()), [state.round, state.letter, state.phase])
+  useEffect(() => {
+    timeoutSent.current = false
+    if (state.phase !== 'answering' || !state.deadline) return
+    const timer = window.setInterval(() => {
+      const current = Date.now() / 1000
+      setNow(current)
+      if (current >= Number(state.deadline) && !state.submitted?.[Number(state.seat_index ?? 0)] && !timeoutSent.current) {
+        timeoutSent.current = true
+        send({ action: 'timeout' })
+      }
+    }, 250)
+    return () => window.clearInterval(timer)
+  }, [state.phase, state.deadline, state.seat_index, state.submitted, send])
   const categories = state.categories ?? ['Animal', 'Place', 'Food', 'Thing']
-  const answers = state.answers?.[Number(state.seat_index ?? 0)] ?? {}
+  const seat = Number(state.seat_index ?? 0)
   const finished = state.phase === 'complete'
-  const roundResult = state.phase === 'round_result'
+  const voted = state.votes?.[seat] ?? {}
+  const voteCount = new Set([...Object.keys(voted), ...votedKeys]).size
+  const requiredVotes = (state.player_count ?? 2) * categories.length
   return <section className="mini-game-card abc-game" aria-label="ABC Fast or Slow game">
-    <div className="abc-game__hero"><div><span className="eyebrow">Round {state.round ?? 1} of {state.rounds ?? 3}</span><h2>Letter {state.letter ?? '?'}</h2><p>{state.last_event ?? 'Think fast, but make your answer count.'}</p></div><div className="abc-game__letter" aria-hidden="true">{state.letter ?? '?'}</div></div>
+    <div className="abc-game__hero"><div><span className="eyebrow">Round {state.round ?? 1} of {state.rounds ?? 3} · {state.phase === 'voting' ? 'Review answers' : state.phase === 'answering' ? 'Fast round' : 'Round result'}</span><h2>Letter {state.letter ?? '?'}</h2><p>{state.last_event ?? 'Think fast, but make your answer count.'}</p>{state.phase === 'answering' && state.deadline && <small className="abc-game__timer">Time left: {Math.max(0, Math.ceil(Number(state.deadline) - now))}s</small>}</div><div className="abc-game__letter" aria-hidden="true">{state.letter ?? '?'}</div></div>
     <div className="abc-game__scoreboard">{(state.players ?? []).map((player: { name: string }, index: number) => <span key={`${player.name}-${index}`}><strong>{player.name}</strong> {state.scores?.[index] ?? 0} pts</span>)}</div>
-    {!finished && !roundResult ? <form className="abc-game__form" onSubmit={(event) => { event.preventDefault(); send({ action: 'submit', answers }) }}>
-      {categories.map((category: string) => <label key={category}>{category}<input defaultValue={answers[category] ?? ''} onChange={(event) => { answers[category] = event.target.value }} placeholder={`${state.letter ?? ''}…`} /></label>)}
-      <button className="button button--primary" type="submit" disabled={state.submitted?.[Number(state.seat_index ?? 0)]}>Submit answers</button>
-    </form> : <div className="abc-game__result" aria-live="polite"><h3>{finished ? (state.draw ? 'A tie — beautifully played.' : state.winner === Number(state.seat_index ?? 0) ? 'You won the word race!' : `${state.players?.[state.winner]?.name ?? 'Your opponent'} wins!`) : 'Round complete'}</h3><p>{state.last_event}</p>{finished ? <button className="button button--primary" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button> : <button className="button button--primary" type="button" onClick={() => send({ action: 'next_round' })}>Next round</button>}</div>}
+    {state.phase === 'answering' ? <form className="abc-game__form" onSubmit={(event) => { event.preventDefault(); send({ action: 'submit', answers }) }}>
+      {categories.map((category: string) => <label key={category}>{category}<input value={answers[category] ?? ''} onChange={(event) => setAnswers((current) => ({ ...current, [category]: event.target.value }))} placeholder={`${state.letter ?? ''}…`} /></label>)}
+      <div className="abc-game__form-actions"><button className="button button--primary" type="submit" disabled={state.submitted?.[seat]}>Submit answers</button><button className="button button--secondary" type="button" disabled={state.submitted?.[seat]} onClick={() => send({ action: 'submit', answers: {} })}>Submit blank</button></div>
+    </form> : state.phase === 'voting' ? <div className="abc-game__review"><div className="abc-game__review-progress">Your review: {voteCount}/{requiredVotes}</div>{(state.answers ?? []).map((playerAnswers: Record<string, string>, target: number) => <article className="abc-game__answer-card" key={target}><strong>{state.players?.[target]?.name ?? `Player ${target + 1}`}</strong>{categories.map((category: string) => { const key = `${target}:${category}`; const value = playerAnswers[category] ?? ''; const alreadyVoted = key in voted || votedKeys.has(key); const recordVote = (valid: boolean) => { setVotedKeys((current) => new Set(current).add(key)); send({ action: 'vote', target, category, valid }) }; return <div className="abc-game__answer-row" key={key}><span><small>{category}</small>{value || 'No answer'}</span><button type="button" aria-label={`Mark ${state.players?.[target]?.name ?? 'answer'} ${category} valid`} className="button button--small button--primary" disabled={alreadyVoted} onClick={() => recordVote(true)}>Valid</button><button type="button" aria-label={`Mark ${state.players?.[target]?.name ?? 'answer'} ${category} invalid`} className="button button--small button--secondary" disabled={alreadyVoted} onClick={() => recordVote(false)}>Skip</button></div> })}</article>)}</div> : <div className="abc-game__result" aria-live="polite"><h3>{finished ? (state.draw ? 'A tie — beautifully played.' : state.winner === seat ? 'You won the word race!' : `${state.players?.[state.winner]?.name ?? 'Your opponent'} wins!`) : 'Round complete'}</h3><p>{state.last_event}</p>{finished ? <button className="button button--primary" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button> : <button className="button button--primary" type="button" onClick={() => send({ action: 'next_round' })}>Next round</button>}</div>}
   </section>
 }
 
