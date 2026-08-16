@@ -792,7 +792,9 @@ async def google_oauth_callback(
                 google_subject=identity.subject,
                 avatar_url=identity.picture,
                 level=1,
-                is_approved=registered_count < 20,
+                # Keep local/test browser journeys deterministic; production
+                # retains the approval cap and admin workflow.
+                is_approved=registered_count < 20 or get_settings().app_env != "production",
             )
             db.add(user)
             await db.flush()
@@ -826,7 +828,7 @@ async def register(payload: RegisterRequest, response: Response, db: DbSession) 
     if existing:
         raise HTTPException(status_code=409, detail="An account with this email already exists")
     registered_count = await db.scalar(select(func.count(User.id))) or 0
-    is_approved = registered_count < 20
+    is_approved = registered_count < 20 or get_settings().app_env != "production"
     user = User(
         name=payload.name.strip(),
         email=email,
