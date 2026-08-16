@@ -1,0 +1,17 @@
+.git
+.github
+.agents
+.tmp
+graphify-out
+tests
+scripts
+apps/safe-space-saturdays/api/.venv
+apps/safe-space-saturdays/api/__pycache__
+apps/safe-space-saturdays/api/.pytest_cache
+apps/safe-space-saturdays/web/node_modules
+apps/safe-space-saturdays/web/dist
+apps/safe-space-saturdays/web/test-results
+apps/safe-space-saturdays/web/playwright-report
+apps/safe-space-saturdays/screenshots
+*.env
+!.env.example
