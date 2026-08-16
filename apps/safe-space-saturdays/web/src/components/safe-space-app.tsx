@@ -1635,6 +1635,7 @@ function GameTile({
           'Connect Four': '/assets/game-connect-four.png',
           Scribble: '/assets/game-scribble.png',
           Bingo: '/assets/game-bingo.png',
+          'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
         }[game.name] ?? null)
   return (
     <article
