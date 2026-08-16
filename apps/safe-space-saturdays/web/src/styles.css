@@ -466,6 +466,17 @@ select:focus-visible { border-color: var(--orange); outline: 3px solid rgb(222 1
 .room-create-actions { display: flex; gap: 8px; }
 .game-result { display: flex; align-items: center; justify-content: center; gap: 8px; max-width: 620px; margin: 0 auto 18px; padding: 12px; border-radius: 14px; background: var(--sage-pale); color: var(--sage-dark); font-weight: 800; }
 .mini-game-card { max-width: 720px; margin: 0 auto; padding: clamp(18px, 4vw, 30px); border: 1px solid var(--line); border-radius: 26px; background: var(--paper); box-shadow: var(--shadow); }
+.abc-game__hero { display:flex; align-items:center; justify-content:space-between; gap:24px; padding:20px; border-radius:20px; background:color-mix(in srgb, var(--sage) 22%, transparent); }
+.abc-game__hero h2 { margin:4px 0; font-size:clamp(2rem, 8vw, 4rem); }
+.abc-game__letter { display:grid; place-items:center; width:96px; aspect-ratio:1; border-radius:50%; background:var(--coral); color:var(--ink); font-size:3.5rem; font-weight:800; box-shadow:0 10px 22px color-mix(in srgb, var(--coral) 32%, transparent); }
+.abc-game__scoreboard { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
+.abc-game__scoreboard span { padding:8px 12px; border:1px solid var(--line); border-radius:999px; font-size:.82rem; }
+.abc-game__form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.abc-game__form label { display:grid; gap:7px; color:var(--muted); font-weight:700; }
+.abc-game__form input { width:100%; }
+.abc-game__form button { grid-column:1/-1; justify-self:start; }
+.abc-game__result { text-align:center; padding:30px 12px 10px; }
+@media (max-width:600px) { .abc-game__hero { align-items:flex-start; } .abc-game__letter { width:70px; font-size:2.5rem; } .abc-game__form { grid-template-columns:1fr; } .abc-game__form button { grid-column:auto; width:100%; } }
 .ludo-game-shell { --ludo-red: #ed6f59; --ludo-red-soft: #f9d7cd; --ludo-blue: #6397c2; --ludo-blue-soft: #d9ebf5; --ludo-green: #84a878; --ludo-green-soft: #e0edda; --ludo-yellow: #efba45; --ludo-yellow-soft: #fbe8ad; max-width: 900px; margin: 0 auto; padding: clamp(12px, 2.4vw, 24px); border: 1px solid var(--line); border-radius: 28px; background: var(--paper); box-shadow: 0 22px 55px rgb(67 76 53 / 10%); }
 .ludo-scoreboard { display: grid; gap: 10px; margin-bottom: 16px; }
 .ludo-player-grid { display: grid; grid-template: repeat(2, auto) / repeat(2, minmax(0, 1fr)); gap: 9px; }

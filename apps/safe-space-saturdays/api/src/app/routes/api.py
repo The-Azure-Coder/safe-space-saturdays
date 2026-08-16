@@ -255,7 +255,7 @@ def restore_universal_match(
                 state_players[seat.seat_index]["name"] = seat.display_name
                 state_players[seat.seat_index]["is_bot"] = seat.player_type == "bot"
     resolved_bot_players = bot_players if seat_rows else tuple(
-        range(1, player_count if row.game_type in {"ludo", "dominoes", "scribble"} else 2)
+        range(1, player_count if row.game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow"} else 2)
     )
     match = UniversalMatch(
         id=row.id,
@@ -386,6 +386,8 @@ def game_type_for_name(name: str) -> str | None:
         return "trivia"
     if normalized in {"scribble", "scribble game", "draw and guess"}:
         return "scribble"
+    if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
+        return "abc-fast-slow"
     return None
 
 
@@ -551,6 +553,8 @@ def game_capacity(game_name: str) -> int:
         return 2
     if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
         return 4
+    if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
+        return 6
     if normalized == "bingo":
         return 8
     return 4

@@ -86,7 +86,7 @@ function GameSessionScreen() {
     return <main className="page-content game-play-page"><GeneralLoader label="Loading your game…" /></main>
   if (!match && gameSession.isError)
     return <main className="page-content game-play-page"><GeneralLoader label="Reconnecting to your game…" onRetry={() => void gameSession.refetch()} /></main>
-  const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : 'Trivia Battle'
+  const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : match?.game === 'abc-fast-slow' ? 'ABC Fast or Slow' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
   const players = state?.players ?? []
   const seat = Number(state?.seat_index ?? 0)
@@ -104,7 +104,23 @@ function GameSessionScreen() {
     {match?.game === 'bingo' && <BingoBoard state={state ?? {}} send={send} />}
     {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} playerIndex={viewerSeat.current} />}
     {match?.game === 'scribble' && <ScribbleGame state={(state ?? {}) as Partial<ScribbleState>} send={send} error={error} />}
+    {match?.game === 'abc-fast-slow' && <AbcFastSlowGame state={state ?? {}} send={send} />}
   </main>
+}
+
+function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {
+  const categories = state.categories ?? ['Animal', 'Place', 'Food', 'Thing']
+  const answers = state.answers?.[Number(state.seat_index ?? 0)] ?? {}
+  const finished = state.phase === 'complete'
+  const roundResult = state.phase === 'round_result'
+  return <section className="mini-game-card abc-game" aria-label="ABC Fast or Slow game">
+    <div className="abc-game__hero"><div><span className="eyebrow">Round {state.round ?? 1} of {state.rounds ?? 3}</span><h2>Letter {state.letter ?? '?'}</h2><p>{state.last_event ?? 'Think fast, but make your answer count.'}</p></div><div className="abc-game__letter" aria-hidden="true">{state.letter ?? '?'}</div></div>
+    <div className="abc-game__scoreboard">{(state.players ?? []).map((player: { name: string }, index: number) => <span key={`${player.name}-${index}`}><strong>{player.name}</strong> {state.scores?.[index] ?? 0} pts</span>)}</div>
+    {!finished && !roundResult ? <form className="abc-game__form" onSubmit={(event) => { event.preventDefault(); send({ action: 'submit', answers }) }}>
+      {categories.map((category: string) => <label key={category}>{category}<input defaultValue={answers[category] ?? ''} onChange={(event) => { answers[category] = event.target.value }} placeholder={`${state.letter ?? ''}…`} /></label>)}
+      <button className="button button--primary" type="submit" disabled={state.submitted?.[Number(state.seat_index ?? 0)]}>Submit answers</button>
+    </form> : <div className="abc-game__result" aria-live="polite"><h3>{finished ? (state.draw ? 'A tie — beautifully played.' : state.winner === Number(state.seat_index ?? 0) ? 'You won the word race!' : `${state.players?.[state.winner]?.name ?? 'Your opponent'} wins!`) : 'Round complete'}</h3><p>{state.last_event}</p>{finished ? <button className="button button--primary" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button> : <button className="button button--primary" type="button" onClick={() => send({ action: 'next_round' })}>Next round</button>}</div>}
+  </section>
 }
 
 function BingoBoard({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {

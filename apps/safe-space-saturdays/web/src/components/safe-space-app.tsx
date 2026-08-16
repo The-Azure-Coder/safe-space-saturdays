@@ -143,6 +143,13 @@ const games: Array<GameDefinition> = [
     icon: '/assets/game-bingo.png',
     color: 'peach',
   },
+  {
+    name: 'ABC Fast or Slow',
+    players: '2–6 players',
+    description: 'Race the clock, think creatively, and find one-of-a-kind answers.',
+    icon: '/assets/game-abc-fast-slow.png',
+    color: 'sage',
+  },
 ]
 
 function Logo({ compact = false }: { compact?: boolean }) {
