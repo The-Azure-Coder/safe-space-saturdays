@@ -25,6 +25,8 @@ test('ABC Fast or Slow completes timed answers, review, scoring, and rematch flo
 
   const game = page.getByRole('region', { name: 'ABC Fast or Slow game' })
   await expect(game).toBeVisible({ timeout: 110_000 })
+  await expect(game.getByText(/Dictator \/ letter chooser:/)).toBeVisible()
+  await expect(game.getByRole('heading', { name: /Letter [A-Z]/ })).toBeVisible()
   for (let round = 1; round <= 3; round += 1) {
     await game.getByRole('button', { name: 'Submit blank' }).click()
     await expect(game.getByText('Review answers')).toBeVisible({ timeout: 15_000 })

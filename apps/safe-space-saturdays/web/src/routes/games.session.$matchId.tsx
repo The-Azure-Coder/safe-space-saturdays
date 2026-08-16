@@ -130,13 +130,15 @@ function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (a
   }, [state.phase, state.deadline, state.seat_index, state.submitted, send])
   const categories = state.categories ?? ['Animal', 'Place', 'Food', 'Thing']
   const seat = Number(state.seat_index ?? 0)
+  const dictator = Number(state.dictator_player ?? state.letter_chooser ?? -1)
+  const dictatorName = state.players?.[dictator]?.name ?? 'A random player'
   const finished = state.phase === 'complete'
   const voted = state.votes?.[seat] ?? {}
   const voteCount = new Set([...Object.keys(voted), ...votedKeys]).size
   const requiredVotes = (state.player_count ?? 2) * categories.length
   return <section className="mini-game-card abc-game" aria-label="ABC Fast or Slow game">
-    <div className="abc-game__hero"><div><span className="eyebrow">Round {state.round ?? 1} of {state.rounds ?? 3} · {state.phase === 'voting' ? 'Review answers' : state.phase === 'answering' ? 'Fast round' : 'Round result'}</span><h2>Letter {state.letter ?? '?'}</h2><p>{state.last_event ?? 'Think fast, but make your answer count.'}</p>{state.phase === 'answering' && state.deadline && <small className="abc-game__timer">Time left: {Math.max(0, Math.ceil(Number(state.deadline) - now))}s</small>}</div><div className="abc-game__letter" aria-hidden="true">{state.letter ?? '?'}</div></div>
-    <div className="abc-game__scoreboard">{(state.players ?? []).map((player: { name: string }, index: number) => <span key={`${player.name}-${index}`}><strong>{player.name}</strong> {state.scores?.[index] ?? 0} pts</span>)}</div>
+    <div className="abc-game__hero"><div><span className="eyebrow">Round {state.round ?? 1} of {state.rounds ?? 3} · {state.phase === 'voting' ? 'Review answers' : state.phase === 'answering' ? 'Fast round' : 'Round result'}</span><h2>Letter {state.letter ?? '?'}</h2><p>{state.last_event ?? 'Think fast, but make your answer count.'}</p><div className="abc-game__round-meta" aria-label={`Dictator and letter chooser: ${dictatorName}`}>Dictator / letter chooser: <strong>{dictatorName}</strong><span>·</span><span>Letter chosen at random</span></div>{state.phase === 'answering' && state.deadline && <small className="abc-game__timer">Time left: {Math.max(0, Math.ceil(Number(state.deadline) - now))}s</small>}</div><div className="abc-game__letter" aria-hidden="true">{state.letter ?? '?'}</div></div>
+    <div className="abc-game__scoreboard">{(state.players ?? []).map((player: { name: string }, index: number) => <span className={index === dictator ? 'abc-game__player abc-game__player--dictator' : 'abc-game__player'} key={`${player.name}-${index}`}><strong>{player.name}</strong>{index === dictator && <small>Chooser</small>} {state.scores?.[index] ?? 0} pts</span>)}</div>
     {state.phase === 'answering' ? <form className="abc-game__form" onSubmit={(event) => { event.preventDefault(); send({ action: 'submit', answers }) }}>
       {categories.map((category: string) => <label key={category}>{category}<input value={answers[category] ?? ''} onChange={(event) => setAnswers((current) => ({ ...current, [category]: event.target.value }))} placeholder={`${state.letter ?? ''}…`} /></label>)}
       <div className="abc-game__form-actions"><button className="button button--primary" type="submit" disabled={state.submitted?.[seat]}>Submit answers</button><button className="button button--secondary" type="button" disabled={state.submitted?.[seat]} onClick={() => send({ action: 'submit', answers: {} })}>Submit blank</button></div>

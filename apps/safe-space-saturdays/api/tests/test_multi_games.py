@@ -5,7 +5,7 @@ from app.games.connect_four import IllegalMove
 from app.games.multi import apply_action, bot_action, new_state, normalise_domino_state, normalise_ludo_state
 from app.games.scribble import WORDS, progressive_hint
 from app.games.universal import UniversalMatch
-from app.games.abc_fast_slow import CATEGORIES
+from app.games.abc_fast_slow import CATEGORIES, new_abc_state, next_abc_round
 
 
 def test_ludo_roll_without_legal_move_passes_turn(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -78,6 +78,29 @@ def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     apply_action(state, 0, {"action": "next_round"})
     assert state["phase"] == "answering"
     assert state["round"] == 2
+
+
+def test_abc_selects_a_random_dictator_and_rotates_the_letter_chooser() -> None:
+    class PredictableRandom:
+        def __init__(self) -> None:
+            self.letters = iter(("A", "B"))
+
+        def choice(self, _sequence: str) -> str:
+            return next(self.letters)
+
+        def randrange(self, _stop: int) -> int:
+            return 0
+
+    rng = PredictableRandom()
+    state = new_abc_state(rng, player_count=2, bot_players=())
+    assert state["letter"] == "A"
+    assert state["dictator_player"] == 0
+    assert state["letter_chooser"] == 0
+    state["phase"] = "round_result"
+    next_abc_round(state, rng)
+    assert state["letter"] == "B"
+    assert state["dictator_player"] == 1
+    assert state["letter_chooser"] == 1
 
 
 def test_abc_timeout_locks_blank_answers() -> None:
