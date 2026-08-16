@@ -1,4 +1,5 @@
 import asyncio
+from html import escape
 import hashlib
 import io
 import secrets
@@ -188,17 +189,44 @@ def invite_token_hash(token: str) -> str:
 async def send_application_invite(application: CommunityApplication, token: str) -> bool:
     settings = get_settings()
     invite_url = f"{settings.public_app_url.rstrip('/')}/api/community-applications/invite/{token}"
-    html = (
-        f"<p>Hi {application.name},</p>"
-        "<p>Your Safe Space Saturdays community application was approved. "
-        "We would love to welcome you into the circle.</p>"
-        f'<p><a href="{invite_url}">Join the WhatsApp community</a></p>'
-        "<p>This private invite expires in 7 days and can be used once.</p>"
-    )
+    safe_name = escape(application.name)
+    safe_invite_url = escape(invite_url, quote=True)
+    logo_url = escape(f"{settings.public_app_url.rstrip('/')}/assets/safe-space-saturdays-logo.jpeg", quote=True)
+    html = f"""<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Your Safe Space invitation</title></head>
+  <body style="margin:0;background:#f4eee7;color:#19352b;font-family:Arial,Helvetica,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your Safe Space Saturdays community invitation is ready.</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4eee7;padding:32px 12px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fffdf8;border:1px solid #ddd6c9;border-radius:20px;overflow:hidden;">
+          <tr><td style="height:8px;background:#7a8c69;font-size:0;line-height:0;">&nbsp;</td></tr>
+          <tr><td align="center" style="padding:30px 28px 18px;">
+            <img src="{logo_url}" width="130" alt="Safe Space Saturdays" style="display:block;width:130px;height:auto;border:0;">
+          </td></tr>
+          <tr><td style="padding:8px 42px 36px;">
+            <p style="margin:0 0 12px;color:#7a8c69;font-size:12px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">You belong here</p>
+            <h1 style="margin:0 0 18px;color:#19352b;font-family:Georgia,'Times New Roman',serif;font-size:32px;line-height:1.18;font-weight:700;">Your invitation is ready, {safe_name}.</h1>
+            <p style="margin:0 0 18px;color:#59645d;font-size:16px;line-height:1.65;">Your application to join the Safe Space Saturdays community has been approved. We’re looking forward to welcoming you into a kind, supportive circle.</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0;">
+              <tr><td align="center" style="border-radius:12px;background:#d87958;">
+                <a href="{safe_invite_url}" style="display:inline-block;padding:15px 26px;border:1px solid #d87958;border-radius:12px;color:#fffdf8;font-size:16px;font-weight:bold;text-decoration:none;">Join the WhatsApp community</a>
+              </td></tr>
+            </table>
+            <p style="margin:0 0 8px;color:#7b857d;font-size:13px;line-height:1.55;"><strong style="color:#59645d;">A quick note:</strong> This private invitation expires in 7 days and can only be used once.</p>
+            <p style="margin:20px 0 0;color:#9a9f99;font-size:12px;line-height:1.55;">If the button doesn’t work, copy and paste this link into your browser:<br><a href="{safe_invite_url}" style="color:#6b805b;word-break:break-all;">{safe_invite_url}</a></p>
+          </td></tr>
+          <tr><td style="padding:20px 42px;background:#edf1e7;border-top:1px solid #dfe5d8;color:#6d776e;font-size:12px;line-height:1.55;">Safe Space Saturdays<br>Talk. Listen. Support. Heal. Grow.<br><span style="color:#9a9f99;">You are not alone.</span></td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>"""
     text = (
         f"Hi {application.name},\n\nYour Safe Space Saturdays application was approved. "
         f"Join the WhatsApp community here: {invite_url}\n\n"
-        "This private invite expires in 7 days and can be used once."
+        "This private invite expires in 7 days and can be used once.\n\n"
+        "Safe Space Saturdays — Talk. Listen. Support. Heal. Grow."
     )
     return await send_transactional_email(
         recipient=application.email,
