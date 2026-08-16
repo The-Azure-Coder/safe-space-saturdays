@@ -26,6 +26,12 @@ test('ABC Fast or Slow completes timed answers, review, scoring, and rematch flo
   const game = page.getByRole('region', { name: 'ABC Fast or Slow game' })
   await expect(game).toBeVisible({ timeout: 110_000 })
   await expect(game.getByText(/Dictator \/ letter chooser:/)).toBeVisible()
+  const picker = game.locator('.abc-game__picker')
+  await expect(picker).toBeVisible()
+  await picker.getByRole('button', { name: 'Slow', exact: true }).click()
+  await picker.getByRole('button', { name: 'Start slow letter picker' }).click()
+  await expect(picker.getByRole('button', { name: 'Stop on this letter' })).toBeVisible()
+  await picker.getByRole('button', { name: 'Stop on this letter' }).click()
   await expect(game.getByRole('heading', { name: /Letter [A-Z]/ })).toBeVisible()
   for (let round = 1; round <= 3; round += 1) {
     await game.getByRole('button', { name: 'Submit blank' }).click()
@@ -38,6 +44,11 @@ test('ABC Fast or Slow completes timed answers, review, scoring, and rematch flo
     if (round < 3) {
       await expect(game.getByRole('button', { name: 'Next round' })).toBeVisible()
       await game.getByRole('button', { name: 'Next round' }).click()
+      const nextPicker = game.locator('.abc-game__picker')
+      await nextPicker.getByRole('button', { name: 'Fast', exact: true }).click()
+      await nextPicker.getByRole('button', { name: 'Start fast letter picker' }).click()
+      await nextPicker.getByRole('button', { name: 'Stop on this letter' }).click()
+      await expect(game.getByRole('heading', { name: /Letter [A-Z]/ })).toBeVisible()
     }
   }
   await expect(game.getByRole('button', { name: 'Play again' })).toBeVisible()

@@ -12,6 +12,7 @@ from typing import Any
 from app.games.connect_four import IllegalMove
 
 CATEGORIES = ("Animal", "Place", "Food", "Thing")
+ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 BOT_WORDS = {
     "Animal": ("ant", "bear", "cat", "dog", "eagle", "fox", "goat", "horse", "otter", "zebra"),
     "Place": ("berlin", "cairo", "dublin", "jamaica", "london", "miami", "paris", "rome", "sydney", "tokyo"),
@@ -19,6 +20,7 @@ BOT_WORDS = {
     "Thing": ("anchor", "book", "chair", "drum", "envelope", "fork", "guitar", "hat", "lamp", "phone"),
 }
 ROUND_SECONDS = 45
+PICK_INTERVALS = {"fast": 0.08, "slow": 0.28}
 
 
 def new_abc_state(rng: random.Random, player_count: int, bot_players: tuple[int, ...]) -> dict[str, Any]:
@@ -47,17 +49,41 @@ def _round(
     round_number: int,
     previous_dictator: int | None = None,
 ) -> dict[str, Any]:
-    letter = rng.choice("ABCDEFGHLMPRST")
     dictator = _choose_dictator(rng, len(players), previous_dictator)
     return {
         "game": "abc-fast-slow", "players": players, "player_count": len(players), "current_player": 0,
-        "winner": None, "draw": False, "phase": "answering", "round": round_number, "rounds": 3,
+        "winner": None, "draw": False, "phase": "letter_picker", "round": round_number, "rounds": 3,
         "dictator_player": dictator, "letter_chooser": dictator,
-        "letter": letter, "categories": list(CATEGORIES), "answers": [{} for _ in players],
+        "letter": None, "categories": list(CATEGORIES), "answers": [{} for _ in players],
         "scores": scores, "submitted": [False for _ in players], "votes": [{} for _ in players],
-        "voted": [False for _ in players], "deadline": time.time() + ROUND_SECONDS,
-        "last_event": f"Round {round_number}: {players[dictator]['name']} is the dictator. Answers begin with {letter}.",
+        "voted": [False for _ in players], "deadline": None,
+        "picker_status": "idle", "picker_speed": None, "picker_started_at": None,
+        "last_event": f"Round {round_number}: {players[dictator]['name']} is the dictator. Choose a spin speed.",
     }
+
+
+def _start_picker(state: dict[str, Any], action: dict[str, Any]) -> None:
+    speed = action.get("speed", "slow")
+    if speed not in PICK_INTERVALS:
+        raise IllegalMove("Choose fast or slow before starting the letter picker")
+    state["picker_speed"] = speed
+    state["picker_status"] = "running"
+    state["picker_started_at"] = time.time()
+    state["last_event"] = f"The letter wheel is spinning {speed}. Stop it when you are ready."
+    state["phase"] = "letter_picker_running"
+
+
+def _stop_picker(state: dict[str, Any]) -> None:
+    if state.get("picker_status") != "running":
+        raise IllegalMove("Start the letter picker first")
+    started_at = float(state.get("picker_started_at") or time.time())
+    elapsed = max(0.0, time.time() - started_at)
+    interval = PICK_INTERVALS[str(state.get("picker_speed") or "slow")]
+    state["letter"] = ALPHABET[int(elapsed / interval) % len(ALPHABET)]
+    state["picker_status"] = "stopped"
+    state["deadline"] = time.time() + ROUND_SECONDS
+    state["phase"] = "answering"
+    state["last_event"] = f"Letter chosen: {state['letter']}. You have {ROUND_SECONDS} seconds to answer."
 
 
 def _submit(state: dict[str, Any], player: int, action: dict[str, Any]) -> None:
@@ -102,6 +128,16 @@ def apply_abc_action(state: dict[str, Any], player: int, action: dict[str, Any])
         if state.get("winner") is None and not state.get("draw"):
             raise IllegalMove("Finish the game before playing again")
         return _round(random.Random(), state["players"], list(state["scores"]), 1)
+    if state.get("phase") == "letter_picker":
+        if kind != "start_picker":
+            raise IllegalMove("Choose fast or slow, then start the letter picker")
+        _start_picker(state, action)
+        return state
+    if state.get("phase") == "letter_picker_running":
+        if kind != "stop_picker":
+            raise IllegalMove("Stop the letter picker to choose the letter")
+        _stop_picker(state)
+        return state
     if state.get("phase") == "answering":
         if kind not in {"submit", "timeout"}:
             raise IllegalMove("Submit your answers before voting")

@@ -113,8 +113,28 @@ function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (a
   const [now, setNow] = useState(() => Date.now() / 1000)
   const timeoutSent = useRef(false)
   const [votedKeys, setVotedKeys] = useState<Set<string>>(new Set())
+  const pickerTimer = useRef<number | null>(null)
+  const [pickerSpeed, setPickerSpeed] = useState<'fast' | 'slow'>('slow')
+  const [pickerIndex, setPickerIndex] = useState(0)
+  const [pickerRunning, setPickerRunning] = useState(false)
   useEffect(() => setAnswers({}), [state.round, state.letter])
   useEffect(() => setVotedKeys(new Set()), [state.round, state.letter, state.phase])
+  useEffect(() => {
+    setPickerSpeed('slow')
+    setPickerIndex(0)
+    setPickerRunning(false)
+    if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
+  }, [state.round])
+  useEffect(() => () => {
+    if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
+  }, [])
+  useEffect(() => {
+    if (state.phase === 'answering' && pickerTimer.current !== null) {
+      window.clearInterval(pickerTimer.current)
+      pickerTimer.current = null
+      setPickerRunning(false)
+    }
+  }, [state.phase])
   useEffect(() => {
     timeoutSent.current = false
     if (state.phase !== 'answering' || !state.deadline) return
@@ -133,13 +153,41 @@ function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (a
   const dictator = Number(state.dictator_player ?? state.letter_chooser ?? -1)
   const dictatorName = state.players?.[dictator]?.name ?? 'A random player'
   const finished = state.phase === 'complete'
+  const pickerPhase = state.phase === 'letter_picker' || state.phase === 'letter_picker_running'
+  const pickerLetter = state.letter ?? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[pickerIndex]
+  const startPicker = (speed: 'fast' | 'slow') => {
+    if (pickerRunning) return
+    setPickerSpeed(speed)
+    setPickerIndex(0)
+    setPickerRunning(true)
+    send({ action: 'start_picker', speed })
+    if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
+    pickerTimer.current = window.setInterval(() => {
+      setPickerIndex((current) => (current + 1) % 26)
+    }, speed === 'fast' ? 80 : 280)
+  }
+  const stopPicker = () => {
+    if (!pickerRunning) return
+    if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
+    pickerTimer.current = null
+    setPickerRunning(false)
+    send({ action: 'stop_picker' })
+  }
   const voted = state.votes?.[seat] ?? {}
   const voteCount = new Set([...Object.keys(voted), ...votedKeys]).size
   const requiredVotes = (state.player_count ?? 2) * categories.length
   return <section className="mini-game-card abc-game" aria-label="ABC Fast or Slow game">
-    <div className="abc-game__hero"><div><span className="eyebrow">Round {state.round ?? 1} of {state.rounds ?? 3} · {state.phase === 'voting' ? 'Review answers' : state.phase === 'answering' ? 'Fast round' : 'Round result'}</span><h2>Letter {state.letter ?? '?'}</h2><p>{state.last_event ?? 'Think fast, but make your answer count.'}</p><div className="abc-game__round-meta" aria-label={`Dictator and letter chooser: ${dictatorName}`}>Dictator / letter chooser: <strong>{dictatorName}</strong><span>·</span><span>Letter chosen at random</span></div>{state.phase === 'answering' && state.deadline && <small className="abc-game__timer">Time left: {Math.max(0, Math.ceil(Number(state.deadline) - now))}s</small>}</div><div className="abc-game__letter" aria-hidden="true">{state.letter ?? '?'}</div></div>
+    <div className="abc-game__hero"><div><span className="eyebrow">Round {state.round ?? 1} of {state.rounds ?? 3} · {state.phase === 'voting' ? 'Review answers' : state.phase === 'answering' ? 'Fast round' : pickerPhase ? 'Pick the letter' : 'Round result'}</span><h2>{state.letter ? `Letter ${state.letter}` : 'Pick a letter'}</h2><p>{state.last_event ?? 'Think fast, but make your answer count.'}</p><div className="abc-game__round-meta" aria-label={`Dictator and letter chooser: ${dictatorName}`}>Dictator / letter chooser: <strong>{dictatorName}</strong><span>·</span><span>Letter chosen by the wheel</span></div>{state.phase === 'answering' && state.deadline && <small className="abc-game__timer">Time left: {Math.max(0, Math.ceil(Number(state.deadline) - now))}s</small>}</div><div className="abc-game__letter" aria-hidden="true">{state.letter ?? '?'}</div></div>
     <div className="abc-game__scoreboard">{(state.players ?? []).map((player: { name: string }, index: number) => <span className={index === dictator ? 'abc-game__player abc-game__player--dictator' : 'abc-game__player'} key={`${player.name}-${index}`}><strong>{player.name}</strong>{index === dictator && <small>Chooser</small>} {state.scores?.[index] ?? 0} pts</span>)}</div>
-    {state.phase === 'answering' ? <form className="abc-game__form" onSubmit={(event) => { event.preventDefault(); send({ action: 'submit', answers }) }}>
+    {pickerPhase ? <div className="abc-game__picker" aria-label="Letter picker">
+      <p className="eyebrow">Choose a pace, then stop the wheel</p>
+      <div className={`abc-game__picker-letter ${pickerRunning ? 'is-spinning' : ''}`} aria-live="polite">{pickerLetter}</div>
+      <div className="abc-game__picker-speeds" role="group" aria-label="Letter picker speed">
+        <button className={pickerSpeed === 'slow' ? 'button button--primary' : 'button button--secondary'} type="button" aria-pressed={pickerSpeed === 'slow'} disabled={pickerRunning} onClick={() => setPickerSpeed('slow')}>Slow</button>
+        <button className={pickerSpeed === 'fast' ? 'button button--primary' : 'button button--secondary'} type="button" aria-pressed={pickerSpeed === 'fast'} disabled={pickerRunning} onClick={() => setPickerSpeed('fast')}>Fast</button>
+      </div>
+      {!pickerRunning ? <button className="button button--primary" type="button" onClick={() => startPicker(pickerSpeed)}>Start {pickerSpeed} letter picker</button> : <button className="button button--primary" type="button" onClick={stopPicker}>Stop on this letter</button>}
+    </div> : state.phase === 'answering' ? <form className="abc-game__form" onSubmit={(event) => { event.preventDefault(); send({ action: 'submit', answers }) }}>
       {categories.map((category: string) => <label key={category}>{category}<input value={answers[category] ?? ''} onChange={(event) => setAnswers((current) => ({ ...current, [category]: event.target.value }))} placeholder={`${state.letter ?? ''}…`} /></label>)}
       <div className="abc-game__form-actions"><button className="button button--primary" type="submit" disabled={state.submitted?.[seat]}>Submit answers</button><button className="button button--secondary" type="button" disabled={state.submitted?.[seat]} onClick={() => send({ action: 'submit', answers: {} })}>Submit blank</button></div>
     </form> : state.phase === 'voting' ? <div className="abc-game__review"><div className="abc-game__review-progress">Your review: {voteCount}/{requiredVotes}</div>{(state.answers ?? []).map((playerAnswers: Record<string, string>, target: number) => <article className="abc-game__answer-card" key={target}><strong>{state.players?.[target]?.name ?? `Player ${target + 1}`}</strong>{categories.map((category: string) => { const key = `${target}:${category}`; const value = playerAnswers[category] ?? ''; const alreadyVoted = key in voted || votedKeys.has(key); const recordVote = (valid: boolean) => { setVotedKeys((current) => new Set(current).add(key)); send({ action: 'vote', target, category, valid }) }; return <div className="abc-game__answer-row" key={key}><span><small>{category}</small>{value || 'No answer'}</span><button type="button" aria-label={`Mark ${state.players?.[target]?.name ?? 'answer'} ${category} valid`} className="button button--small button--primary" disabled={alreadyVoted} onClick={() => recordVote(true)}>Valid</button><button type="button" aria-label={`Mark ${state.players?.[target]?.name ?? 'answer'} ${category} invalid`} className="button button--small button--secondary" disabled={alreadyVoted} onClick={() => recordVote(false)}>Skip</button></div> })}</article>)}</div> : <div className="abc-game__result" aria-live="polite"><h3>{finished ? (state.draw ? 'A tie — beautifully played.' : state.winner === seat ? 'You won the word race!' : `${state.players?.[state.winner]?.name ?? 'Your opponent'} wins!`) : 'Round complete'}</h3><p>{state.last_event}</p>{finished ? <button className="button button--primary" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button> : <button className="button button--primary" type="button" onClick={() => send({ action: 'next_round' })}>Next round</button>}</div>}
