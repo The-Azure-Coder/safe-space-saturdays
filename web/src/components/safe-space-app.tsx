@@ -68,7 +68,6 @@ const staffRoles = new Set(['admin', 'super_admin', 'manager', 'moderator'])
 const navItems: Array<{ href: string; label: string; icon: Icon }> = [
   { href: '/', label: 'Home', icon: House },
   { href: '/check-in', label: 'Daily Check-In', icon: Heart },
-  { href: '/challenges', label: 'Challenges', icon: Sparkle },
   { href: '/games', label: 'Games', icon: GameController },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/community', label: 'Community', icon: UsersThree },
@@ -4572,13 +4571,7 @@ function ContactScreen() {
   }
   return (
     <>
-      <header className="public-header">
-        <Logo />
-        <div className="public-header__actions">
-          <Link className="button button--secondary button--small" to="/login">Log in</Link>
-          <Link className="button button--primary button--small" to="/registration">Sign up</Link>
-        </div>
-      </header>
+      <PageHeader screen="contact" />
       <main className="page-content contact-page">
         <section className="contact-intro">
           <span className="eyebrow">Come as you are</span>
