@@ -126,12 +126,14 @@ class MatchManager:
             match.state = initial_state()
             match.state = replace(match.state, current_player=match.starting_player)
             match.reward_granted = False
-            await self.broadcast(match, {"type": "state", "state": match.snapshot()})
             if match.bot_player == match.state.current_player:
                 await asyncio.sleep(0.55)
                 bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
                 match.state = apply_move(match.state, 2, bot_column)
-                await self.broadcast(match, {"type": "state", "state": match.snapshot(), "bot": True})
+            # Publish one authoritative reset after any bot opening move. This
+            # prevents clients from briefly seeing an interactive empty board
+            # before the bot has taken its alternating opening turn.
+            await self.broadcast(match, {"type": "state", "state": match.snapshot()})
             return match.snapshot()
 
 
