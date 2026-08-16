@@ -1545,8 +1545,9 @@ async def list_games(
         GameResponse.model_validate(game)
         for game in (
             await db.scalars(
-                select(Game)
-                .order_by(Game.is_featured.desc(), Game.id)
+            select(Game)
+            .where(Game.name != "Bingo")
+            .order_by(Game.is_featured.desc(), Game.id)
                 .offset((page - 1) * limit)
                 .limit(limit)
             )
