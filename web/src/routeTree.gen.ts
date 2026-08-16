@@ -15,6 +15,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as GamesRouteImport } from './routes/games'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CommunityRouteImport } from './routes/community'
 import { Route as CheckInRouteImport } from './routes/check-in'
 import { Route as ChallengesRouteImport } from './routes/challenges'
@@ -54,6 +55,11 @@ const LeaderboardRoute = LeaderboardRouteImport.update({
 const GamesRoute = GamesRouteImport.update({
   id: '/games',
   path: '/games',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CommunityRoute = CommunityRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/challenges': typeof ChallengesRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
+  '/contact': typeof ContactRoute
   '/games': typeof GamesRouteWithChildren
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/challenges': typeof ChallengesRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
+  '/contact': typeof ContactRoute
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/challenges': typeof ChallengesRoute
   '/check-in': typeof CheckInRoute
   '/community': typeof CommunityRoute
+  '/contact': typeof ContactRoute
   '/games': typeof GamesRouteWithChildren
   '/leaderboard': typeof LeaderboardRoute
   '/login': typeof LoginRoute
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/challenges'
     | '/check-in'
     | '/community'
+    | '/contact'
     | '/games'
     | '/leaderboard'
     | '/login'
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/challenges'
     | '/check-in'
     | '/community'
+    | '/contact'
     | '/leaderboard'
     | '/login'
     | '/profile'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/challenges'
     | '/check-in'
     | '/community'
+    | '/contact'
     | '/games'
     | '/leaderboard'
     | '/login'
@@ -223,6 +235,7 @@ export interface RootRouteChildren {
   ChallengesRoute: typeof ChallengesRoute
   CheckInRoute: typeof CheckInRoute
   CommunityRoute: typeof CommunityRoute
+  ContactRoute: typeof ContactRoute
   GamesRoute: typeof GamesRouteWithChildren
   LeaderboardRoute: typeof LeaderboardRoute
   LoginRoute: typeof LoginRoute
@@ -273,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/games'
       fullPath: '/games'
       preLoaderRoute: typeof GamesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/community': {
@@ -372,6 +392,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChallengesRoute: ChallengesRoute,
   CheckInRoute: CheckInRoute,
   CommunityRoute: CommunityRoute,
+  ContactRoute: ContactRoute,
   GamesRoute: GamesRouteWithChildren,
   LeaderboardRoute: LeaderboardRoute,
   LoginRoute: LoginRoute,
@@ -382,6 +403,15 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
 
 import type { getRouter } from './router.tsx'
 import type { createStart } from '@tanstack/react-start'

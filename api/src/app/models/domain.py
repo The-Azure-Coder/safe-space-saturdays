@@ -57,6 +57,25 @@ class BugReport(TimestampMixin, Base):
     admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class CommunityApplication(TimestampMixin, Base):
+    __tablename__ = "community_applications"
+    __table_args__ = (Index("ix_community_applications_status_created", "status", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str] = mapped_column(String(320), index=True)
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    message: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending", index=True)
+    admin_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invite_token_hash: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True, index=True)
+    invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invite_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class Session(Base):
     __tablename__ = "sessions"
 

@@ -291,6 +291,19 @@ export type BugReport = {
   created_at: string
   updated_at: string
 }
+export type CommunityApplication = {
+  id: number
+  name: string
+  email: string
+  phone: string | null
+  message: string
+  status: 'pending' | 'approved' | 'rejected'
+  admin_note: string | null
+  created_at: string
+  updated_at: string
+  reviewed_at: string | null
+  email_sent_at: string | null
+}
 
 export const api = {
   googleAuthStatus: () =>
@@ -561,4 +574,33 @@ export const api = {
     }),
   deleteAdminQuote: (id: number) =>
     apiFetch<void>(`/api/admin/quotes/${id}`, { method: 'DELETE' }),
+  createCommunityApplication: (body: {
+    name: string
+    email: string
+    phone?: string
+    message: string
+    consent: boolean
+    website?: string
+  }) =>
+    apiFetch<CommunityApplication>('/api/community-applications', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  adminCommunityApplications: (page = 1, limit = 20, status = '') =>
+    apiFetch<Array<CommunityApplication>>(
+      `/api/admin/community-applications?page=${page}&limit=${limit}${status ? `&application_status=${encodeURIComponent(status)}` : ''}`,
+    ),
+  updateCommunityApplication: (
+    id: number,
+    body: { status: 'pending' | 'approved' | 'rejected'; admin_note?: string },
+  ) =>
+    apiFetch<CommunityApplication>(`/api/admin/community-applications/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  resendCommunityApplication: (id: number) =>
+    apiFetch<CommunityApplication>(
+      `/api/admin/community-applications/${id}/resend`,
+      { method: 'POST' },
+    ),
 }
