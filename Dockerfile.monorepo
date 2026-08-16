@@ -1,0 +1,36 @@
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+ARG NODE_VERSION=22.14.0
+ARG VITE_API_URL=http://127.0.0.1:8000
+
+WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
+  && curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+  && tar -xJf "node-v${NODE_VERSION}-linux-x64.tar.xz" -C /usr/local --strip-components=1 \
+  && rm "node-v${NODE_VERSION}-linux-x64.tar.xz" \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY api/pyproject.toml api/uv.lock /app/api/
+RUN cd /app/api && uv sync --frozen --no-dev
+
+COPY web/package.json web/package-lock.json /app/web/
+RUN cd /app/web && npm ci
+
+COPY api /app/api
+COPY web /app/web
+
+ENV PATH="/app/api/.venv/bin:$PATH" \
+    PYTHONPATH="/app/api/src" \
+    VITE_API_URL="${VITE_API_URL}" \
+    API_PROXY_URL="http://127.0.0.1:8000" \
+    API_PORT="8000"
+
+RUN cd /app/web && npm run build
+
+COPY deploy/monorepo-entrypoint.sh /app/deploy/monorepo-entrypoint.sh
+RUN chmod +x /app/deploy/monorepo-entrypoint.sh
+
+EXPOSE 10000
+CMD ["/app/deploy/monorepo-entrypoint.sh"]
