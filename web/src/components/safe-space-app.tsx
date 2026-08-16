@@ -2668,13 +2668,26 @@ function CommunityScreen() {
               <div className="announcement-item">
                 <span className="announcement-item__badge">New</span>
                 <div>
-                  <strong>Games are coming soon</strong>
+                  <strong>Game night is here</strong>
                   <p>
-                    We’re preparing friendly rooms, bot play, and game-night
-                    rules. Watch this space.
+                    Friendly rooms, bot play, and game-night rules are ready
+                    whenever you are.
                   </p>
                   <Link to="/games">
-                    See the update <ArrowRight size={15} />
+                    Explore the games <ArrowRight size={15} />
+                  </Link>
+                </div>
+              </div>
+              <div className="announcement-item">
+                <span className="announcement-item__badge">New</span>
+                <div>
+                  <strong>ABC Fast or Slow is now available</strong>
+                  <p>
+                    Spin the letter wheel, choose your pace, and race to find
+                    creative answers before the timer ends.
+                  </p>
+                  <Link to="/games">
+                    Play ABC Fast or Slow <ArrowRight size={15} />
                   </Link>
                 </div>
               </div>

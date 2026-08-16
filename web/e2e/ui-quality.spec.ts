@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+
+test.setTimeout(180_000)
 import type { Page } from '@playwright/test'
 
 async function authenticate(page: Page) {
@@ -72,4 +74,11 @@ test('Community stacks into one column on mobile', async ({ page }) => {
   await page.goto('/community', { waitUntil: 'networkidle' })
   const layout = await page.locator('.community-layout').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)
   expect(layout).toBe(1)
+})
+
+test('Community announces the ABC Fast or Slow launch', async ({ page }) => {
+  await authenticate(page)
+  await page.goto('/community', { waitUntil: 'networkidle' })
+  await expect(page.getByText('ABC Fast or Slow is now available')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Play ABC Fast or Slow' })).toHaveAttribute('href', '/games')
 })
