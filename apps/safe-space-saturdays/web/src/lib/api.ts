@@ -148,6 +148,7 @@ export type AdminDashboard = {
   pending_quotes: number
   active_rooms: number
   total_quotes: number
+  pending_community_applications: number
 }
 export type CheckIn = {
   id: number
