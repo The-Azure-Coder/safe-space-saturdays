@@ -1617,17 +1617,18 @@ function GameTile({
   onPlay?: () => void
 }) {
   const GameIcon = typeof game.icon === 'string' ? null : game.icon
+  const generatedAssets: Record<string, string> = {
+    Ludo: '/assets/game-ludo.png',
+    Dominoes: '/assets/game-dominoes.png',
+    'Trivia Battle': '/assets/game-trivia.png',
+    'Connect Four': '/assets/game-connect-four.png',
+    Scribble: '/assets/game-scribble.png',
+    'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
+  }
   const generatedIcon =
     typeof game.icon === 'string' && game.icon.startsWith('/')
       ? game.icon
-      : ({
-          Ludo: '/assets/game-ludo.png',
-          Dominoes: '/assets/game-dominoes.png',
-          'Trivia Battle': '/assets/game-trivia.png',
-          'Connect Four': '/assets/game-connect-four.png',
-          Scribble: '/assets/game-scribble.png',
-          'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
-        }[game.name] ?? null)
+      : generatedAssets[game.name.trim()] ?? null
   return (
     <article
       className={`game-tile game-tile--${game.color} ${compact ? 'game-tile--compact' : ''}`}

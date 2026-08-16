@@ -475,6 +475,11 @@ select:focus-visible { border-color: var(--orange); outline: 3px solid rgb(222 1
 .abc-game__round-meta strong, .abc-game__player--dictator { color:var(--sage-dark); }
 .abc-game__player { display:inline-flex; align-items:baseline; gap:.35rem; }
 .abc-game__player small { border:1px solid currentColor; border-radius:999px; padding:.12rem .4rem; font-size:.66rem; letter-spacing:.04em; text-transform:uppercase; }
+.abc-game__picker { display:grid; justify-items:center; gap:16px; padding:24px 14px 12px; text-align:center; }
+.abc-game__picker-letter { display:grid; place-items:center; width:clamp(112px, 24vw, 156px); aspect-ratio:1; border:8px solid color-mix(in srgb, var(--coral) 44%, var(--paper)); border-radius:50%; background:var(--cream); color:var(--sage-dark); font-size:clamp(4rem, 12vw, 6.5rem); font-weight:900; line-height:1; box-shadow:0 12px 30px color-mix(in srgb, var(--sage-dark) 18%, transparent); }
+.abc-game__picker-letter.is-spinning { animation:abc-picker-pulse .42s ease-in-out infinite alternate; }
+.abc-game__picker-speeds { display:flex; gap:8px; }
+@keyframes abc-picker-pulse { from { transform:scale(.96) rotate(-2deg); } to { transform:scale(1.04) rotate(2deg); } }
 .abc-game__form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .abc-game__form label { display:grid; gap:7px; color:var(--muted); font-weight:700; }
 .abc-game__form input { width:100%; }

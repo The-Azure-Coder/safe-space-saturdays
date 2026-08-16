@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from app.games import multi
@@ -64,6 +66,9 @@ def test_ludo_six_releases_a_token_and_grants_another_roll(
 
 def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=(1,))
+    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
+    state["picker_started_at"] = time.time() - 1
+    apply_action(state, 0, {"action": "stop_picker"})
     bot_submission = bot_action(state, 1)
     apply_action(state, 0, {"action": "submit", "answers": bot_submission["answers"]})
     apply_action(state, 1, bot_submission)
@@ -76,7 +81,7 @@ def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     assert state["phase"] == "round_result"
     assert state["scores"] == [0, 0]  # identical answers are duplicates
     apply_action(state, 0, {"action": "next_round"})
-    assert state["phase"] == "answering"
+    assert state["phase"] == "letter_picker"
     assert state["round"] == 2
 
 
@@ -93,18 +98,23 @@ def test_abc_selects_a_random_dictator_and_rotates_the_letter_chooser() -> None:
 
     rng = PredictableRandom()
     state = new_abc_state(rng, player_count=2, bot_players=())
-    assert state["letter"] == "A"
+    assert state["letter"] is None
     assert state["dictator_player"] == 0
     assert state["letter_chooser"] == 0
     state["phase"] = "round_result"
     next_abc_round(state, rng)
-    assert state["letter"] == "B"
+    assert state["letter"] is None
+    assert state["phase"] == "letter_picker"
     assert state["dictator_player"] == 1
     assert state["letter_chooser"] == 1
 
 
 def test_abc_timeout_locks_blank_answers() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
+    state["picker_started_at"] = time.time() - 1
+    apply_action(state, 0, {"action": "stop_picker"})
+    assert state["letter"] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     state["deadline"] = 0
     apply_action(state, 0, {"action": "timeout"})
     assert state["submitted"][0] is True
