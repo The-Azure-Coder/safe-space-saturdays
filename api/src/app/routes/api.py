@@ -236,6 +236,57 @@ async def send_application_invite(application: CommunityApplication, token: str)
     )
 
 
+async def notify_admins_of_application(
+    application: CommunityApplication, db: AsyncSession
+) -> None:
+    admins = (
+        await db.scalars(
+            select(User).where(
+                User.role.in_(("admin", "super_admin")),
+                User.is_approved.is_(True),
+                User.is_guest.is_(False),
+            )
+        )
+    ).all()
+    settings = get_settings()
+    admin_url = f"{settings.public_app_url.rstrip('/')}/admin"
+    safe_name = escape(application.name)
+    safe_message = escape(application.message).replace("\n", "<br>")
+    safe_admin_url = escape(admin_url, quote=True)
+    html = f"""<!doctype html>
+<html lang="en"><body style="margin:0;background:#f4eee7;color:#19352b;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:28px 12px;background:#f4eee7;"><tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:580px;background:#fffdf8;border:1px solid #ddd6c9;border-radius:18px;overflow:hidden;">
+      <tr><td style="height:7px;background:#7a8c69;font-size:0;">&nbsp;</td></tr>
+      <tr><td style="padding:30px 34px 34px;">
+        <p style="margin:0 0 10px;color:#7a8c69;font-size:12px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;">Admin notification</p>
+        <h1 style="margin:0 0 16px;font-family:Georgia,serif;font-size:29px;line-height:1.2;">A new community application needs review.</h1>
+        <p style="margin:0 0 20px;color:#59645d;font-size:16px;line-height:1.6;"><strong>{safe_name}</strong> has asked to join Safe Space Saturdays.</p>
+        <div style="margin:0 0 24px;padding:16px;border-radius:12px;background:#edf1e7;color:#59645d;font-size:14px;line-height:1.6;"><strong style="color:#19352b;">Applicant note</strong><br>{safe_message}</div>
+        <a href="{safe_admin_url}" style="display:inline-block;padding:14px 22px;border-radius:11px;background:#d87958;color:#fffdf8;font-size:15px;font-weight:bold;text-decoration:none;">Review application</a>
+        <p style="margin:22px 0 0;color:#9a9f99;font-size:12px;line-height:1.5;">This notification was sent to approved Safe Space Saturdays administrators.</p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>"""
+    text = (
+        f"A new community application needs review.\n\n{application.name} "
+        f"({application.email}) wrote:\n{application.message}\n\nReview it here: {admin_url}"
+    )
+    await asyncio.gather(
+        *(
+            send_transactional_email(
+                recipient=admin.email,
+                subject="New Safe Space Saturdays application to review",
+                html=html,
+                text=text,
+            )
+            for admin in admins
+        ),
+        return_exceptions=True,
+    )
+
+
 def match_response(match: LiveMatch, user_id: int | None = None) -> MatchResponse:
     return MatchResponse.model_validate(match.snapshot(user_id))
 
@@ -2534,6 +2585,7 @@ async def create_community_application(
     db.add(application)
     await db.commit()
     await db.refresh(application)
+    await notify_admins_of_application(application, db)
     return community_application_response(application)
 
 
@@ -2698,6 +2750,11 @@ async def admin_dashboard(
         select(func.count(GameRoom.id)).where(GameRoom.status.in_(("open", "active")))
     )
     total_quotes = await db.scalar(select(func.count(Quote.id)))
+    pending_community_applications = await db.scalar(
+        select(func.count(CommunityApplication.id)).where(
+            CommunityApplication.status == "pending"
+        )
+    )
     return AdminDashboardResponse(
         total_members=total_members or 0,
         pending_members=pending_members or 0,
@@ -2705,6 +2762,7 @@ async def admin_dashboard(
         pending_quotes=pending_quotes or 0,
         active_rooms=active_rooms or 0,
         total_quotes=total_quotes or 0,
+        pending_community_applications=pending_community_applications or 0,
     )
 
 

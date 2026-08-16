@@ -1336,6 +1336,7 @@ function AdminScreen() {
               <AdminMetric icon={Bug} label="Open reports" value={adminDashboard.data.open_bug_reports} detail="Needs attention" />
               <AdminMetric icon={Quotes} label="Pending quotes" value={adminDashboard.data.pending_quotes} detail={`${adminDashboard.data.total_quotes} total quotes`} />
               <AdminMetric icon={GameController} label="Live rooms" value={adminDashboard.data.active_rooms} detail="Open or in play" />
+              <AdminMetric icon={EnvelopeSimple} label="Applications" value={adminDashboard.data.pending_community_applications} detail="Awaiting review" />
             </div>
           ) : adminDashboard.isError ? (
             <p className="admin-overview__error">Overview data is temporarily unavailable.</p>

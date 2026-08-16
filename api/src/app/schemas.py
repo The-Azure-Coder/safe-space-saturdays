@@ -112,6 +112,7 @@ class AdminDashboardResponse(BaseModel):
     pending_quotes: int
     active_rooms: int
     total_quotes: int
+    pending_community_applications: int
 
 
 class AdminUserUpdateRequest(BaseModel):
