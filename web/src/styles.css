@@ -471,6 +471,10 @@ select:focus-visible { border-color: var(--orange); outline: 3px solid rgb(222 1
 .abc-game__letter { display:grid; place-items:center; width:96px; aspect-ratio:1; border-radius:50%; background:var(--coral); color:var(--ink); font-size:3.5rem; font-weight:800; box-shadow:0 10px 22px color-mix(in srgb, var(--coral) 32%, transparent); }
 .abc-game__scoreboard { display:flex; flex-wrap:wrap; gap:8px; margin:18px 0; }
 .abc-game__scoreboard span { padding:8px 12px; border:1px solid var(--line); border-radius:999px; font-size:.82rem; }
+.abc-game__round-meta { display:flex; align-items:center; flex-wrap:wrap; gap:.4rem; margin-top:.7rem; color:var(--muted); font-size:.82rem; }
+.abc-game__round-meta strong, .abc-game__player--dictator { color:var(--sage-dark); }
+.abc-game__player { display:inline-flex; align-items:baseline; gap:.35rem; }
+.abc-game__player small { border:1px solid currentColor; border-radius:999px; padding:.12rem .4rem; font-size:.66rem; letter-spacing:.04em; text-transform:uppercase; }
 .abc-game__form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
 .abc-game__form label { display:grid; gap:7px; color:var(--muted); font-weight:700; }
 .abc-game__form input { width:100%; }

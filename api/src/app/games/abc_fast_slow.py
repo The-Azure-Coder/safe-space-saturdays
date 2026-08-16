@@ -27,15 +27,36 @@ def new_abc_state(rng: random.Random, player_count: int, bot_players: tuple[int,
     return _round(rng, players, [0] * count, 1)
 
 
-def _round(rng: random.Random, players: list[dict[str, Any]], scores: list[int], round_number: int) -> dict[str, Any]:
+def _choose_dictator(rng: random.Random, player_count: int, previous: int | None = None) -> int:
+    """Choose the round's dictator/letter chooser on the server.
+
+    ABC rounds are simultaneous, so this role is informational rather than a
+    turn gate. Avoiding an immediate repeat makes the role visibly rotate while
+    retaining a random choice for every round.
+    """
+    chosen = rng.randrange(player_count)
+    if previous is not None and player_count > 1 and chosen == previous:
+        chosen = (chosen + 1) % player_count
+    return chosen
+
+
+def _round(
+    rng: random.Random,
+    players: list[dict[str, Any]],
+    scores: list[int],
+    round_number: int,
+    previous_dictator: int | None = None,
+) -> dict[str, Any]:
     letter = rng.choice("ABCDEFGHLMPRST")
+    dictator = _choose_dictator(rng, len(players), previous_dictator)
     return {
         "game": "abc-fast-slow", "players": players, "player_count": len(players), "current_player": 0,
         "winner": None, "draw": False, "phase": "answering", "round": round_number, "rounds": 3,
+        "dictator_player": dictator, "letter_chooser": dictator,
         "letter": letter, "categories": list(CATEGORIES), "answers": [{} for _ in players],
         "scores": scores, "submitted": [False for _ in players], "votes": [{} for _ in players],
         "voted": [False for _ in players], "deadline": time.time() + ROUND_SECONDS,
-        "last_event": f"Round {round_number}: answers begin with {letter}.",
+        "last_event": f"Round {round_number}: {players[dictator]['name']} is the dictator. Answers begin with {letter}.",
     }
 
 
@@ -126,10 +147,16 @@ def _score_round(state: dict[str, Any]) -> None:
         state["last_event"] = "Round complete. Unique valid answers score 10 points."
 
 
-def next_abc_round(state: dict[str, Any]) -> dict[str, Any]:
+def next_abc_round(state: dict[str, Any], rng: random.Random | None = None) -> dict[str, Any]:
     if state.get("phase") != "round_result":
         raise IllegalMove("The round is not ready to continue")
-    next_state = _round(random.Random(), state["players"], list(state["scores"]), state["round"] + 1)
+    next_state = _round(
+        rng or random.Random(),
+        state["players"],
+        list(state["scores"]),
+        state["round"] + 1,
+        int(state.get("dictator_player", state.get("letter_chooser", 0))),
+    )
     state.clear()
     state.update(next_state)
     return state
