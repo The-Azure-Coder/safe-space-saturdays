@@ -96,7 +96,6 @@ type GameDefinition = {
 function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle') return 2
-  if (normalized === 'bingo') return 8
   return 4
 }
 
@@ -135,13 +134,6 @@ const games: Array<GameDefinition> = [
     description: 'Draw something wonderfully imperfect and see who can guess it.',
     icon: '/assets/game-scribble.png',
     color: 'coral',
-  },
-  {
-    name: 'Bingo',
-    players: '2–8 players',
-    description: 'Mark your cards, cheer each other on, and wait for that winning line.',
-    icon: '/assets/game-bingo.png',
-    color: 'peach',
   },
   {
     name: 'ABC Fast or Slow',
@@ -1634,7 +1626,6 @@ function GameTile({
           'Trivia Battle': '/assets/game-trivia.png',
           'Connect Four': '/assets/game-connect-four.png',
           Scribble: '/assets/game-scribble.png',
-          Bingo: '/assets/game-bingo.png',
           'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
         }[game.name] ?? null)
   return (

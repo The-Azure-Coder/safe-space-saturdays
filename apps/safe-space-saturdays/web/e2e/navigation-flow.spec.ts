@@ -76,7 +76,7 @@ test('mobile navigation opens and closes around route changes', async ({ page })
 
 test('generated game artwork renders without broken images', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' })
-  const bingo = page.locator('img[src="/assets/game-bingo.png"]')
-  await expect(bingo).toBeVisible({ timeout: 110_000 })
-  await expect.poll(() => bingo.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+  const abc = page.locator('img[src="/assets/game-abc-fast-slow.png"]')
+  await expect(abc).toBeVisible({ timeout: 110_000 })
+  await expect.poll(() => abc.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
 })
