@@ -76,8 +76,10 @@ from app.oauth import (
     google_oauth_configured,
     verify_oauth_state,
 )
+from app.notification_templates import weekly_performers_email
 from app.schemas import (
     AdminDashboardResponse,
+    AdminNotificationResponse,
     AdminPasswordResetRequest,
     AdminQuoteCreateRequest,
     AdminQuoteUpdateRequest,
@@ -2812,6 +2814,67 @@ async def admin_users(
         query = query.where((User.name.ilike(term)) | (User.email.ilike(term)))
     users = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
     return [user_response(member) for member in users]
+
+
+@router.post("/admin/notifications/weekly-performers", response_model=AdminNotificationResponse)
+async def send_weekly_performer_notification(
+    admin: CurrentAdmin, db: DbSession
+) -> AdminNotificationResponse:
+    if not can_manage_content(admin):
+        raise HTTPException(status_code=403, detail="Staff access required")
+    period_start = leaderboard_period_start("week").date()
+    query = leaderboard_query("week")
+    rows = (
+        await db.execute(
+            query.order_by(query.selected_columns.ranking_xp.desc(), User.created_at.asc()).limit(3)
+        )
+    ).all()
+    winners = [(member.id, member.name, int(ranking_xp)) for member, ranking_xp in rows]
+    recipients = (
+        await db.scalars(
+            select(User).where(
+                User.is_approved.is_(True),
+                User.is_guest.is_(False),
+                User.email_notifications_enabled.is_(True),
+            )
+        )
+    ).all()
+    if not winners or not recipients:
+        return AdminNotificationResponse(
+            notification="weekly_performers",
+            sent=0,
+            failed=0,
+            recipients=len(recipients),
+            period_start=period_start,
+            winners=[name for _, name, _ in winners],
+        )
+    settings = get_settings()
+    html, text = weekly_performers_email(
+        winners=winners,
+        period_start=period_start,
+        action_url=f"{settings.public_app_url.rstrip('/')}/leaderboard",
+    )
+    results = await asyncio.gather(
+        *(
+            send_transactional_email(
+                recipient=recipient.email,
+                subject="This week’s Safe Space Saturdays leaders",
+                html=html,
+                text=text,
+            )
+            for recipient in recipients
+        ),
+        return_exceptions=True,
+    )
+    sent = sum(result is True for result in results)
+    return AdminNotificationResponse(
+        notification="weekly_performers",
+        sent=sent,
+        failed=len(results) - sent,
+        recipients=len(recipients),
+        period_start=period_start,
+        winners=[name for _, name, _ in winners],
+    )
 
 
 @router.patch("/admin/users/{user_id}", response_model=UserResponse)

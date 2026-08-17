@@ -1285,6 +1285,9 @@ function AdminScreen() {
     mutationFn: api.resendCommunityApplication,
     onSuccess: () => applications.refetch(),
   })
+  const weeklyNotification = useMutation({
+    mutationFn: api.sendWeeklyPerformerNotification,
+  })
   if (profile.isLoading)
     return (
       <>
@@ -1504,6 +1507,19 @@ function AdminScreen() {
                 <h2>User management</h2>
                 <p>Manage roles and issue a secure password reset.</p>
               </div>
+              <button
+                className="button button--secondary button--small"
+                type="button"
+                onClick={() => weeklyNotification.mutate()}
+                disabled={weeklyNotification.isPending}
+              >
+                {weeklyNotification.isPending ? 'Sending podium…' : 'Email weekly podium'}
+              </button>
+              {weeklyNotification.data && (
+                <small className="admin-list-item__meta">
+                  Sent to {weeklyNotification.data.sent} of {weeklyNotification.data.recipients} opted-in members.
+                </small>
+              )}
               <input
                 aria-label="Search users"
                 value={search}

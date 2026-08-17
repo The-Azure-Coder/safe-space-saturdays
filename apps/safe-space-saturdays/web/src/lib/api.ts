@@ -541,6 +541,15 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  sendWeeklyPerformerNotification: () =>
+    apiFetch<{
+      notification: string
+      sent: number
+      failed: number
+      recipients: number
+      period_start: string
+      winners: string[]
+    }>('/api/admin/notifications/weekly-performers', { method: 'POST' }),
   resetUserPassword: (id: number, password: string) =>
     apiFetch<void>(`/api/admin/users/${id}/password-reset`, {
       method: 'POST',
