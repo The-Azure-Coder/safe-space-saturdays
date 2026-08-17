@@ -1645,6 +1645,7 @@ html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
 .admin-email-toggle input:checked + .admin-email-toggle__track { background: var(--sage-dark); }
 .admin-email-toggle input:checked + .admin-email-toggle__track span { transform: translateX(14px); }
 .admin-email-toggle input:focus-visible + .admin-email-toggle__track { outline: 3px solid color-mix(in srgb, var(--orange) 35%, transparent); outline-offset: 2px; }
+.abc-game__own-answer { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--sage-pale); color: var(--sage-dark); font-size: 12px; line-height: 1.45; }
 .admin-quote-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(160px, 1fr) 160px auto; align-items: end; gap: 12px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .admin-empty, .empty-state-card, .empty-state { display: grid; justify-items: center; gap: 8px; padding: 40px 20px; text-align: center; color: var(--muted); }
 .empty-state { grid-template-columns: auto minmax(0, 1fr); justify-content: center; align-items: center; text-align: left; border: 1px dashed var(--line); border-radius: 16px; background: color-mix(in srgb, var(--paper) 72%, transparent); }

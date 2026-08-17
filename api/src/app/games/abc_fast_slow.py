@@ -109,12 +109,15 @@ def _vote(state: dict[str, Any], player: int, action: dict[str, Any]) -> None:
     category = action.get("category")
     if not isinstance(target, int) or not 0 <= target < state["player_count"]:
         raise IllegalMove("Choose a player answer to review")
+    if target == player:
+        raise IllegalMove("You can only validate another player's answers")
     if category not in CATEGORIES:
         raise IllegalMove("Choose a valid category")
     state["votes"][player][f"{target}:{category}"] = bool(action.get("valid", False))
     # A single vote action represents the reviewer's complete ballot. This keeps
     # the game quick while still making every player participate in validation.
-    if len(state["votes"][player]) == state["player_count"] * len(CATEGORIES):
+    required_votes = (state["player_count"] - 1) * len(CATEGORIES)
+    if len(state["votes"][player]) == required_votes:
         state["voted"][player] = True
     if all(state["voted"]):
         _score_round(state)
@@ -164,7 +167,8 @@ def _score_round(state: dict[str, Any]) -> None:
             value = answers.get(category, "").lower()
             key = f"{target}:{category}"
             approvals = sum(bool(ballot.get(key)) for ballot in state["votes"])
-            if value and value.startswith(letter) and approvals > state["player_count"] // 2:
+            validators = max(1, state["player_count"] - 1)
+            if value and value.startswith(letter) and approvals > validators / 2:
                 accepted[category].append(target)
     for category, targets in accepted.items():
         values = {target: state["answers"][target].get(category, "").lower() for target in targets}
