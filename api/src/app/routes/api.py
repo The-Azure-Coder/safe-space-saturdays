@@ -2471,13 +2471,13 @@ async def list_winners(
     return result
 
 
-def leaderboard_query(period: str):
+def leaderboard_query(period: str, period_start: datetime | None = None):
     """Return members and the XP earned in the requested ranking window."""
     member_filter = User.is_guest.is_(False)
     if period == "all":
         return select(User, User.xp.label("ranking_xp")).where(member_filter)
 
-    start = leaderboard_period_start(period)
+    start = period_start or leaderboard_period_start(period)
     reward_totals = (
         select(
             RewardLedger.user_id,
@@ -2822,8 +2822,8 @@ async def send_weekly_performer_notification(
 ) -> AdminNotificationResponse:
     if not can_manage_content(admin):
         raise HTTPException(status_code=403, detail="Staff access required")
-    period_start = leaderboard_period_start("week").date()
-    query = leaderboard_query("week")
+    period_start = leaderboard_period_start("week") - timedelta(days=7)
+    query = leaderboard_query("week", period_start=period_start)
     rows = (
         await db.execute(
             query.order_by(query.selected_columns.ranking_xp.desc(), User.created_at.asc()).limit(3)
@@ -2845,20 +2845,20 @@ async def send_weekly_performer_notification(
             sent=0,
             failed=0,
             recipients=len(recipients),
-            period_start=period_start,
+            period_start=period_start.date(),
             winners=[name for _, name, _ in winners],
         )
     settings = get_settings()
     html, text = weekly_performers_email(
         winners=winners,
-        period_start=period_start,
+        period_start=period_start.date(),
         action_url=f"{settings.public_app_url.rstrip('/')}/leaderboard",
     )
     results = await asyncio.gather(
         *(
             send_transactional_email(
                 recipient=recipient.email,
-                subject="This week’s Safe Space Saturdays leaders",
+                subject="Last week’s Safe Space Saturdays leaders",
                 html=html,
                 text=text,
             )
@@ -2872,7 +2872,7 @@ async def send_weekly_performer_notification(
         sent=sent,
         failed=len(results) - sent,
         recipients=len(recipients),
-        period_start=period_start,
+        period_start=period_start.date(),
         winners=[name for _, name, _ in winners],
     )
 

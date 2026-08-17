@@ -1502,30 +1502,34 @@ function AdminScreen() {
         )}
         {tab === 'users' && (
           <section className="admin-panel">
-            <div className="admin-panel__toolbar">
+            <div className="admin-user-toolbar">
               <div>
+                <span className="eyebrow">Community care</span>
                 <h2>User management</h2>
-                <p>Manage roles and issue a secure password reset.</p>
+                <p>Shape access, support accounts, and choose who receives community emails.</p>
               </div>
-              <button
-                className="button button--secondary button--small"
-                type="button"
-                onClick={() => weeklyNotification.mutate()}
-                disabled={weeklyNotification.isPending}
-              >
-                {weeklyNotification.isPending ? 'Sending podium…' : 'Email weekly podium'}
-              </button>
-              {weeklyNotification.data && (
-                <small className="admin-list-item__meta">
-                  Sent to {weeklyNotification.data.sent} of {weeklyNotification.data.recipients} opted-in members.
-                </small>
-              )}
-              <input
-                aria-label="Search users"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search name or email"
-              />
+              <div className="admin-user-toolbar__actions">
+                <button
+                  className="button button--secondary button--small"
+                  type="button"
+                  onClick={() => weeklyNotification.mutate()}
+                  disabled={weeklyNotification.isPending}
+                >
+                  <Trophy size={17} weight="duotone" />
+                  {weeklyNotification.isPending ? 'Sending podium…' : 'Email weekly podium'}
+                </button>
+                <input
+                  aria-label="Search users"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search name or email"
+                />
+                {weeklyNotification.data && (
+                  <small className="admin-user-toolbar__result">
+                    Sent to {weeklyNotification.data.sent} of {weeklyNotification.data.recipients} opted-in members.
+                  </small>
+                )}
+              </div>
             </div>
             {users.data?.length ? (
               <div className="admin-list">
@@ -1534,11 +1538,16 @@ function AdminScreen() {
                     className="admin-list-item admin-user-row"
                     key={member.id}
                   >
-                    <div>
-                      <h3>{member.name}</h3>
-                      <small>
-                        {member.email} · {member.role} · {member.is_approved ? 'approved' : 'awaiting approval'}
-                      </small>
+                    <div className="admin-user-identity">
+                      <span className="admin-user-avatar"><UserCircle size={28} weight="duotone" /></span>
+                      <div>
+                        <h3>{member.name}</h3>
+                        <small>{member.email}</small>
+                        <div className="admin-user-badges">
+                          <span>{member.role.replace('_', ' ')}</span>
+                          <span className={member.is_approved ? 'is-positive' : 'is-pending'}>{member.is_approved ? 'Approved' : 'Awaiting approval'}</span>
+                        </div>
+                      </div>
                     </div>
                     <div className="admin-user-actions">
                       <select
@@ -1557,7 +1566,7 @@ function AdminScreen() {
                         <option value="admin">Admin</option>
                         <option value="super_admin">Super admin</option>
                       </select>
-                      <label className="admin-email-toggle">
+                      <label className="admin-email-toggle" title="Allow this user to receive community emails">
                         <input
                           type="checkbox"
                           checked={member.email_notifications_enabled}
@@ -1568,7 +1577,8 @@ function AdminScreen() {
                             })
                           }
                         />
-                        <span>Email notifications</span>
+                        <span className="admin-email-toggle__track" aria-hidden="true"><span /></span>
+                        <span>{member.email_notifications_enabled ? 'Emails on' : 'Emails off'}</span>
                       </label>
                       {!member.is_approved && <button className="button button--secondary button--small" type="button" onClick={() => roleUpdate.mutate({ id: member.id, is_approved: true })}>Approve account</button>}
                       <button
