@@ -35,6 +35,9 @@ class User(TimestampMixin, Base):
     role: Mapped[str] = mapped_column(String(20), default="member", server_default="member")
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     is_approved: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    email_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")

@@ -122,6 +122,7 @@ export type User = {
   streak: number
   level: number
   is_approved: boolean
+  email_notifications_enabled: boolean
 }
 
 export type Quote = {
@@ -534,7 +535,7 @@ export const api = {
     ),
   updateAdminUser: (
     id: number,
-    body: { role?: string; is_approved?: boolean },
+    body: { role?: string; is_approved?: boolean; email_notifications_enabled?: boolean },
   ) =>
     apiFetch<User>(`/api/admin/users/${id}`, {
       method: 'PATCH',

@@ -245,6 +245,7 @@ async def notify_admins_of_application(
                 User.role.in_(("admin", "super_admin")),
                 User.is_approved.is_(True),
                 User.is_guest.is_(False),
+                User.email_notifications_enabled.is_(True),
             )
         )
     ).all()
@@ -659,7 +660,15 @@ def challenge_out(
 
 def user_response(user: User) -> UserResponse:
     values = {
-        **{field: getattr(user, field) for field in UserResponse.model_fields if field != "is_online"},
+        **{
+            field: (
+                getattr(user, field)
+                if field != "email_notifications_enabled"
+                else (getattr(user, field, None) is not False)
+            )
+            for field in UserResponse.model_fields
+            if field != "is_online"
+        },
         "is_online": is_user_online(user),
     }
     if user.is_guest and user.email.endswith("@guest.invalid"):
@@ -2817,14 +2826,20 @@ async def update_admin_user(
     member = await db.get(User, user_id)
     if member is None:
         raise HTTPException(status_code=404, detail="User not found")
-    if payload.role is None and payload.is_approved is None:
-        raise HTTPException(status_code=422, detail="Provide a role or approval change")
+    if (
+        payload.role is None
+        and payload.is_approved is None
+        and payload.email_notifications_enabled is None
+    ):
+        raise HTTPException(status_code=422, detail="Provide a user setting to change")
     if member.id == admin.id and payload.role not in {None, "admin", "super_admin"}:
         raise HTTPException(status_code=400, detail="You cannot remove your own admin access")
     if payload.role is not None:
         member.role = payload.role
     if payload.is_approved is not None:
         member.is_approved = payload.is_approved
+    if payload.email_notifications_enabled is not None:
+        member.email_notifications_enabled = payload.email_notifications_enabled
     await db.commit()
     await db.refresh(member)
     return user_response(member)

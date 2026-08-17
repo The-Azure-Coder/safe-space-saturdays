@@ -13,6 +13,7 @@ class UserResponse(BaseModel):
     is_online: bool = False
     role: str
     is_approved: bool
+    email_notifications_enabled: bool = True
     xp: int
     streak: int
     level: int
@@ -118,6 +119,7 @@ class AdminDashboardResponse(BaseModel):
 class AdminUserUpdateRequest(BaseModel):
     role: Literal["member", "moderator", "manager", "admin", "super_admin"] | None = None
     is_approved: bool | None = None
+    email_notifications_enabled: bool | None = None
 
 
 class AdminPasswordResetRequest(BaseModel):
