@@ -122,6 +122,15 @@ class AdminUserUpdateRequest(BaseModel):
     email_notifications_enabled: bool | None = None
 
 
+class AdminNotificationResponse(BaseModel):
+    notification: str
+    sent: int
+    failed: int
+    recipients: int
+    period_start: date
+    winners: list[str]
+
+
 class AdminPasswordResetRequest(BaseModel):
     password: str = Field(min_length=10, max_length=128)
 
