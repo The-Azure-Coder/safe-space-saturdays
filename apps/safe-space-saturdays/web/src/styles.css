@@ -1623,6 +1623,8 @@ html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
 .admin-user-row h3 { margin: 0 0 4px; }
 .admin-user-actions { display: flex; align-items: center; gap: 8px; }
 .admin-user-actions select { width: 110px; }
+.admin-email-toggle { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 600; }
+.admin-email-toggle input { width: 18px; height: 18px; margin: 0; accent-color: var(--sage); }
 .admin-quote-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(160px, 1fr) 160px auto; align-items: end; gap: 12px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .admin-empty, .empty-state-card, .empty-state { display: grid; justify-items: center; gap: 8px; padding: 40px 20px; text-align: center; color: var(--muted); }
 .empty-state { grid-template-columns: auto minmax(0, 1fr); justify-content: center; align-items: center; text-align: left; border: 1px dashed var(--line); border-radius: 16px; background: color-mix(in srgb, var(--paper) 72%, transparent); }

@@ -1256,8 +1256,8 @@ function AdminScreen() {
     onSuccess: () => reports.refetch(),
   })
   const roleUpdate = useMutation({
-    mutationFn: ({ id, role, is_approved }: { id: number; role?: string; is_approved?: boolean }) =>
-      api.updateAdminUser(id, { role, is_approved }),
+    mutationFn: ({ id, role, is_approved, email_notifications_enabled }: { id: number; role?: string; is_approved?: boolean; email_notifications_enabled?: boolean }) =>
+      api.updateAdminUser(id, { role, is_approved, email_notifications_enabled }),
     onSuccess: () => users.refetch(),
   })
   const reset = useMutation({
@@ -1541,6 +1541,19 @@ function AdminScreen() {
                         <option value="admin">Admin</option>
                         <option value="super_admin">Super admin</option>
                       </select>
+                      <label className="admin-email-toggle">
+                        <input
+                          type="checkbox"
+                          checked={member.email_notifications_enabled}
+                          onChange={(event) =>
+                            roleUpdate.mutate({
+                              id: member.id,
+                              email_notifications_enabled: event.target.checked,
+                            })
+                          }
+                        />
+                        <span>Email notifications</span>
+                      </label>
                       {!member.is_approved && <button className="button button--secondary button--small" type="button" onClick={() => roleUpdate.mutate({ id: member.id, is_approved: true })}>Approve account</button>}
                       <button
                         className="button button--secondary button--small"
