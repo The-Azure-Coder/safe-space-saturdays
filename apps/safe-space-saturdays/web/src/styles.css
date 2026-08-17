@@ -1621,10 +1621,30 @@ html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
 .severity-badge--high, .severity-badge--critical { background: var(--peach-pale); color: #9a4d32; }
 .admin-user-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .admin-user-row h3 { margin: 0 0 4px; }
+.admin-user-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 420px); align-items: end; gap: 24px; margin-bottom: 22px; padding: 2px 2px 20px; border-bottom: 1px solid var(--line); }
+.admin-user-toolbar h2 { margin: 3px 0 5px; font-family: 'Playfair Display', serif; font-size: 27px; }
+.admin-user-toolbar p { max-width: 560px; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.admin-user-toolbar__actions { display: grid; justify-items: stretch; gap: 8px; }
+.admin-user-toolbar__actions .button { justify-content: center; gap: 8px; }
+.admin-user-toolbar__actions input { width: 100%; border: 1px solid var(--line); border-radius: 11px; padding: 11px 13px; background: var(--paper); color: var(--ink); font: inherit; font-size: 13px; }
+.admin-user-toolbar__result { color: var(--sage-dark); font-size: 12px; }
+.admin-user-identity { display: flex; align-items: center; min-width: 0; gap: 12px; }
+.admin-user-identity > div { min-width: 0; }
+.admin-user-avatar { display: grid; flex: 0 0 46px; width: 46px; height: 46px; place-items: center; border-radius: 15px; background: var(--sage-pale); color: var(--sage-dark); }
+.admin-user-identity small { display: block; overflow: hidden; max-width: 360px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-user-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.admin-user-badges span { padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--sage-pale) 78%, var(--paper)); color: var(--sage-dark); font-size: 10px; font-weight: 800; text-transform: capitalize; }
+.admin-user-badges .is-positive { background: var(--sage-pale); }
+.admin-user-badges .is-pending { background: var(--peach-pale); color: #9a4d32; }
 .admin-user-actions { display: flex; align-items: center; gap: 8px; }
 .admin-user-actions select { width: 110px; }
-.admin-email-toggle { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 600; }
-.admin-email-toggle input { width: 18px; height: 18px; margin: 0; accent-color: var(--sage); }
+.admin-email-toggle { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+.admin-email-toggle input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.admin-email-toggle__track { display: inline-flex; align-items: center; width: 34px; height: 20px; padding: 3px; border-radius: 999px; background: var(--line); transition: background .2s ease; }
+.admin-email-toggle__track span { width: 14px; height: 14px; border-radius: 50%; background: var(--paper); box-shadow: 0 1px 3px rgb(0 0 0 / 18%); transition: transform .2s ease; }
+.admin-email-toggle input:checked + .admin-email-toggle__track { background: var(--sage-dark); }
+.admin-email-toggle input:checked + .admin-email-toggle__track span { transform: translateX(14px); }
+.admin-email-toggle input:focus-visible + .admin-email-toggle__track { outline: 3px solid color-mix(in srgb, var(--orange) 35%, transparent); outline-offset: 2px; }
 .admin-quote-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(160px, 1fr) 160px auto; align-items: end; gap: 12px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .admin-empty, .empty-state-card, .empty-state { display: grid; justify-items: center; gap: 8px; padding: 40px 20px; text-align: center; color: var(--muted); }
 .empty-state { grid-template-columns: auto minmax(0, 1fr); justify-content: center; align-items: center; text-align: left; border: 1px dashed var(--line); border-radius: 16px; background: color-mix(in srgb, var(--paper) 72%, transparent); }
@@ -1657,6 +1677,8 @@ html[data-theme='night'] .carousel-dot--active { background: #b9d8b5; }
   .admin-overview__heading { align-items: flex-start; flex-direction: column; }
   .admin-tabs { overflow-x: auto; }
   .admin-panel__toolbar, .admin-user-row { align-items: stretch; flex-direction: column; }
+  .admin-user-toolbar { grid-template-columns: 1fr; gap: 16px; }
+  .admin-user-identity small { max-width: 100%; }
   .admin-panel__toolbar > input, .admin-panel__toolbar > select { width: 100%; }
   .admin-user-actions { flex-wrap: wrap; }
   .admin-quote-form { grid-template-columns: 1fr; }
