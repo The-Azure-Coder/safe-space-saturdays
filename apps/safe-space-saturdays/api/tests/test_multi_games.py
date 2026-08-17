@@ -75,12 +75,33 @@ def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     assert state["phase"] == "voting"
     for player in (0, 1):
         for target in range(2):
+            if target == player:
+                continue
             for category in CATEGORIES:
                 action = {"action": "vote", "target": target, "category": category, "valid": True}
                 apply_action(state, player, action)
     assert state["phase"] == "round_result"
     assert state["scores"] == [0, 0]  # identical answers are duplicates
     apply_action(state, 0, {"action": "next_round"})
+    assert state["phase"] == "letter_picker"
+    assert state["round"] == 2
+
+
+def test_abc_human_players_validate_only_each_other_and_advance() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
+    state["picker_started_at"] = time.time() - 1
+    apply_action(state, 0, {"action": "stop_picker"})
+    answers = {category: "apple" for category in CATEGORIES}
+    apply_action(state, 0, {"action": "submit", "answers": answers})
+    apply_action(state, 1, {"action": "submit", "answers": answers})
+    with pytest.raises(IllegalMove, match="another player's"):
+        apply_action(state, 0, {"action": "vote", "target": 0, "category": "Animal", "valid": True})
+    for player, target in ((0, 1), (1, 0)):
+        for category in CATEGORIES:
+            apply_action(state, player, {"action": "vote", "target": target, "category": category, "valid": True})
+    assert state["phase"] == "round_result"
+    apply_action(state, 1, {"action": "next_round"})
     assert state["phase"] == "letter_picker"
     assert state["round"] == 2
 
