@@ -1288,6 +1288,9 @@ function AdminScreen() {
   const weeklyNotification = useMutation({
     mutationFn: api.sendWeeklyPerformerNotification,
   })
+  const dailyNotification = useMutation({
+    mutationFn: api.sendDailyCheckinNotification,
+  })
   if (profile.isLoading)
     return (
       <>
@@ -1329,8 +1332,20 @@ function AdminScreen() {
               <span className="eyebrow">Overview</span>
               <h2>Admin dashboard</h2>
             </div>
-            {adminDashboard.isFetching && <GeneralLoader label="Updating…" />}
+            <div className="admin-overview__actions">
+              <button
+                className="button button--secondary button--small"
+                type="button"
+                onClick={() => dailyNotification.mutate()}
+                disabled={dailyNotification.isPending}
+              >
+                <Heart size={17} weight="duotone" />
+                {dailyNotification.isPending ? 'Sending kind reminder…' : 'Send today’s kind reminder'}
+              </button>
+              {adminDashboard.isFetching && <GeneralLoader label="Updating…" />}
+            </div>
           </div>
+          {dailyNotification.data && <p className="admin-notification-result">Sent to {dailyNotification.data.sent} of {dailyNotification.data.recipients} opted-in members.</p>}
           {adminDashboard.isLoading ? (
             <ContentSkeleton rows={1} />
           ) : adminDashboard.data ? (

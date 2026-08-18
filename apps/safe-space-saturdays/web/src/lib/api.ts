@@ -550,6 +550,14 @@ export const api = {
       period_start: string
       winners: string[]
     }>('/api/admin/notifications/weekly-performers', { method: 'POST' }),
+  sendDailyCheckinNotification: () =>
+    apiFetch<{
+      notification: string
+      sent: number
+      failed: number
+      recipients: number
+      message: string
+    }>('/api/admin/notifications/daily-checkin', { method: 'POST' }),
   resetUserPassword: (id: number, password: string) =>
     apiFetch<void>(`/api/admin/users/${id}/password-reset`, {
       method: 'POST',
