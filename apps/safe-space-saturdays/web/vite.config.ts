@@ -9,6 +9,10 @@ export default defineConfig({
     watch: {
       usePolling: true,
       interval: 250,
+      // graphify writes its generated report into this mounted workspace;
+      // it is documentation output, not application source. Watching it
+      // repeatedly tears down SSR while a browser request is in flight.
+      ignored: ['**/graphify-out/**'],
     },
   },
 })
