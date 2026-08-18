@@ -95,7 +95,7 @@ type GameDefinition = {
 
 function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
-  if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle') return 2
+  if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
   return 4
 }
 
@@ -141,6 +141,13 @@ const games: Array<GameDefinition> = [
     description: 'Race the clock, think creatively, and find one-of-a-kind answers.',
     icon: '/assets/game-abc-fast-slow.png',
     color: 'sage',
+  },
+  {
+    name: 'Checkers',
+    players: '2 players',
+    description: 'Plan your jumps, crown your pieces, and make every move count.',
+    icon: '/assets/game-checkers.png',
+    color: 'coral',
   },
 ]
 
@@ -1744,6 +1751,7 @@ function GameTile({
     'Connect Four': '/assets/game-connect-four.png',
     Scribble: '/assets/game-scribble.png',
     'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
+    Checkers: '/assets/game-checkers.png',
   }
   const generatedIcon =
     typeof game.icon === 'string' && game.icon.startsWith('/')

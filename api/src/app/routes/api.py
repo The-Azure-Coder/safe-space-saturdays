@@ -39,6 +39,7 @@ from app.games.manager import LiveMatch, match_manager
 from app.games.multi import (
     GAME_TYPES,
     normalise_bingo_state,
+    normalise_checkers_state,
     normalise_domino_state,
     normalise_ludo_state,
 )
@@ -400,6 +401,8 @@ def restore_universal_match(
         normalise_bingo_state(row.state, player_count)
     if row.game_type == "scribble":
         normalise_scribble_state(row.state)
+    if row.game_type == "checkers":
+        normalise_checkers_state(row.state)
     seat_rows = seats or []
     player_ids = {
         seat.user_id: seat.seat_index for seat in seat_rows if seat.user_id is not None
@@ -548,6 +551,8 @@ def game_type_for_name(name: str) -> str | None:
         return "scribble"
     if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
         return "abc-fast-slow"
+    if normalized in {"checkers", "draughts"}:
+        return "checkers"
     return None
 
 
@@ -717,7 +722,7 @@ def user_response(user: User) -> UserResponse:
 
 def game_capacity(game_name: str) -> int:
     normalized = game_name.strip().lower()
-    if normalized in {"connect four", "connect-four", "trivia", "trivia battle"}:
+    if normalized in {"connect four", "connect-four", "trivia", "trivia battle", "checkers", "draughts"}:
         return 2
     if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
         return 4

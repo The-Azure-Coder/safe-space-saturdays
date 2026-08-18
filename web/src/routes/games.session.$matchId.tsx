@@ -10,6 +10,7 @@ import type { DominoState } from '../components/domino-game'
 import { TriviaGame } from '../components/trivia-game'
 import type { TriviaState } from '../components/trivia-game'
 import { ScribbleGame } from '../components/scribble-game'
+import { CheckersGame } from '../components/checkers-game'
 import { GameRoomControls } from '../components/game-room-controls'
 import { GeneralLoader } from '../components/general-loader'
 import type { ScribbleState } from '../components/scribble-game'
@@ -86,7 +87,7 @@ function GameSessionScreen() {
     return <main className="page-content game-play-page"><GeneralLoader label="Loading your game…" /></main>
   if (!match && gameSession.isError)
     return <main className="page-content game-play-page"><GeneralLoader label="Reconnecting to your game…" onRetry={() => void gameSession.refetch()} /></main>
-  const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : match?.game === 'abc-fast-slow' ? 'ABC Fast or Slow' : 'Trivia Battle'
+  const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : match?.game === 'abc-fast-slow' ? 'ABC Fast or Slow' : match?.game === 'checkers' ? 'Checkers' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
   const players = state?.players ?? []
   const seat = Number(state?.seat_index ?? 0)
@@ -105,6 +106,7 @@ function GameSessionScreen() {
     {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} playerIndex={viewerSeat.current} />}
     {match?.game === 'scribble' && <ScribbleGame state={(state ?? {}) as Partial<ScribbleState>} send={send} error={error} />}
     {match?.game === 'abc-fast-slow' && <AbcFastSlowGame state={state ?? {}} send={send} />}
+    {match?.game === 'checkers' && <CheckersGame state={(state ?? {}) as any} send={send} />}
   </main>
 }
 
