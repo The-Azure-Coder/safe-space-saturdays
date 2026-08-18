@@ -1593,6 +1593,8 @@ html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
 .admin-page { max-width: 1180px; }
 .admin-overview { margin: 24px 0 22px; padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--paper) 88%, var(--sage-pale)); box-shadow: var(--shadow); }
 .admin-overview__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+.admin-overview__actions { display: flex; align-items: center; gap: 12px; }
+.admin-notification-result { margin: -6px 0 14px; color: var(--sage-dark); font-size: 12px; }
 .admin-overview__heading h2 { margin: 3px 0 0; font-family: 'Playfair Display', serif; font-size: 25px; }
 .admin-overview__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .admin-metric { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); }

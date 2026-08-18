@@ -53,3 +53,32 @@ def weekly_performers_email(
         f"{text_rows}\n\nSee the leaderboard: {action_url}"
     )
     return html, text
+
+
+DAILY_CHECKIN_MESSAGES = {
+    "Sunday": "A new week does not need a perfect beginning. Take one quiet minute to notice how you are arriving today.",
+    "Monday": "Before the week gathers speed, give yourself a gentle pause. There is no wrong answer—just an honest check-in.",
+    "Tuesday": "You have made it to Tuesday. Notice one feeling, one need, or one small thing that is helping you keep going.",
+    "Wednesday": "Midweek is a good time to come back to yourself. A few thoughtful words can make the rest of the week feel lighter.",
+    "Thursday": "Take a soft moment for yourself today. You can check in without fixing anything or having all the answers.",
+    "Friday": "You are here at the end of another week. Celebrate what you carried, and give yourself space for what you still need.",
+    "Saturday": "Make a little room for rest and reflection today. Safe Space Saturdays is here whenever you feel ready to check in.",
+}
+
+
+def daily_checkin_email(*, day_name: str, action_url: str) -> tuple[str, str]:
+    message = DAILY_CHECKIN_MESSAGES[day_name]
+    body = (
+        f'<p style="margin:0 0 18px;color:#59645d;font-size:16px;line-height:1.65;">{escape(message)}</p>'
+        '<div style="padding:16px 18px;border-radius:13px;background:#edf1e7;color:#59645d;font-size:14px;line-height:1.6;">'
+        "There is no pressure to write a lot. A mood and a few words are enough.</div>"
+    )
+    html = _shell(
+        eyebrow=f"{day_name} check-in",
+        title="How are you arriving today?",
+        body=body,
+        action_label="Take a gentle check-in",
+        action_url=action_url,
+    )
+    text = f"{message}\n\nThere is no pressure to write a lot. A mood and a few words are enough.\n\nTake your check-in: {action_url}"
+    return html, text

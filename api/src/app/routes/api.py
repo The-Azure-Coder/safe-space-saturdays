@@ -9,6 +9,7 @@ from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import cloudinary
 import cloudinary.uploader
@@ -76,10 +77,11 @@ from app.oauth import (
     google_oauth_configured,
     verify_oauth_state,
 )
-from app.notification_templates import weekly_performers_email
+from app.notification_templates import DAILY_CHECKIN_MESSAGES, daily_checkin_email, weekly_performers_email
 from app.schemas import (
     AdminDashboardResponse,
     AdminNotificationResponse,
+    AdminNotificationResult,
     AdminPasswordResetRequest,
     AdminQuoteCreateRequest,
     AdminQuoteUpdateRequest,
@@ -2874,6 +2876,57 @@ async def send_weekly_performer_notification(
         recipients=len(recipients),
         period_start=period_start.date(),
         winners=[name for _, name, _ in winners],
+    )
+
+
+@router.post("/admin/notifications/daily-checkin", response_model=AdminNotificationResult)
+async def send_daily_checkin_notification(
+    admin: CurrentAdmin, db: DbSession
+) -> AdminNotificationResult:
+    if not can_manage_content(admin):
+        raise HTTPException(status_code=403, detail="Staff access required")
+    day_name = datetime.now(ZoneInfo("America/Jamaica")).strftime("%A")
+    recipients = (
+        await db.scalars(
+            select(User).where(
+                User.is_approved.is_(True),
+                User.is_guest.is_(False),
+                User.email_notifications_enabled.is_(True),
+            )
+        )
+    ).all()
+    if not recipients:
+        return AdminNotificationResult(
+            notification="daily_checkin",
+            sent=0,
+            failed=0,
+            recipients=0,
+            message=DAILY_CHECKIN_MESSAGES[day_name],
+        )
+    settings = get_settings()
+    html, text = daily_checkin_email(
+        day_name=day_name,
+        action_url=f"{settings.public_app_url.rstrip('/')}/check-in",
+    )
+    results = await asyncio.gather(
+        *(
+            send_transactional_email(
+                recipient=recipient.email,
+                subject=f"A gentle {day_name} check-in from Safe Space Saturdays",
+                html=html,
+                text=text,
+            )
+            for recipient in recipients
+        ),
+        return_exceptions=True,
+    )
+    sent = sum(result is True for result in results)
+    return AdminNotificationResult(
+        notification="daily_checkin",
+        sent=sent,
+        failed=len(results) - sent,
+        recipients=len(recipients),
+        message=DAILY_CHECKIN_MESSAGES[day_name],
     )
 
 

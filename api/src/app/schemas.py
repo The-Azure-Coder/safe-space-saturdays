@@ -131,6 +131,14 @@ class AdminNotificationResponse(BaseModel):
     winners: list[str]
 
 
+class AdminNotificationResult(BaseModel):
+    notification: str
+    sent: int
+    failed: int
+    recipients: int
+    message: str
+
+
 class AdminPasswordResetRequest(BaseModel):
     password: str = Field(min_length=10, max_length=128)
 
