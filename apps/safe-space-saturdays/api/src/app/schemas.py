@@ -426,3 +426,4 @@ class DashboardResponse(BaseModel):
     latest_check_in: CheckInResponse | None
     rank: int
     level_progress: int
+    daily_checkin_question: str

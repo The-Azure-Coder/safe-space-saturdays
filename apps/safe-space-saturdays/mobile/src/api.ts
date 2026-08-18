@@ -15,7 +15,7 @@ export type User = {
 
 export type Quote = { id: number; text: string; author: string; category: string; is_featured: boolean; saved: boolean }
 export type CheckIn = { id: number; mood: string; needs: string[]; energy: number; stress: number; thoughts: string | null; gratitude: string | null; completed: boolean; created_at: string }
-export type Dashboard = { user: User; featured_quote: Quote | null; latest_check_in: CheckIn | null; rank: number; level_progress: number }
+export type Dashboard = { user: User; featured_quote: Quote | null; latest_check_in: CheckIn | null; rank: number; level_progress: number; daily_checkin_question: string }
 export type Challenge = { id: number; slug: string; title: string; description: string; category: string; icon: string; color: string; xp: number; week_start: string; active_until: string; completed: boolean; completed_at: string | null; reflection: string | null }
 export type Challenges = { week_start: string; active_until: string; completed_count: number; total_count: number; xp_earned: number; challenges: Challenge[] }
 export type Post = { id: number; user_id: number; author_name: string; author_avatar_url: string | null; author_is_online: boolean; text: string; image_url: string | null; post_type: string; quote_id: number | null; like_count: number; dislike_count: number; user_reaction: string | null; comments: Comment[]; comment_count: number; created_at: string }

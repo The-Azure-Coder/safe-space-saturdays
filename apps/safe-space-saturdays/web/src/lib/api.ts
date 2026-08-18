@@ -150,6 +150,7 @@ export type Dashboard = {
   latest_check_in: CheckIn | null
   rank: number
   level_progress: number
+  daily_checkin_question: string
 }
 export type AdminDashboard = {
   total_members: number

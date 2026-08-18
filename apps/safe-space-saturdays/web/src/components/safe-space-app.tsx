@@ -1992,7 +1992,7 @@ function CheckInScreen() {
           <div className="two-column">
             <section className="form-card">
               <h2>
-                <PencilSimple size={24} /> 4. What’s on your mind?
+                <PencilSimple size={24} /> 4. {dashboard.data?.daily_checkin_question ?? 'What’s on your mind today?'}
               </h2>
               <label className="field-label" htmlFor="checkin-thoughts">
                 Your thoughts
