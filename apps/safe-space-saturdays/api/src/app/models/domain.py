@@ -38,6 +38,9 @@ class User(TimestampMixin, Base):
     email_notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    posting_timeout_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
@@ -170,6 +173,7 @@ class Post(TimestampMixin, Base):
     text: Mapped[str] = mapped_column(Text)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_flagged: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     post_type: Mapped[str] = mapped_column(String(30), default="original", server_default="original")
     quote_id: Mapped[int | None] = mapped_column(ForeignKey("quotes.id", ondelete="SET NULL"), nullable=True, index=True)
 

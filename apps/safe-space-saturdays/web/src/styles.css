@@ -97,9 +97,29 @@ main { min-height: 100vh; }
 .pagination-controls .button { min-width: 82px; }
 .post-replies { display: grid; gap: 10px; margin: 14px 0; padding: 12px 14px; border-left: 2px solid var(--sage-pale); background: rgb(232 234 219 / 35%); }
 .post-reply { display: flex; align-items: flex-start; gap: 9px; }
+.post-reply__content { min-width: 0; flex: 1; }
 .post-reply .avatar { width: 30px; height: 30px; border-width: 2px; font-size: 13px; }
 .post-reply strong { font-size: 13px; }
 .post-reply p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.post-reply__edit { display: flex; gap: 6px; margin-top: 6px; }
+.post-reply__edit input { min-width: 0; flex: 1; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
+.edit-reply-button { margin-top: 4px; padding: 0; border: 0; background: transparent; color: var(--sage-dark); font-size: 11px; font-weight: 700; }
+.post-moderation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.post-moderation-actions button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
+.post-moderation-actions button:hover { border-color: var(--orange); color: var(--orange); }
+.community-tabs { display: flex; gap: 8px; margin: 22px 0 16px; border-bottom: 1px solid var(--line); }
+.community-tab { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+.community-tab:hover { color: var(--sage-dark); }
+.community-tab--active { border-bottom-color: var(--sage-dark); color: var(--sage-dark); }
+.announcement-admin-panel { max-width: 820px; margin: 0 auto 28px; padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); box-shadow: var(--shadow); }
+.announcement-admin-panel .announcement-item { margin-top: 12px; }
+.community-feed-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 22px 0 8px; padding: 13px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.community-feed-toolbar > div { display: grid; gap: 3px; }
+.community-feed-toolbar > div strong { font-size: 15px; }
+.community-feed-toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.community-feed-toolbar select { min-width: 138px; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; background: var(--paper); color: var(--ink); font: inherit; font-size: 12px; }
+.post-liked-by { display: flex; align-items: center; gap: 5px; margin: 8px 0 0 !important; color: var(--muted) !important; font-size: 12px; }
+.post-liked-by svg { color: var(--orange); }
 .reply-form { display: flex; gap: 8px; margin-top: 10px; }
 .reply-form input { min-width: 0; flex: 1; min-height: 36px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); }
 .reply-form .button { flex: 0 0 auto; }
@@ -199,6 +219,9 @@ html[data-theme='night'] .theme-option:hover,
 html[data-theme='night'] .theme-option--selected,
 html[data-theme='night'] .reaction-button:hover,
 html[data-theme='night'] .reaction-button--active { background: #385542; color: #ffffff; }
+html[data-theme='night'] .community-tab--active { color: #c7e4c2; border-bottom-color: #c7e4c2; }
+html[data-theme='night'] .announcement-admin-panel { background: #263a31; }
+html[data-theme='night'] .community-feed-toolbar select { background: #21342a; color: var(--ink); }
 html[data-theme='night'] .profile-card--identity,
 html[data-theme='night'] .stat-card,
 html[data-theme='night'] .check-card,
@@ -1558,6 +1581,14 @@ html[data-theme='night'] .checkin-cooldown strong { color: #c7e4c2; }
 @media (max-width: 760px) {
   /* Account actions live in the hamburger menu on mobile. */
   .app-header .profile-menu-wrap { display: none !important; }
+}
+@media (max-width: 620px) {
+  .community-tabs { overflow-x: auto; }
+  .community-tab { flex: 0 0 auto; white-space: nowrap; }
+  .community-feed-toolbar { align-items: stretch; flex-direction: column; }
+  .community-feed-toolbar label { justify-content: space-between; }
+  .community-feed-toolbar select { flex: 1; }
+  .announcement-admin-panel { padding: 18px; }
 }
 @media (max-width: 760px) {
   .leaderboard-hero > .progress-card { order: 2; }

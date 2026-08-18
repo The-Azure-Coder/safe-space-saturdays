@@ -28,7 +28,7 @@ from fastapi import (
 )
 from fastapi.responses import RedirectResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -100,7 +100,9 @@ from app.schemas import (
     CheckInRequest,
     CheckInResponse,
     CommentCreateRequest,
+    CommentUpdateRequest,
     CommentResponse,
+    CommunityModerationRequest,
     DashboardResponse,
     GameActionRequest,
     GameResponse,
@@ -176,6 +178,20 @@ def can_manage_roles(user: User) -> bool:
 
 def can_manage_content(user: User) -> bool:
     return user.role in {"admin", "super_admin", "manager"}
+
+
+def can_moderate_community(user: User) -> bool:
+    return user.role in STAFF_ROLES
+
+
+def ensure_can_post(user: User) -> None:
+    now = datetime.now(UTC)
+    if user.posting_timeout_until and user.posting_timeout_until > now:
+        remaining = int((user.posting_timeout_until - now).total_seconds() // 60) + 1
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail=f"Posting is paused for another {remaining} minute(s).",
+        )
 
 
 def can_review_community_applications(user: User) -> bool:
@@ -1358,6 +1374,14 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
             PostReaction.post_id == post.id, PostReaction.user_id == user_id
         )
     )
+    liked_by = (
+        await db.scalars(
+            select(User.name)
+            .join(PostReaction, PostReaction.user_id == User.id)
+            .where(PostReaction.post_id == post.id, PostReaction.kind == "like")
+            .order_by(User.name.asc())
+        )
+    ).all()
     comment_rows = (
         await db.scalars(
             select(Comment)
@@ -1379,6 +1403,7 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
                 is_online=is_user_online(comment_author) if comment_author else False,
                 text=comment.text,
                 created_at=comment.created_at,
+                mine=comment.user_id == user_id,
             )
         )
     counts = Counter(reactions)
@@ -1396,6 +1421,8 @@ async def post_out(post: Post, user_id: int, db: AsyncSession) -> PostResponse:
         loves=counts["love"],
         my_reaction=my_reaction,
         comments=comment_responses,
+        liked_by=list(liked_by),
+        is_flagged=post.is_flagged,
         mine=post.user_id == user_id,
         post_type=post.post_type,
         shared_quote_id=post.quote_id,
@@ -1511,19 +1538,37 @@ async def save_post_image(image: UploadFile) -> str:
 
 @router.get("/community/posts", response_model=list[PostResponse])
 async def list_posts(
-    user: CurrentUser, db: DbSession, page: int = 1, limit: int = 20
+    user: CurrentUser,
+    db: DbSession,
+    page: int = 1,
+    limit: int = 20,
+    sort: str = "latest",
 ) -> list[PostResponse]:
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    rows = (
-        await db.scalars(
-            select(Post)
-            .where(Post.is_hidden.is_(False))
-            .order_by(Post.created_at.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
+    if sort not in {"latest", "earliest", "most_liked", "most_replied"}:
+        raise HTTPException(status_code=422, detail="Invalid community sort")
+    query = select(Post).where(Post.is_hidden.is_(False))
+    if sort == "earliest":
+        query = query.order_by(Post.created_at.asc())
+    elif sort == "most_liked":
+        query = (
+            query.outerjoin(
+                PostReaction,
+                and_(PostReaction.post_id == Post.id, PostReaction.kind == "like"),
+            )
+            .group_by(Post.id)
+            .order_by(func.count(PostReaction.id).desc(), Post.created_at.desc())
         )
-    ).all()
+    elif sort == "most_replied":
+        query = (
+            query.outerjoin(Comment, Comment.post_id == Post.id)
+            .group_by(Post.id)
+            .order_by(func.count(Comment.id).desc(), Post.created_at.desc())
+        )
+    else:
+        query = query.order_by(Post.created_at.desc())
+    rows = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
     return [await post_out(post, user.id, db) for post in rows]
 
 
@@ -1573,6 +1618,7 @@ async def replied_posts(
 
 @router.post("/community/posts", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 async def create_post(payload: PostCreateRequest, user: CurrentUser, db: DbSession) -> PostResponse:
+    ensure_can_post(user)
     post = Post(user_id=user.id, text=payload.text.strip())
     db.add(post)
     await db.commit()
@@ -1584,6 +1630,7 @@ async def create_post(payload: PostCreateRequest, user: CurrentUser, db: DbSessi
 
 @router.post("/community/posts/from-quote/{quote_id}", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 async def share_quote_to_community(quote_id: int, user: CurrentUser, db: DbSession) -> PostResponse:
+    ensure_can_post(user)
     quote = await db.get(Quote, quote_id)
     if quote is None or quote.approval_status != "approved":
         raise HTTPException(status_code=404, detail="Quote not found")
@@ -1612,6 +1659,7 @@ async def create_post_with_image(
     db: DbSession,
     image: Annotated[UploadFile, File(...)],
 ) -> PostResponse:
+    ensure_can_post(user)
     image_url = await save_post_image(image)
     post = Post(user_id=user.id, text=text.strip(), image_url=image_url)
     db.add(post)
@@ -1651,6 +1699,7 @@ async def react_to_post(
 async def comment_on_post(
     post_id: int, payload: CommentCreateRequest, user: CurrentUser, db: DbSession
 ) -> CommentResponse:
+    ensure_can_post(user)
     if await db.get(Post, post_id) is None:
         raise HTTPException(status_code=404, detail="Post not found")
     comment = Comment(post_id=post_id, user_id=user.id, text=payload.text.strip())
@@ -1665,7 +1714,75 @@ async def comment_on_post(
         is_online=True,
         text=comment.text,
         created_at=comment.created_at,
+        mine=True,
     )
+
+
+@router.patch("/community/comments/{comment_id}", response_model=CommentResponse)
+async def edit_comment(
+    comment_id: int,
+    payload: CommentUpdateRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> CommentResponse:
+    comment = await db.get(Comment, comment_id)
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if comment.user_id != user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own replies")
+    comment.text = payload.text.strip()
+    await db.commit()
+    await db.refresh(comment)
+    return CommentResponse(
+        id=comment.id,
+        post_id=comment.post_id,
+        author=user.name,
+        initials=user.name[0].upper(),
+        avatar_url=user.avatar_url,
+        is_online=True,
+        text=comment.text,
+        created_at=comment.created_at,
+        mine=True,
+    )
+
+
+@router.post("/community/posts/{post_id}/moderation", response_model=PostResponse)
+async def moderate_post(
+    post_id: int,
+    payload: CommunityModerationRequest,
+    moderator: CurrentAdmin,
+    db: DbSession,
+) -> PostResponse:
+    if not can_moderate_community(moderator):
+        raise HTTPException(status_code=403, detail="Community moderation access required")
+    post = await db.get(Post, post_id)
+    if post is None or post.is_hidden:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if payload.action == "flag":
+        post.is_flagged = True
+    elif payload.action == "unflag":
+        post.is_flagged = False
+    else:
+        author = await db.get(User, post.user_id)
+        if author is None:
+            raise HTTPException(status_code=404, detail="Post author not found")
+        author.posting_timeout_until = datetime.now(UTC) + timedelta(hours=2)
+    await db.commit()
+    await db.refresh(post)
+    return await post_out(post, moderator.id, db)
+
+
+@router.delete("/community/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_community_post(
+    post_id: int, moderator: CurrentAdmin, db: DbSession
+) -> None:
+    if not can_moderate_community(moderator):
+        raise HTTPException(status_code=403, detail="Community moderation access required")
+    post = await db.get(Post, post_id)
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    post.is_hidden = True
+    await db.commit()
 
 
 @router.get("/games", response_model=list[GameResponse])
