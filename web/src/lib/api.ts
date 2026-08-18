@@ -135,6 +135,15 @@ export type Quote = {
   approval_status?: 'pending' | 'approved' | 'rejected'
   submitted_by_user_id?: number | null
 }
+export type Announcement = {
+  id: number
+  title: string
+  body: string
+  cta_label: string | null
+  cta_path: string | null
+  is_published: boolean
+  created_at: string
+}
 export type Dashboard = {
   user: User
   featured_quote: Quote | null
@@ -389,6 +398,7 @@ export const api = {
     apiFetch<Quote>(`/api/quotes/${id}/save`, { method: 'POST' }),
   posts: (page = 1, limit = 10, sort = 'latest') =>
     apiFetch<Array<Post>>(`/api/community/posts?page=${page}&limit=${limit}&sort=${encodeURIComponent(sort)}`),
+  announcements: () => apiFetch<Array<Announcement>>('/api/community/announcements'),
   createPost: (text: string, image?: File) => {
     if (image) {
       const body = new FormData()
@@ -582,6 +592,11 @@ export const api = {
     apiFetch<Array<Quote>>(
       `/api/admin/quotes?page=${page}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`,
     ),
+  createAnnouncement: (body: { title: string; body: string; cta_label?: string; cta_path?: string }) =>
+    apiFetch<Announcement>('/api/admin/announcements', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   createAdminQuote: (body: {
     text: string
     author: string

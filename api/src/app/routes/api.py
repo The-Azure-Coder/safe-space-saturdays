@@ -48,6 +48,7 @@ from app.games.scribble import normalise_scribble_state
 from app.games.trivia import normalise_trivia_state
 from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
+    Announcement,
     BugReport,
     CommunityApplication,
     CheckIn,
@@ -86,6 +87,8 @@ from app.schemas import (
     AdminQuoteCreateRequest,
     AdminQuoteUpdateRequest,
     AdminUserUpdateRequest,
+    AnnouncementCreateRequest,
+    AnnouncementResponse,
     AuthResponse,
     BugReportCreateRequest,
     BugReportResponse,
@@ -1570,6 +1573,20 @@ async def list_posts(
         query = query.order_by(Post.created_at.desc())
     rows = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
     return [await post_out(post, user.id, db) for post in rows]
+
+
+@router.get("/community/announcements", response_model=list[AnnouncementResponse])
+async def list_announcements(user: CurrentUser, db: DbSession) -> list[AnnouncementResponse]:
+    del user
+    announcements = (
+        await db.scalars(
+            select(Announcement)
+            .where(Announcement.is_published.is_(True))
+            .order_by(Announcement.created_at.desc())
+            .limit(20)
+        )
+    ).all()
+    return [AnnouncementResponse.model_validate(item) for item in announcements]
 
 
 async def list_activity_posts(
@@ -3111,6 +3128,19 @@ async def admin_quotes(
         query = query.where(Quote.category == category)
     quotes = (await db.scalars(query.offset((page - 1) * limit).limit(limit))).all()
     return [QuoteResponse.model_validate(quote) for quote in quotes]
+
+
+@router.post("/admin/announcements", response_model=AnnouncementResponse, status_code=status.HTTP_201_CREATED)
+async def create_announcement(
+    payload: AnnouncementCreateRequest, admin: CurrentAdmin, db: DbSession
+) -> AnnouncementResponse:
+    if not can_manage_roles(admin):
+        raise HTTPException(status_code=403, detail="Only administrators can post announcements")
+    announcement = Announcement(author_id=admin.id, **payload.model_dump())
+    db.add(announcement)
+    await db.commit()
+    await db.refresh(announcement)
+    return AnnouncementResponse.model_validate(announcement)
 
 
 @router.post("/admin/quotes", response_model=QuoteResponse, status_code=status.HTTP_201_CREATED)
