@@ -2449,6 +2449,12 @@ function CommunityScreen() {
   const [openReplyPostId, setOpenReplyPostId] = useState<number | null>(null)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [editingCommentDraft, setEditingCommentDraft] = useState('')
+  const [removedPostIds, setRemovedPostIds] = useState<number[]>([])
+  const [moderatingPostId, setModeratingPostId] = useState<number | null>(null)
+  const [announcementTitle, setAnnouncementTitle] = useState('')
+  const [announcementBody, setAnnouncementBody] = useState('')
+  const [announcementCtaLabel, setAnnouncementCtaLabel] = useState('')
+  const [announcementCtaPath, setAnnouncementCtaPath] = useState('')
   const [imageFile, setImageFile] = useState<File | undefined>()
   const [imageError, setImageError] = useState('')
   const imageInput = useRef<HTMLInputElement>(null)
@@ -2458,6 +2464,10 @@ function CommunityScreen() {
     profile.data?.role ?? '',
   )
   const canModerateCommunity = staffRoles.has(profile.data?.role ?? '')
+  const announcementsQuery = useQuery({
+    queryKey: ['community-announcements'],
+    queryFn: api.announcements,
+  })
   const postsQuery = useQuery({
     queryKey: ['posts', page, sort],
     queryFn: () => api.posts(page, 10, sort),
@@ -2509,14 +2519,35 @@ function CommunityScreen() {
   const moderatePost = useMutation({
     mutationFn: ({ id, action }: { id: number; action: 'flag' | 'unflag' | 'timeout' }) => api.moderatePost(id, action),
     onSuccess: (updatedPost) => {
+      setModeratingPostId(null)
       queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) =>
         current.map((post) => post.id === updatedPost.id ? updatedPost : post),
       )
     },
+    onError: () => setModeratingPostId(null),
   })
   const deletePost = useMutation({
-    mutationFn: api.deletePost,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' }),
+    mutationFn: (id: number) => api.deletePost(id),
+    onSuccess: (_, id) => {
+      setModeratingPostId(null)
+      setRemovedPostIds((current) => [...current, id])
+    },
+    onError: () => setModeratingPostId(null),
+  })
+  const createAnnouncement = useMutation({
+    mutationFn: () => api.createAnnouncement({
+      title: announcementTitle.trim(),
+      body: announcementBody.trim(),
+      cta_label: announcementCtaLabel.trim() || undefined,
+      cta_path: announcementCtaPath.trim() || undefined,
+    }),
+    onSuccess: () => {
+      setAnnouncementTitle('')
+      setAnnouncementBody('')
+      setAnnouncementCtaLabel('')
+      setAnnouncementCtaPath('')
+      void queryClient.invalidateQueries({ queryKey: ['community-announcements'] })
+    },
   })
   const chooseImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -2581,11 +2612,14 @@ function CommunityScreen() {
           {canSeeAnnouncements && <button className={communityTab === 'announcements' ? 'community-tab community-tab--active' : 'community-tab'} type="button" role="tab" aria-selected={communityTab === 'announcements'} onClick={() => setCommunityTab('announcements')}><Sparkle size={17} /> Announcements · admin</button>}
         </div>
         {communityTab === 'announcements' && canSeeAnnouncements ? <section className="announcement-admin-panel" role="tabpanel">
-          <div className="card-title"><Sparkle size={24} weight="fill" /><span>Announcements</span></div>
-          <p className="announcement-card__intro">This staff-only view keeps community notices together for review before they are shared.</p>
-          <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Game night is here</strong><p>Friendly rooms, bot play, and game-night rules are ready whenever you are.</p><Link to="/games">Explore the games <ArrowRight size={15} /></Link></div></div>
-          <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>ABC Fast or Slow is now available</strong><p>Spin the letter wheel, choose your pace, and race to find creative answers before the timer ends.</p><Link to="/games">Play ABC Fast or Slow <ArrowRight size={15} /></Link></div></div>
-          <div className="announcement-item"><span className="announcement-item__badge announcement-item__badge--sage">Today</span><div><strong>Make space for a check-in</strong><p>A few honest minutes can help you notice what you need.</p><Link to="/check-in">Start a check-in <ArrowRight size={15} /></Link></div></div>
+          <div className="card-title"><Sparkle size={24} weight="fill" /><span>Post an announcement</span></div>
+          <p className="announcement-card__intro">Share a warm update with the whole community. It will appear in the public announcements card.</p>
+          <form className="announcement-compose-form" onSubmit={(event) => { event.preventDefault(); if (announcementTitle.trim() && announcementBody.trim()) createAnnouncement.mutate() }}>
+            <label>Title<input value={announcementTitle} onChange={(event) => setAnnouncementTitle(event.target.value)} maxLength={160} required placeholder="A little good news…" /></label>
+            <label>Message<textarea value={announcementBody} onChange={(event) => setAnnouncementBody(event.target.value)} maxLength={1000} required placeholder="Tell the community what is happening." /></label>
+            <div className="announcement-compose-form__grid"><label>Button label <input value={announcementCtaLabel} onChange={(event) => setAnnouncementCtaLabel(event.target.value)} maxLength={80} placeholder="Explore" /></label><label>Button link <input value={announcementCtaPath} onChange={(event) => setAnnouncementCtaPath(event.target.value)} maxLength={200} placeholder="/games" /></label></div>
+            <button className="button button--primary" type="submit" disabled={!announcementTitle.trim() || !announcementBody.trim() || createAnnouncement.isPending}>{createAnnouncement.isPending ? 'Posting…' : 'Post announcement'}</button>
+          </form>
         </section> : <div className="community-layout">
           <section className="conversation-card">
             <div className="section-row">
@@ -2662,6 +2696,7 @@ function CommunityScreen() {
                     online={post.is_online}
                   />
                   <div className="post-row__body">
+                    {removedPostIds.includes(post.id) ? <div className="moderation-placeholder" role="status"><ShieldCheck size={22} /><div><strong>This post was removed by a moderator.</strong><p>The conversation has been kept calm and safe for everyone.</p></div></div> : <>
                     <div className="post-row__meta">
                       <strong>{post.author}</strong>
                       <span>
@@ -2730,22 +2765,24 @@ function CommunityScreen() {
                                   <form className="post-reply__edit" onSubmit={(event) => { event.preventDefault(); const text = editingCommentDraft.trim(); if (text) editReply.mutate({ id: comment.id, text }) }}>
                                     <input value={editingCommentDraft} onChange={(event) => setEditingCommentDraft(event.target.value)} maxLength={1000} autoFocus />
                                     <button className="button button--secondary button--small" type="submit" disabled={!editingCommentDraft.trim() || editReply.isPending}>Save</button>
-                                    <button className="button button--ghost-dark button--small" type="button" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                                    <button className="button button--secondary button--small" type="button" onClick={() => setEditingCommentId(null)}>Cancel</button>
                                   </form>
                                 ) : <p>{comment.text}</p>}
-                                {comment.mine && editingCommentId !== comment.id && <button className="edit-reply-button" type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentDraft(comment.text) }}>Edit</button>}
+                                {(comment.mine || comment.author === profile.data?.name) && editingCommentId !== comment.id && <button className="edit-reply-button" type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentDraft(comment.text) }}>Edit</button>}
                               </div>
                             </div>
                           ))}
                       </div>
                     )}
+                    {post.is_flagged && <p className="moderation-notice" role="status"><ShieldCheck size={15} /> This post is flagged for moderator review.</p>}
                     {canModerateCommunity && (
                       <div className="post-moderation-actions" aria-label={`Moderation actions for ${post.author}`}>
-                        <button type="button" onClick={() => moderatePost.mutate({ id: post.id, action: post.is_flagged ? 'unflag' : 'flag' })}>{post.is_flagged ? 'Unflag' : 'Flag'}</button>
-                        <button type="button" onClick={() => moderatePost.mutate({ id: post.id, action: 'timeout' })}>Timeout 2h</button>
-                        <button type="button" onClick={() => deletePost.mutate(post.id)}>Remove</button>
+                        <button type="button" disabled={moderatingPostId === post.id} onClick={() => { setModeratingPostId(post.id); moderatePost.mutate({ id: post.id, action: post.is_flagged ? 'unflag' : 'flag' }) }}>{moderatingPostId === post.id ? 'Working…' : post.is_flagged ? 'Unflag' : 'Flag'}</button>
+                        <button type="button" disabled={moderatingPostId === post.id} onClick={() => { setModeratingPostId(post.id); moderatePost.mutate({ id: post.id, action: 'timeout' }) }}>Timeout 2h</button>
+                        <button type="button" disabled={moderatingPostId === post.id} onClick={() => { setModeratingPostId(post.id); deletePost.mutate(post.id) }}>{moderatingPostId === post.id ? 'Removing…' : 'Remove'}</button>
                       </div>
                     )}
+                    </>}
                     {openReplyPostId === post.id && (
                       <form
                         className="reply-form"
@@ -2803,6 +2840,13 @@ function CommunityScreen() {
             />
           </section>
           <aside className="community-sidebar">
+            <section className="announcement-card" aria-labelledby="community-announcements-title">
+              <div className="card-title"><Sparkle size={24} weight="fill" /><span id="community-announcements-title">Community announcements</span></div>
+              <p className="announcement-card__intro">The latest little updates from your Safe Space.</p>
+              <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Game night is here</strong><p>Friendly rooms, bot play, and game-night rules are ready whenever you are.</p><Link to="/games">Explore the games <ArrowRight size={15} /></Link></div></div>
+              <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>ABC Fast or Slow is now available</strong><p>Spin the letter wheel, choose your pace, and race to find creative answers.</p><Link to="/games">Play ABC Fast or Slow <ArrowRight size={15} /></Link></div></div>
+              {(announcementsQuery.data ?? []).map((announcement) => <div className="announcement-item" key={announcement.id}><span className="announcement-item__badge announcement-item__badge--sage">New</span><div><strong>{announcement.title}</strong><p>{announcement.body}</p>{announcement.cta_label && announcement.cta_path && <a href={announcement.cta_path}>{announcement.cta_label} <ArrowRight size={15} /></a>}</div></div>)}
+            </section>
             <section className="guidelines-card">
               <div className="card-title">
                 <Leaf size={24} weight="fill" />

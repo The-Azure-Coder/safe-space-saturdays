@@ -82,6 +82,18 @@ class CommunityApplication(TimestampMixin, Base):
     email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class Announcement(TimestampMixin, Base):
+    __tablename__ = "announcements"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(160))
+    body: Mapped[str] = mapped_column(Text)
+    cta_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    cta_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+
+
 class Session(Base):
     __tablename__ = "sessions"
 

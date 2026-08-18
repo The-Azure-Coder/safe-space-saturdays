@@ -1,4 +1,5 @@
 from app.models.domain import (
+    Announcement,
     BugReport,
     CommunityApplication,
     CheckIn,
@@ -22,6 +23,7 @@ from app.models.domain import (
 )
 
 __all__ = [
+    "Announcement",
     "BugReport",
     "CommunityApplication",
     "CheckIn",

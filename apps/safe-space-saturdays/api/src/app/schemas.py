@@ -106,6 +106,24 @@ class CommunityApplicationResponse(BaseModel):
     email_sent_at: datetime | None
 
 
+class AnnouncementCreateRequest(BaseModel):
+    title: str = Field(min_length=3, max_length=160)
+    body: str = Field(min_length=3, max_length=1000)
+    cta_label: str | None = Field(default=None, max_length=80)
+    cta_path: str | None = Field(default=None, max_length=200)
+
+
+class AnnouncementResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    body: str
+    cta_label: str | None = None
+    cta_path: str | None = None
+    is_published: bool
+    created_at: datetime
+
+
 class AdminDashboardResponse(BaseModel):
     total_members: int
     pending_members: int

@@ -107,6 +107,13 @@ main { min-height: 100vh; }
 .post-moderation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .post-moderation-actions button { padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 700; }
 .post-moderation-actions button:hover { border-color: var(--orange); color: var(--orange); }
+.moderation-placeholder, .moderation-notice { display: flex; align-items: flex-start; gap: 10px; color: var(--muted); }
+.moderation-placeholder { min-height: 74px; align-items: center; padding: 16px; border: 1px dashed var(--line); border-radius: 14px; background: color-mix(in srgb, var(--paper) 70%, var(--orange-pale)); }
+.moderation-placeholder svg, .moderation-notice svg { flex: 0 0 auto; color: var(--orange); }
+.moderation-placeholder strong { display: block; color: var(--ink); font-size: 13px; }
+.moderation-placeholder p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+.moderation-notice { margin: 10px 0 0 !important; font-size: 12px; }
+.post-moderation-actions button:disabled { cursor: wait; opacity: .6; }
 .community-tabs { display: flex; gap: 8px; margin: 22px 0 16px; border-bottom: 1px solid var(--line); }
 .community-tab { display: inline-flex; align-items: center; gap: 8px; padding: 11px 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
 .community-tab:hover { color: var(--sage-dark); }
@@ -274,6 +281,11 @@ html[data-theme='night'] .community-feed-toolbar select { background: #21342a; c
 .community-page .view-replies-button { width: fit-content; padding: 3px 0; border: 0; background: transparent; color: var(--sage-dark); font-size: 12px; font-weight: 750; cursor: pointer; }
 .community-page .announcement-admin-panel { position: relative; overflow: hidden; background: color-mix(in srgb, var(--paper) 86%, var(--orange-pale)); }
 .community-page .announcement-admin-panel::before { position: absolute; top: -48px; right: -34px; width: 150px; height: 150px; border-radius: 50%; background: rgb(222 112 75 / 12%); content: ''; }
+.announcement-compose-form { position: relative; z-index: 1; display: grid; gap: 13px; margin-top: 18px; }
+.announcement-compose-form label { display: grid; gap: 6px; color: var(--ink); font-size: 12px; font-weight: 750; }
+.announcement-compose-form input, .announcement-compose-form textarea { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; background: var(--paper); color: var(--ink); font: inherit; }
+.announcement-compose-form textarea { min-height: 110px; resize: vertical; }
+.announcement-compose-form__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 html[data-theme='night'] .community-page .community-tabs { background: #21342a; }
 html[data-theme='night'] .community-page .community-tab:hover { background: #385542; }
 html[data-theme='night'] .community-page .community-tab--active { background: #7a9b72; color: #17251d; }
@@ -293,6 +305,7 @@ html[data-theme='night'] .community-page .announcement-admin-panel { background:
   .community-page .post-row:hover { transform: none; }
   .community-page .post-composer__controls { align-items: stretch; }
   .community-page .post-composer__controls .button { flex: 1 1 auto; }
+  .announcement-compose-form__grid { grid-template-columns: 1fr; }
 }
 html[data-theme='night'] .profile-card--identity,
 html[data-theme='night'] .stat-card,
