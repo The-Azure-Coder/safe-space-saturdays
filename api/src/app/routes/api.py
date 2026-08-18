@@ -150,6 +150,22 @@ CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 
 STAFF_ROLES = {"admin", "super_admin", "manager", "moderator"}
 
+DAILY_CHECKIN_QUESTIONS = (
+    "What would help this week feel a little more supportive?",
+    "What is one thing you want to carry gently into today?",
+    "Where did you notice a small win, even if it felt ordinary?",
+    "What feeling deserves a little more space today?",
+    "What kind of support would help you feel less alone today?",
+    "What are you looking forward to, even just a little?",
+    "What can you celebrate or gently release from this week?",
+)
+
+
+def daily_checkin_question(current_date: date | None = None) -> str:
+    day = current_date or date.today()
+    sunday_index = (day.weekday() + 1) % 7
+    return DAILY_CHECKIN_QUESTIONS[sunday_index]
+
 
 def leaderboard_period_start(period: str, now: datetime | None = None) -> datetime:
     """Return the inclusive UTC start of a leaderboard period.
@@ -1143,6 +1159,7 @@ async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
         latest_check_in=checkin_response,
         rank=rank,
         level_progress=min(100, (user.xp % 250) * 100 // 250),
+        daily_checkin_question=daily_checkin_question(),
     )
 
 
