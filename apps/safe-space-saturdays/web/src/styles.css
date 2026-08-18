@@ -1822,6 +1822,28 @@ html[data-theme='night'] .carousel-dot--active { background: #b9d8b5; }
 .games-panel .game-grid--games-list .game-tile,
 .games-panel .game-grid--games-expanded .game-tile { min-height: 150px; }
 .games-panel .games-view-more { display: flex; margin: 16px auto 0; }
+
+.checkers-game { --checkers-cream: #fbf2df; --checkers-ink: #24352c; background: var(--paper); }
+.checkers-game__header { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.checkers-game__header h2 { margin: 5px 0 4px; }
+.checkers-game__header p { margin: 0; color: var(--muted); }
+.checkers-game__rule { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--accent); font-size: 12px; white-space: nowrap; }
+.checkers-game__players { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+.checkers-player { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; color: var(--ink); font-size: 13px; }
+.checkers-player.is-active { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent); }
+.checkers-player small { color: var(--muted); font-size: 10px; }
+.checkers-player__dot { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
+.checkers-player__dot--coral { background: #dc765e; }.checkers-player__dot--sage { background: #78967d; }
+.checkers-board { width: min(100%, 560px); aspect-ratio: 1; margin: 20px auto 14px; display: grid; grid-template-columns: repeat(8, 1fr); padding: 9px; border: 1px solid var(--line); border-radius: 20px; background: #e8dbc6; box-shadow: 0 14px 28px rgb(44 62 50 / 12%); overflow: hidden; }
+.checkers-square { position: relative; border: 0; min-width: 0; display: grid; place-items: center; padding: 0; background: var(--checkers-cream); cursor: default; }
+.checkers-square.is-dark { background: var(--checkers-ink); cursor: pointer; }
+.checkers-square.is-selected { box-shadow: inset 0 0 0 4px #f2be60; z-index: 1; }
+.checkers-square.is-target { cursor: pointer; }
+.checkers-target { width: 24%; aspect-ratio: 1; border-radius: 50%; background: #f2be60; box-shadow: 0 0 0 5px rgb(242 190 96 / 20%); }
+.checkers-piece { width: 72%; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; border: 3px solid rgb(255 255 255 / 40%); box-shadow: 0 4px 0 rgb(0 0 0 / 20%), 0 8px 14px rgb(0 0 0 / 16%); color: #fffaf0; transition: transform 180ms ease; }
+.checkers-square:active .checkers-piece { transform: scale(.94); }.checkers-piece--coral { background: #dc765e; }.checkers-piece--sage { background: #78967d; }.checkers-piece.is-king { border-color: #f2be60; }
+.checkers-game__help { text-align: center; color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+@media (max-width: 560px) { .checkers-game__header { display: block; }.checkers-game__rule { margin-top: 12px; width: fit-content; }.checkers-game__players { gap: 7px; }.checkers-player { grid-template-columns: auto 1fr; }.checkers-player small { grid-column: 2; }.checkers-board { padding: 6px; border-radius: 14px; }.checkers-piece { border-width: 2px; } }
 .quotes-page .quote-actions { margin-top: 28px; }
 
 /* Weekly challenges: one calm card language, with theme tokens doing the coloring. */

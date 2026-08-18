@@ -13,8 +13,9 @@ from app.games.connect_four import IllegalMove
 from app.games.scribble import apply_scribble_action, bot_draw_action, new_scribble_state
 from app.games.trivia import apply_trivia_action, new_trivia_state, trivia_bot_action
 from app.games.abc_fast_slow import abc_bot_action, apply_abc_action, new_abc_state, next_abc_round
+from app.games.checkers import checkers_bot_action, apply_checkers_action, new_checkers_state, normalise_checkers_state
 
-GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow"}
+GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow", "checkers"}
 _RNG = random.Random()
 # 52-56 are the five coloured home-lane squares; 57 is the centre HOME.
 LUDO_FINISH = 57
@@ -161,6 +162,8 @@ def new_state(
         return new_scribble_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
     if game_type == "abc-fast-slow":
         return new_abc_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
+    if game_type == "checkers":
+        return new_checkers_state(player_count, bot_players if bot_players is not None else (1,))
     return new_trivia_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
 
 
@@ -608,6 +611,8 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
         if action.get("action") == "next_round":
             return next_abc_round(state)
         return apply_abc_action(state, player, action)
+    if game == "checkers":
+        return apply_checkers_action(state, player, action)
     return apply_trivia_action(state, player, action)
 
 
@@ -667,4 +672,7 @@ def bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
         return bot_draw_action(state)
     if game == "abc-fast-slow":
         return abc_bot_action(state, player)
+    if game == "checkers":
+        normalise_checkers_state(state)
+        return checkers_bot_action(state, player)
     return {"answer": state["correct"] if _RNG.random() > 0.35 else _RNG.randrange(4)}
