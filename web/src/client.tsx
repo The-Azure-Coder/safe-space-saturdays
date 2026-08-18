@@ -1,13 +1,15 @@
-import { createRoot } from 'react-dom/client'
-import { RouterProvider } from '@tanstack/react-router'
-import { getRouter } from './router'
+import { StrictMode, startTransition } from 'react'
+import { hydrateRoot } from 'react-dom/client'
+import { StartClient } from '@tanstack/react-start/client'
 
-const router = getRouter()
-
-createRoot(document).render(
-  
-  <RouterProvider router={router} />,
-)
+startTransition(() => {
+  hydrateRoot(
+    document,
+    <StrictMode>
+      <StartClient />
+    </StrictMode>,
+  )
+})
 
 requestAnimationFrame(() => {
   document.documentElement.dataset.clientReady = 'true'

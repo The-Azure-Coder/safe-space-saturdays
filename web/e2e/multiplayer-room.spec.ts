@@ -36,7 +36,7 @@ test('two authenticated users can fill a human room and take turns in every game
   const games = await gamesResponse.json() as Array<{ id: number; name: string }>
   await catalogueClient.dispose()
 
-  for (const gameName of ['Connect Four', 'Ludo', 'Dominoes', 'Trivia Battle']) {
+  for (const gameName of ['Connect Four', 'Ludo', 'Dominoes', 'Trivia Battle', 'Checkers']) {
     const game = games.find((candidate) => candidate.name === gameName)
     expect(game, `Missing seeded game: ${gameName}`).toBeTruthy()
     const host = await registeredClient(`${gameName.replaceAll(' ', '-')}-host`)
@@ -71,12 +71,55 @@ test('two authenticated users can fill a human room and take turns in every game
         const guestLegalMove = guestState.legal_moves[0]
         const guestMove = await guest.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { tile_index: guestLegalMove.tile_index, side: guestLegalMove.sides[0] } } })
         expect(await guestMove.text()).toContain('match_id')
+      } else if (gameName === 'Checkers') {
+        const hostMove = match.state.legal_moves[0]
+        expect((await host.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { move: { from: hostMove.from, to: hostMove.to } } } })).status()).toBe(200)
+        const guestState = (await (await guest.get(`/api/games/sessions/${match.match_id}`)).json()).state
+        const guestMove = guestState.legal_moves[0]
+        expect((await guest.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { move: { from: guestMove.from, to: guestMove.to } } } })).status()).toBe(200)
       } else {
         expect((await host.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { answer: 0 } } })).status()).toBe(200)
         expect((await guest.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { answer: 0 } } })).status()).toBe(200)
       }
     }
     expect((await host.delete(`/api/games/rooms/${roomId}`)).status()).toBe(204)
+    await host.dispose()
+    await guest.dispose()
+  }
+})
+
+test('two authenticated users can play Checkers in the same human room', async () => {
+  const catalogue = await registeredClient('checkers-catalogue')
+  const gamesResponse = await catalogue.get('/api/games?limit=20')
+  expect(gamesResponse.ok()).toBeTruthy()
+  const games = await gamesResponse.json() as Array<{ id: number; name: string }>
+  const checkers = games.find((game) => game.name === 'Checkers')
+  expect(checkers).toBeTruthy()
+  await catalogue.dispose()
+
+  const host = await registeredClient('checkers-host')
+  const guest = await registeredClient('checkers-guest')
+  let roomId: number | null = null
+  try {
+    roomId = await startHumanRoom(host, guest, checkers!.id, 2)
+    const started = await host.post('/api/games/sessions', { data: { room_id: roomId, fill_with_bots: false } })
+    expect(started.status()).toBe(201)
+    const match = await started.json() as { match_id: string; state: { legal_moves: Array<{ from: number[]; to: number[] }> } }
+    const hostMove = match.state.legal_moves[0]
+    const hostAction = await host.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { move: hostMove } } })
+    expect(hostAction.status()).toBe(200)
+
+    const guestSession = await guest.get(`/api/games/sessions/${match.match_id}`)
+    expect(guestSession.status()).toBe(200)
+    const guestState = (await guestSession.json()).state as { seat_index: number; current_player: number; players: Array<{ name: string; is_bot: boolean }>; legal_moves: Array<{ from: number[]; to: number[] }> }
+    expect(guestState.seat_index).toBe(1)
+    expect(guestState.players[0].is_bot).toBe(false)
+    expect(guestState.players[1].is_bot).toBe(false)
+    expect(guestState.current_player).toBe(1)
+    const guestMove = guestState.legal_moves[0]
+    expect((await guest.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { move: guestMove } } })).status()).toBe(200)
+  } finally {
+    if (roomId !== null) await host.delete(`/api/games/rooms/${roomId}`)
     await host.dispose()
     await guest.dispose()
   }
