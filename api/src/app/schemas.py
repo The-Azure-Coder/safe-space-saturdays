@@ -248,6 +248,8 @@ class PostResponse(BaseModel):
     loves: int
     my_reaction: Literal["like", "dislike", "love"] | None = None
     comments: list["CommentResponse"] = Field(default_factory=list)
+    liked_by: list[str] = Field(default_factory=list)
+    is_flagged: bool = False
     mine: bool
     post_type: Literal["original", "shared_quote"] = "original"
     shared_quote_id: int | None = None
@@ -265,6 +267,14 @@ class CommentCreateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
 
 
+class CommentUpdateRequest(CommentCreateRequest):
+    pass
+
+
+class CommunityModerationRequest(BaseModel):
+    action: Literal["flag", "unflag", "timeout"]
+
+
 class CommentResponse(BaseModel):
     id: int
     post_id: int
@@ -274,6 +284,7 @@ class CommentResponse(BaseModel):
     is_online: bool = False
     text: str
     created_at: datetime
+    mine: bool = False
 
 
 class GameResponse(BaseModel):

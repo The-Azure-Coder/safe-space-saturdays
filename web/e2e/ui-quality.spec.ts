@@ -76,9 +76,8 @@ test('Community stacks into one column on mobile', async ({ page }) => {
   expect(layout).toBe(1)
 })
 
-test('Community announces the ABC Fast or Slow launch', async ({ page }) => {
+test('Community keeps staff announcements private from members', async ({ page }) => {
   await authenticate(page)
   await page.goto('/community', { waitUntil: 'networkidle' })
-  await expect(page.getByText('ABC Fast or Slow is now available')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Play ABC Fast or Slow' })).toHaveAttribute('href', '/games')
+  await expect(page.getByRole('tab', { name: /Announcements · admin/i })).toHaveCount(0)
 })

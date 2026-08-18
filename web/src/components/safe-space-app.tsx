@@ -32,7 +32,6 @@ import {
   Sparkle,
   Star,
   Trophy,
-  ThumbsDown,
   ThumbsUp,
   UserCircle,
   UsersThree,
@@ -2441,18 +2440,27 @@ function QuotesScreen() {
 function CommunityScreen() {
   const [draft, setDraft] = useState('')
   const [page, setPage] = useState(1)
+  const [sort, setSort] = useState('latest')
+  const [communityTab, setCommunityTab] = useState<'feed' | 'announcements'>('feed')
   const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({})
   const [expandedReplies, setExpandedReplies] = useState<
     Record<number, boolean>
   >({})
   const [openReplyPostId, setOpenReplyPostId] = useState<number | null>(null)
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
+  const [editingCommentDraft, setEditingCommentDraft] = useState('')
   const [imageFile, setImageFile] = useState<File | undefined>()
   const [imageError, setImageError] = useState('')
   const imageInput = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
+  const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
+  const canSeeAnnouncements = ['admin', 'super_admin'].includes(
+    profile.data?.role ?? '',
+  )
+  const canModerateCommunity = staffRoles.has(profile.data?.role ?? '')
   const postsQuery = useQuery({
-    queryKey: ['posts', page],
-    queryFn: () => api.posts(page, 10),
+    queryKey: ['posts', page, sort],
+    queryFn: () => api.posts(page, 10, sort),
     refetchInterval: 60_000,
   })
   const create = useMutation({
@@ -2462,7 +2470,7 @@ function CommunityScreen() {
       setImageFile(undefined)
       if (imageInput.current) imageInput.current.value = ''
       if (page === 1) {
-        queryClient.setQueryData<Array<Post>>(['posts', page], (current = []) => [
+        queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) => [
           newPost,
           ...current.filter((post) => post.id !== newPost.id),
         ].slice(0, 10))
@@ -2474,7 +2482,7 @@ function CommunityScreen() {
     mutationFn: ({ id, kind }: { id: number; kind: 'like' | 'dislike' }) =>
       api.react(id, kind),
     onSuccess: (updatedPost) => {
-      queryClient.setQueryData<Array<Post>>(['posts', page], (current = []) =>
+      queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) =>
         current.map((post) => post.id === updatedPost.id ? updatedPost : post),
       )
       void queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' })
@@ -2485,10 +2493,30 @@ function CommunityScreen() {
       api.reply(id, text),
     onSuccess: async (_, variables) => {
       setReplyDrafts((drafts) => ({ ...drafts, [variables.id]: '' }))
-      await queryClient.refetchQueries({ queryKey: ['posts', page], type: 'active' })
+      await queryClient.refetchQueries({ queryKey: ['posts', page, sort], type: 'active' })
       void queryClient.invalidateQueries({ queryKey: ['replied-posts'], refetchType: 'active' })
       setOpenReplyPostId(null)
     },
+  })
+  const editReply = useMutation({
+    mutationFn: ({ id, text }: { id: number; text: string }) => api.editReply(id, text),
+    onSuccess: async () => {
+      setEditingCommentId(null)
+      setEditingCommentDraft('')
+      await queryClient.refetchQueries({ queryKey: ['posts', page, sort], type: 'active' })
+    },
+  })
+  const moderatePost = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'flag' | 'unflag' | 'timeout' }) => api.moderatePost(id, action),
+    onSuccess: (updatedPost) => {
+      queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) =>
+        current.map((post) => post.id === updatedPost.id ? updatedPost : post),
+      )
+    },
+  })
+  const deletePost = useMutation({
+    mutationFn: api.deletePost,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'active' }),
   })
   const chooseImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -2505,6 +2533,9 @@ function CommunityScreen() {
     setImageError('')
     setImageFile(file)
   }
+  useEffect(() => {
+    if (!canSeeAnnouncements && communityTab === 'announcements') setCommunityTab('feed')
+  }, [canSeeAnnouncements, communityTab])
   return (
     <>
       <PageHeader screen="community" />
@@ -2545,7 +2576,17 @@ function CommunityScreen() {
             icon="🪴"
           />
         </div>
-        <div className="community-layout">
+        <div className="community-tabs" role="tablist" aria-label="Community sections">
+          <button className={communityTab === 'feed' ? 'community-tab community-tab--active' : 'community-tab'} type="button" role="tab" aria-selected={communityTab === 'feed'} onClick={() => setCommunityTab('feed')}><ChatCircleDots size={17} /> Community feed</button>
+          {canSeeAnnouncements && <button className={communityTab === 'announcements' ? 'community-tab community-tab--active' : 'community-tab'} type="button" role="tab" aria-selected={communityTab === 'announcements'} onClick={() => setCommunityTab('announcements')}><Sparkle size={17} /> Announcements · admin</button>}
+        </div>
+        {communityTab === 'announcements' && canSeeAnnouncements ? <section className="announcement-admin-panel" role="tabpanel">
+          <div className="card-title"><Sparkle size={24} weight="fill" /><span>Announcements</span></div>
+          <p className="announcement-card__intro">This staff-only view keeps community notices together for review before they are shared.</p>
+          <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Game night is here</strong><p>Friendly rooms, bot play, and game-night rules are ready whenever you are.</p><Link to="/games">Explore the games <ArrowRight size={15} /></Link></div></div>
+          <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>ABC Fast or Slow is now available</strong><p>Spin the letter wheel, choose your pace, and race to find creative answers before the timer ends.</p><Link to="/games">Play ABC Fast or Slow <ArrowRight size={15} /></Link></div></div>
+          <div className="announcement-item"><span className="announcement-item__badge announcement-item__badge--sage">Today</span><div><strong>Make space for a check-in</strong><p>A few honest minutes can help you notice what you need.</p><Link to="/check-in">Start a check-in <ArrowRight size={15} /></Link></div></div>
+        </section> : <div className="community-layout">
           <section className="conversation-card">
             <div className="section-row">
               <div className="card-title">
@@ -2601,6 +2642,10 @@ function CommunityScreen() {
                 </button>
               </div>
             </div>
+            <div className="community-feed-toolbar">
+              <div><span className="eyebrow">The feed</span><strong>What’s being shared</strong></div>
+              <label>Sort by<select aria-label="Sort community posts" value={sort} onChange={(event) => { setSort(event.target.value); setPage(1) }}><option value="latest">Latest</option><option value="earliest">Earliest</option><option value="most_liked">Most liked</option><option value="most_replied">Most replies</option></select></label>
+            </div>
             {postsQuery.isLoading && <ContentSkeleton rows={4} />}
             {(postsQuery.data?.length ?? 0) === 0 && !postsQuery.isLoading ? (
               <EmptyState
@@ -2650,22 +2695,6 @@ function CommunityScreen() {
                         {post.likes}
                       </button>
                       <button
-                        className={
-                          post.my_reaction === 'dislike'
-                            ? 'reaction-button reaction-button--active'
-                            : 'reaction-button'
-                        }
-                        type="button"
-                        aria-label={`Dislike ${post.author}'s post`}
-                        aria-pressed={post.my_reaction === 'dislike'}
-                        onClick={() =>
-                          react.mutate({ id: post.id, kind: 'dislike' })
-                        }
-                      >
-                        <ThumbsDown size={17} weight="fill" />{' '}
-                        <span>Dislike</span> {post.dislikes}
-                      </button>
-                      <button
                         className="reaction-button"
                         type="button"
                         aria-expanded={openReplyPostId === post.id}
@@ -2678,14 +2707,16 @@ function CommunityScreen() {
                         <ChatCircleDots size={17} /> <span>Reply</span>
                       </button>
                     </div>
+                    {post.likes > 0 && <p className="post-liked-by"><ThumbsUp size={15} weight="fill" /> Liked by {post.liked_by.slice(0, 3).join(', ')}{post.likes > 3 ? ` and ${post.likes - 3} more` : ''}</p>}
                     {post.comments.length > 0 && (
                       <div
                         className="post-replies"
                         aria-label={`Replies to ${post.author}'s post`}
                       >
-                        {post.comments
-                          .slice(0, expandedReplies[post.id] ? undefined : 2)
-                          .map((comment) => (
+                        <button className="view-replies-button" type="button" aria-expanded={Boolean(expandedReplies[post.id])} onClick={() => setExpandedReplies((current) => ({ ...current, [post.id]: !current[post.id] }))}>
+                          {expandedReplies[post.id] ? 'Hide replies' : `View ${post.comments.length} repl${post.comments.length === 1 ? 'y' : 'ies'}`}
+                        </button>
+                        {expandedReplies[post.id] && post.comments.map((comment) => (
                             <div className="post-reply" key={comment.id}>
                               <Avatar
                                 initials={comment.initials}
@@ -2693,29 +2724,26 @@ function CommunityScreen() {
                                 imageUrl={comment.avatar_url}
                                 online={comment.is_online}
                               />
-                              <div>
+                              <div className="post-reply__content">
                                 <strong>{comment.author}</strong>
-                                <p>{comment.text}</p>
+                                {editingCommentId === comment.id ? (
+                                  <form className="post-reply__edit" onSubmit={(event) => { event.preventDefault(); const text = editingCommentDraft.trim(); if (text) editReply.mutate({ id: comment.id, text }) }}>
+                                    <input value={editingCommentDraft} onChange={(event) => setEditingCommentDraft(event.target.value)} maxLength={1000} autoFocus />
+                                    <button className="button button--secondary button--small" type="submit" disabled={!editingCommentDraft.trim() || editReply.isPending}>Save</button>
+                                    <button className="button button--ghost-dark button--small" type="button" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                                  </form>
+                                ) : <p>{comment.text}</p>}
+                                {comment.mine && editingCommentId !== comment.id && <button className="edit-reply-button" type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentDraft(comment.text) }}>Edit</button>}
                               </div>
                             </div>
                           ))}
-                        {post.comments.length > 2 && (
-                          <button
-                            className="view-replies-button"
-                            type="button"
-                            aria-expanded={Boolean(expandedReplies[post.id])}
-                            onClick={() =>
-                              setExpandedReplies((current) => ({
-                                ...current,
-                                [post.id]: !current[post.id],
-                              }))
-                            }
-                          >
-                            {expandedReplies[post.id]
-                              ? 'Show fewer replies'
-                              : `View ${post.comments.length - 2} more repl${post.comments.length - 2 === 1 ? 'y' : 'ies'}`}
-                          </button>
-                        )}
+                      </div>
+                    )}
+                    {canModerateCommunity && (
+                      <div className="post-moderation-actions" aria-label={`Moderation actions for ${post.author}`}>
+                        <button type="button" onClick={() => moderatePost.mutate({ id: post.id, action: post.is_flagged ? 'unflag' : 'flag' })}>{post.is_flagged ? 'Unflag' : 'Flag'}</button>
+                        <button type="button" onClick={() => moderatePost.mutate({ id: post.id, action: 'timeout' })}>Timeout 2h</button>
+                        <button type="button" onClick={() => deletePost.mutate(post.id)}>Remove</button>
                       </div>
                     )}
                     {openReplyPostId === post.id && (
@@ -2775,56 +2803,6 @@ function CommunityScreen() {
             />
           </section>
           <aside className="community-sidebar">
-            <section
-              className="announcement-card"
-              aria-labelledby="announcement-title"
-            >
-              <div className="card-title">
-                <Sparkle size={24} weight="fill" />
-                <span id="announcement-title">Announcements</span>
-              </div>
-              <p className="announcement-card__intro">
-                A few things happening around Safe Space Saturdays.
-              </p>
-              <div className="announcement-item">
-                <span className="announcement-item__badge">New</span>
-                <div>
-                  <strong>Game night is here</strong>
-                  <p>
-                    Friendly rooms, bot play, and game-night rules are ready
-                    whenever you are.
-                  </p>
-                  <Link to="/games">
-                    Explore the games <ArrowRight size={15} />
-                  </Link>
-                </div>
-              </div>
-              <div className="announcement-item">
-                <span className="announcement-item__badge">New</span>
-                <div>
-                  <strong>ABC Fast or Slow is now available</strong>
-                  <p>
-                    Spin the letter wheel, choose your pace, and race to find
-                    creative answers before the timer ends.
-                  </p>
-                  <Link to="/games">
-                    Play ABC Fast or Slow <ArrowRight size={15} />
-                  </Link>
-                </div>
-              </div>
-              <div className="announcement-item">
-                <span className="announcement-item__badge announcement-item__badge--sage">
-                  Today
-                </span>
-                <div>
-                  <strong>Make space for a check-in</strong>
-                  <p>A few honest minutes can help you notice what you need.</p>
-                  <Link to="/check-in">
-                    Start a check-in <ArrowRight size={15} />
-                  </Link>
-                </div>
-              </div>
-            </section>
             <section className="guidelines-card">
               <div className="card-title">
                 <Leaf size={24} weight="fill" />
@@ -2858,7 +2836,7 @@ function CommunityScreen() {
               ))}
             </section>
           </aside>
-        </div>
+        </div>}
       </main>
       <PageFooter />
     </>

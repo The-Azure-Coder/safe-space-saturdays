@@ -194,6 +194,7 @@ export type Comment = {
   is_online: boolean
   text: string
   created_at: string
+  mine: boolean
 }
 export type Post = {
   id: number
@@ -209,6 +210,8 @@ export type Post = {
   loves: number
   my_reaction: 'like' | 'dislike' | 'love' | null
   comments: Array<Comment>
+  liked_by: string[]
+  is_flagged: boolean
   mine: boolean
   post_type?: 'original' | 'shared_quote'
   shared_quote_id?: number | null
@@ -384,8 +387,8 @@ export const api = {
     ),
   saveQuote: (id: number) =>
     apiFetch<Quote>(`/api/quotes/${id}/save`, { method: 'POST' }),
-  posts: (page = 1, limit = 10) =>
-    apiFetch<Array<Post>>(`/api/community/posts?page=${page}&limit=${limit}`),
+  posts: (page = 1, limit = 10, sort = 'latest') =>
+    apiFetch<Array<Post>>(`/api/community/posts?page=${page}&limit=${limit}&sort=${encodeURIComponent(sort)}`),
   createPost: (text: string, image?: File) => {
     if (image) {
       const body = new FormData()
@@ -413,6 +416,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+  editReply: (id: number, text: string) =>
+    apiFetch<Comment>(`/api/community/comments/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ text }),
+    }),
+  moderatePost: (id: number, action: 'flag' | 'unflag' | 'timeout') =>
+    apiFetch<Post>(`/api/community/posts/${id}/moderation`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
+  deletePost: (id: number) =>
+    apiFetch<void>(`/api/community/posts/${id}`, { method: 'DELETE' }),
   likedPosts: (page = 1, limit = 5) =>
     apiFetch<Array<Post>>(
       `/api/community/activity/liked?page=${page}&limit=${limit}`,
