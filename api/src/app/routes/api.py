@@ -534,7 +534,17 @@ async def grant_completed_game_rewards(
             GameProgress.user_id == user_id, GameProgress.game_type == match.game_type
         ))
         if progress is None:
-            progress = GameProgress(user_id=user_id, game_type=match.game_type)
+            # ORM defaults are applied during INSERT, but progression is
+            # incremented before the first flush. Initialize the in-memory row
+            # so a player's first win cannot attempt arithmetic on None.
+            progress = GameProgress(
+                user_id=user_id,
+                game_type=match.game_type,
+                wins=0,
+                current_streak=0,
+                best_streak=0,
+                level=1,
+            )
             db.add(progress)
         if winner is not None:
             record_game_progress_result(progress, seat == winner)
