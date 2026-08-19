@@ -579,6 +579,7 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
         )
         replacement["game_level"] = state.get("game_level", 1)
         replacement["game_streak"] = state.get("game_streak", 0)
+        replacement["bot_difficulty"] = state.get("bot_difficulty", "friendly")
         if old_players and replacement.get("players"):
             replacement["players"] = old_players
         for score_key in ("scores", "round_wins"):

@@ -76,13 +76,13 @@ test('a completed Checkers game can be played again', async ({ page }) => {
           game: 'checkers', current_player: 0, winner: null, draw: false,
           players, board: initialCheckersBoard(), chain_piece: null,
           legal_moves: [{ from: [5, 0], to: [4, 1], capture: null }],
-          seat_index: 0, game_level: 1, game_streak: 1,
+          seat_index: 0, game_level: 3, game_streak: 2,
           last_event: 'Your turn. Select a piece to see its legal moves.',
         }
       : {
           game: 'checkers', current_player: 0, winner: 0, draw: false,
           players, board: [[0, 0, 0, 0, 0, 0, 0, 0], ...Array.from({ length: 7 }, () => Array(8).fill(0))],
-          legal_moves: [], seat_index: 0, game_level: 1, game_streak: 1,
+          legal_moves: [], seat_index: 0, game_level: 3, game_streak: 2,
           last_event: 'Checkers Browser Player wins!',
         }
     await route.fulfill({
@@ -102,5 +102,6 @@ test('a completed Checkers game can be played again', async ({ page }) => {
   await expect.poll(() => receivedAction).toEqual({ action: 'play_again' })
   await expect(game.getByRole('button', { name: 'Play again' })).toBeHidden()
   await expect(game.getByText("Checkers Browser Player's turn")).toBeVisible()
+  await expect(game.getByText('Game level 3 · Win streak 2')).toBeVisible()
   await expect(game.locator('.checkers-piece')).toHaveCount(24)
 })
