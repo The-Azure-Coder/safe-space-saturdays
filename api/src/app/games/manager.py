@@ -25,6 +25,8 @@ class LiveMatch:
     player_ids: dict[int, int] = field(default_factory=dict)
     bot_player: Player | None = None
     bot_difficulty: str = "friendly"
+    game_level: int = 1
+    game_streak: int = 0
     starting_player: Player = 1
     players: list[dict[str, Any]] = field(default_factory=list)
     reward_granted: bool = False
@@ -40,6 +42,8 @@ class LiveMatch:
             **serialize(self.state),
             "player": player,
             "players": self.players,
+            "game_level": getattr(self, "game_level", 1),
+            "game_streak": getattr(self, "game_streak", 0),
         }
 
 
@@ -54,6 +58,8 @@ class MatchManager:
         user_id: int,
         with_bot: bool,
         difficulty: str,
+        game_level: int = 1,
+        game_streak: int = 0,
         player_ids: dict[int, int] | None = None,
         player_names: dict[int, str] | None = None,
     ) -> LiveMatch:
@@ -61,6 +67,8 @@ class MatchManager:
             id=str(uuid4()),
             room_id=room_id,
             player_ids={user: seat + 1 for user, seat in (player_ids or {user_id: 0}).items()},
+            game_level=game_level,
+            game_streak=game_streak,
         )
         names = player_names or {}
         match.players = [

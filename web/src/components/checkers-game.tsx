@@ -11,6 +11,8 @@ export type CheckersState = {
   last_event?: string
   chain_piece?: number[] | null
   seat_index?: number
+  game_level?: number
+  game_streak?: number
 }
 
 export function CheckersGame({ state, send }: { state: Partial<CheckersState>; send: (action: Record<string, unknown>) => void }) {
@@ -20,6 +22,7 @@ export function CheckersGame({ state, send }: { state: Partial<CheckersState>; s
   const moves = state.legal_moves ?? []
   const selectedMoves = useMemo(() => selected ? moves.filter((move) => move.from[0] === selected[0] && move.from[1] === selected[1]) : [], [moves, selected])
   const canAct = state.winner === null && state.current_player === seat
+  const finished = state.winner !== null && state.winner !== undefined || state.draw
   const isTarget = (row: number, col: number) => selectedMoves.some((move) => move.to[0] === row && move.to[1] === col)
   const choose = (row: number, col: number) => {
     if (!canAct) return
@@ -33,13 +36,13 @@ export function CheckersGame({ state, send }: { state: Partial<CheckersState>; s
   const player = state.players?.[Number(state.current_player ?? 0)]
   return <section className="mini-game-card checkers-game" aria-label="Checkers game">
     <div className="checkers-game__header">
-      <div><span className="eyebrow">American checkers · 2 players</span><h2>{state.winner !== null && state.winner !== undefined ? `${state.players?.[state.winner]?.name ?? 'Player'} wins!` : `${player?.name ?? 'Player'}'s turn`}</h2><p>{state.last_event ?? 'Select one of your pieces.'}</p></div>
+      <div><span className="eyebrow">American checkers · 2 players</span><h2>{state.winner !== null && state.winner !== undefined ? `${state.players?.[state.winner]?.name ?? 'Player'} wins!` : `${player?.name ?? 'Player'}'s turn`}</h2><p>{state.last_event ?? 'Select one of your pieces.'}</p><small className="game-level-badge">Game level {state.game_level ?? 1} · Win streak {state.game_streak ?? 0}</small></div>
       <div className="checkers-game__rule"><Sparkle size={18} weight="fill" /> Captures are required</div>
     </div>
     <div className="checkers-game__players">
       {(state.players ?? []).map((entry, index) => <div className={`checkers-player ${state.current_player === index ? 'is-active' : ''}`} key={`${entry.name}-${index}`}><span className={`checkers-player__dot checkers-player__dot--${entry.color}`} /> <span>{entry.name}{entry.is_bot ? ' · Bot' : ''}</span><small>{state.current_player === index ? 'Playing' : 'Waiting'}</small></div>)}
     </div>
-    <div className="checkers-board" role="grid" aria-label="Checkers board">
+      <div className="checkers-board" role="grid" aria-label="Checkers board">
       {board.map((row, rowIndex) => row.map((piece, colIndex) => {
         const dark = (rowIndex + colIndex) % 2 === 1
         const chosen = selected?.[0] === rowIndex && selected?.[1] === colIndex
@@ -51,6 +54,10 @@ export function CheckersGame({ state, send }: { state: Partial<CheckersState>; s
         </button>
       }))}
     </div>
+    {finished && <div className="game-result-actions" role="status">
+      <strong>{state.draw ? 'The game ended in a draw.' : 'Ready for another game?'}</strong>
+      <button className="button button--primary button--small" type="button" onClick={() => send({ action: 'play_again' })}>Play again</button>
+    </div>}
     <p className="checkers-game__help">{state.chain_piece ? 'Continue your capture with the same piece.' : canAct ? 'Tap a piece, then tap a highlighted square.' : 'Your opponent is thinking.'}</p>
   </section>
 }

@@ -118,6 +118,7 @@ class AnnouncementResponse(BaseModel):
     id: int
     title: str
     body: str
+    image_url: str | None = None
     cta_label: str | None = None
     cta_path: str | None = None
     is_published: bool
@@ -327,6 +328,7 @@ class RoomResponse(BaseModel):
     match_id: str | None = None
     ready: bool = False
     fill_with_bots: bool = True
+    bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
     invite_token: str | None = None
 
 
@@ -402,6 +404,7 @@ class MoveRequest(BaseModel):
 class GameSessionCreateRequest(BaseModel):
     room_id: int
     fill_with_bots: bool = True
+    bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
 
 
 class GameActionRequest(BaseModel):

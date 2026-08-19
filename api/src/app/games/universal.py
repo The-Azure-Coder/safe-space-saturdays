@@ -85,12 +85,14 @@ class UniversalMatchManager:
         player_ids: dict[int, int] | None = None,
         bot_players: tuple[int, ...] | None = None,
         player_names: dict[int, str] | None = None,
+        bot_difficulty: str = "friendly",
     ) -> UniversalMatch:
         effective_count = player_count if game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow"} else 2
         resolved_bot_players = (
             bot_players if bot_players is not None else tuple(range(1, effective_count))
         )
-        state = new_state(game_type, effective_count, resolved_bot_players)
+        state = new_state(game_type, effective_count, resolved_bot_players, bot_difficulty)
+        state["bot_difficulty"] = bot_difficulty
         for seat, name in (player_names or {}).items():
             if seat < len(state.get("players", [])):
                 state["players"][seat]["name"] = name

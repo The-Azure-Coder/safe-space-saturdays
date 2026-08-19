@@ -44,11 +44,11 @@ function GameRoomLobby() {
         const match = await api.createMatch({
           room_id: roomId,
           with_bot: room.data.fill_with_bots,
-          bot_difficulty: 'friendly',
+          bot_difficulty: room.data.bot_difficulty,
         })
         return { kind: 'connect-four' as const, id: match.match_id }
       }
-      const match = await api.createGameSession(roomId, room.data.fill_with_bots)
+      const match = await api.createGameSession(roomId, room.data.fill_with_bots, room.data.bot_difficulty)
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {

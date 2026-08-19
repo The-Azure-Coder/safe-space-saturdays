@@ -113,7 +113,7 @@ function ConnectFourScreen() {
   return <main className="page-content game-play-page connect-four-page">
     <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>
     <section className="game-play-header">
-      <div><span className="eyebrow">Friendly match · Connect Four</span><h1>Make a line. Take your time.</h1><p>Plan a step ahead and enjoy a bright little game break.</p></div>
+      <div><span className="eyebrow">Friendly match · Connect Four</span><h1>Make a line. Take your time.</h1><p>Plan a step ahead and enjoy a bright little game break.</p><small className="game-level-badge">Game level {match?.game_level ?? 1} · Win streak {match?.game_streak ?? 0}</small></div>
       <div className="game-play-badge"><Sparkle size={20} weight="fill" /><span>{match?.move_count ?? 0} of 42 spaces played</span></div>
     </section>
     {error && <p className="form-error" role="alert">{error}</p>}

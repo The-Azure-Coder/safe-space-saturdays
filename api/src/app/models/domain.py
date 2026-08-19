@@ -88,6 +88,7 @@ class Announcement(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(160))
     body: Mapped[str] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     cta_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
     cta_path: Mapped[str | None] = mapped_column(String(200), nullable=True)
     is_published: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
@@ -263,6 +264,19 @@ class GameWinner(TimestampMixin, Base):
     game_id: Mapped[int] = mapped_column(ForeignKey("games.id", ondelete="CASCADE"))
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     result: Mapped[str] = mapped_column(String(160))
+
+
+class GameProgress(Base):
+    __tablename__ = "game_progress"
+    __table_args__ = (UniqueConstraint("user_id", "game_type", name="uq_game_progress_user_game"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    game_type: Mapped[str] = mapped_column(String(30), index=True)
+    wins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    current_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    best_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class GameMatch(TimestampMixin, Base):

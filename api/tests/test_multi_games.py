@@ -390,6 +390,21 @@ def test_play_again_resets_the_board_but_keeps_scores() -> None:
     assert updated["scores"] == [250, 175]
 
 
+def test_checkers_play_again_requires_a_result_and_resets_the_board() -> None:
+    state = new_state("checkers", player_count=2, bot_players=(1,))
+    with pytest.raises(IllegalMove, match="Finish the current game"):
+        apply_action(state, 0, {"action": "play_again"})
+
+    state["winner"] = 0
+    state["board"] = [[0 for _ in range(8)] for _ in range(8)]
+    updated = apply_action(state, 0, {"action": "play_again"})
+
+    assert updated["winner"] is None
+    assert updated["draw"] is False
+    assert updated["current_player"] == 0
+    assert sum(piece != 0 for row in updated["board"] for piece in row) == 24
+
+
 def test_bingo_marks_drawn_numbers_and_trivia_scores() -> None:
     bingo = new_state("bingo")
     number = bingo["card"][0][0]

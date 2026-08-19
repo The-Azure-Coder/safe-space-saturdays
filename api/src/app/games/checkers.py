@@ -7,6 +7,7 @@ the board; player 1 starts at the top and moves down it. Men are encoded as
 
 from __future__ import annotations
 
+import random
 from typing import Any
 
 from app.games.connect_four import IllegalMove
@@ -185,9 +186,15 @@ def apply_checkers_action(state: dict[str, Any], player: int, action: dict[str, 
     return state
 
 
-def checkers_bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
+def checkers_bot_action(state: dict[str, Any], player: int, difficulty: str = "friendly") -> dict[str, Any]:
     moves = legal_moves(state, player)
     if not moves:
         raise IllegalMove("The bot has no legal checkers move")
-    move = max(moves, key=lambda item: (item.get("capture") is not None, item["to"][0] if player == 0 else -item["to"][0]))
+    move = random.choice(moves) if difficulty == "friendly" else max(
+        moves,
+        key=lambda item: (
+            item.get("capture") is not None,
+            item["to"][0] if player == 0 else -item["to"][0],
+        ),
+    )
     return {"action": "move", "move": {"from": move["from"], "to": move["to"]}}

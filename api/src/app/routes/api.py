@@ -59,6 +59,7 @@ from app.models import (
     Game,
     GameMatch,
     GameMatchPlayer,
+    GameProgress,
     GameRoom,
     GameWinner,
     Post,
@@ -513,6 +514,23 @@ async def grant_completed_game_rewards(
         await grant_game_participation_reward(db, user_id, match_id)
         if winner is not None and seat == winner:
             await grant_game_win_reward(db, user_id, match_id)
+    match = await db.get(GameMatch, match_id)
+    if match is None:
+        return
+    for user_id, seat in player_ids.items():
+        progress = await db.scalar(select(GameProgress).where(
+            GameProgress.user_id == user_id, GameProgress.game_type == match.game_type
+        ))
+        if progress is None:
+            progress = GameProgress(user_id=user_id, game_type=match.game_type)
+            db.add(progress)
+        if winner is not None and seat == winner:
+            progress.wins += 1
+            progress.current_streak += 1
+            progress.best_streak = max(progress.best_streak, progress.current_streak)
+            progress.level = max(1, progress.wins // 3 + 1)
+        elif winner is not None:
+            progress.current_streak = 0
 
 
 async def grant_community_post_reward(db: AsyncSession, user_id: int, post_id: int) -> bool:
@@ -851,6 +869,16 @@ def current_checkin_streak(checkin_dates: Iterable[date], today: date) -> int:
     return streak
 
 
+async def refresh_checkin_streak(user: User, db: AsyncSession) -> None:
+    checkin_dates = await db.scalars(
+        select(CheckIn.created_at).where(
+            CheckIn.user_id == user.id, CheckIn.completed.is_(True)
+        )
+    )
+    dates = [created_at.astimezone(UTC).date() for created_at in checkin_dates if created_at]
+    user.streak = current_checkin_streak(dates, date.today())
+
+
 async def set_session(
     response: Response, db: AsyncSession, user: User, remember_me: bool = True
 ) -> str:
@@ -1074,6 +1102,7 @@ async def logout(request: Request, response: Response, db: DbSession) -> None:
 
 @router.get("/auth/me", response_model=UserResponse)
 async def me(user: CurrentUser, db: DbSession) -> UserResponse:
+    await refresh_checkin_streak(user, db)
     user.last_seen_at = datetime.now(UTC)
     await db.commit()
     return user_response(user)
@@ -1132,6 +1161,7 @@ async def update_avatar(
 
 @router.get("/dashboard", response_model=DashboardResponse)
 async def dashboard(user: CurrentUser, db: DbSession) -> DashboardResponse:
+    await refresh_checkin_streak(user, db)
     latest = await db.scalar(
         select(CheckIn)
         .where(CheckIn.user_id == user.id)
@@ -1873,6 +1903,7 @@ async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomRespon
         is_host=room.host_id == user_id,
         match_id=active_match,
         ready=room_participant_is_ready(room, participant) if participant else False,
+        bot_difficulty=room.bot_difficulty,
         fill_with_bots=room.fill_with_bots,
         invite_token=room.invite_token if participant is not None else None,
     )
@@ -2279,8 +2310,14 @@ async def create_match(
     seats, player_ids, bot_players, player_names = await build_match_seats(
         room, "connect-four", user.id, db, payload.with_bot
     )
+    progress = await db.scalar(select(GameProgress).where(
+        GameProgress.user_id == user.id, GameProgress.game_type == "connect-four"
+    ))
+    game_level = progress.level if progress else 1
+    game_streak = progress.current_streak if progress else 0
+    difficulty = "thoughtful" if game_level >= 2 else payload.bot_difficulty
     match = match_manager.create(
-        room.id, user.id, payload.with_bot, payload.bot_difficulty, player_ids, player_names
+        room.id, user.id, payload.with_bot, difficulty, game_level, game_streak, player_ids, player_names
     )
     room.status = "active"
     await create_persisted_match(
@@ -2447,6 +2484,12 @@ async def create_game_session(
     seats, player_ids, bot_players, player_names = await build_match_seats(
         room, game_type, user.id, db, payload.fill_with_bots
     )
+    progress = await db.scalar(select(GameProgress).where(
+        GameProgress.user_id == user.id, GameProgress.game_type == game_type
+    ))
+    game_level = progress.level if progress else 1
+    game_streak = progress.current_streak if progress else 0
+    difficulty = "thoughtful" if game_level >= 2 else room.bot_difficulty
     match = universal_matches.create(
         room.id,
         user.id,
@@ -2455,7 +2498,10 @@ async def create_game_session(
         player_ids=player_ids,
         bot_players=bot_players,
         player_names=player_names,
+        bot_difficulty=difficulty,
     )
+    match.state["game_level"] = game_level
+    match.state["game_streak"] = game_streak
     room.status = "active"
     await create_persisted_match(db, match.id, room.id, game_type, user.id, match.state, seats)
     await db.commit()
@@ -2614,6 +2660,9 @@ async def list_winners(
         game_name = row.match_id
         match = await db.get(GameMatch, game_name) if game_name else None
         game_label = (match.game_type.replace("-", " ").title() if match else "Game")
+        progress = await db.scalar(select(GameProgress).where(
+            GameProgress.user_id == row.user_id, GameProgress.game_type == (match.game_type if match else "")
+        )) if match else None
         result.append(
             {
                 "position": position,
@@ -2623,6 +2672,8 @@ async def list_winners(
                 "match_points": int(row.xp or 0),
                 "wins": 1,
                 "game": game_label,
+                "level": progress.level if progress else 1,
+                "streak": progress.current_streak if progress else 1,
                 "created_at": row.created_at,
             }
         )
@@ -3154,14 +3205,54 @@ async def admin_quotes(
 
 @router.post("/admin/announcements", response_model=AnnouncementResponse, status_code=status.HTTP_201_CREATED)
 async def create_announcement(
-    payload: AnnouncementCreateRequest, admin: CurrentAdmin, db: DbSession
+    admin: CurrentAdmin,
+    db: DbSession,
+    title: Annotated[str, Form(min_length=3, max_length=160)],
+    body: Annotated[str, Form(min_length=3, max_length=1000)],
+    cta_label: Annotated[str | None, Form(max_length=80)] = None,
+    cta_path: Annotated[str | None, Form(max_length=200)] = None,
+    image: Annotated[UploadFile | None, File()] = None,
 ) -> AnnouncementResponse:
     if not can_manage_roles(admin):
         raise HTTPException(status_code=403, detail="Only administrators can post announcements")
-    announcement = Announcement(author_id=admin.id, **payload.model_dump())
+    image_url = await save_post_image(image) if image else None
+    announcement = Announcement(
+        author_id=admin.id, title=title.strip(), body=body.strip(),
+        cta_label=cta_label.strip() if cta_label else None,
+        cta_path=cta_path.strip() if cta_path else None, image_url=image_url,
+    )
     db.add(announcement)
     await db.commit()
     await db.refresh(announcement)
+    recipients = (await db.scalars(select(User).where(
+        User.email_notifications_enabled.is_(True), User.is_approved.is_(True), User.is_guest.is_(False)
+    ))).all()
+    settings = get_settings()
+    public_image = image_url if not image_url or image_url.startswith("http") else f"{settings.public_app_url.rstrip('/')}{image_url}"
+    image_html = f'<img src="{escape(public_image)}" alt="" style="width:100%;max-width:640px;border-radius:12px;margin:16px 0;">' if public_image else ""
+    for recipient in recipients:
+        cta_html = (
+            f'<a href="{escape(settings.public_app_url.rstrip("/") + (cta_path or "/community"))}" '
+            'style="display:inline-block;padding:12px 18px;border-radius:999px;background:#566946;color:#fffdf8;'
+            'font-weight:700;text-decoration:none;">'
+            f'{escape(cta_label or "Open Safe Space Saturdays")}</a>'
+            if cta_path else ""
+        )
+        await send_transactional_email(
+            recipient=recipient.email, subject=title.strip(),
+            html=(
+                '<div style="margin:0 auto;max-width:640px;padding:32px 24px;background:#f9f5ed;'
+                'font-family:Arial,sans-serif;color:#18362a;">'
+                '<div style="padding:28px;border:1px solid #e9e1d5;border-radius:22px;background:#fffdf8;">'
+                '<p style="margin:0 0 18px;color:#566946;font-size:12px;font-weight:700;letter-spacing:2px;'
+                'text-transform:uppercase;">Safe Space Saturdays</p>'
+                f'<h1 style="margin:0;color:#18362a;font-family:Georgia,serif;font-size:32px;line-height:1.15;">{escape(title.strip())}</h1>'
+                f'{image_html}<p style="color:#5c625e;font-size:16px;line-height:1.6;">{escape(body.strip())}</p>'
+                f'<p style="margin:24px 0 0;">{cta_html}</p>'
+                '</div></div>'
+            ),
+            text=f"{title.strip()}\n\n{body.strip()}",
+        )
     return AnnouncementResponse.model_validate(announcement)
 
 

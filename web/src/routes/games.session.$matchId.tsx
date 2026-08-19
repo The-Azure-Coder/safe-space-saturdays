@@ -68,7 +68,8 @@ function GameSessionScreen() {
   }, [gameSession.data, matchId])
   const send = (action: Record<string, unknown>) => {
     setError('')
-    if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'action', action }))
+    if (action.action === 'play_again') void api.gameAction(matchId, action).then(setMatch).catch((reason: Error) => setError(reason.message))
+    else if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'action', action }))
     else void api.gameAction(matchId, action).then(setMatch).catch((reason: Error) => setError(reason.message))
   }
   const endSession = async () => {
@@ -137,6 +138,26 @@ function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (a
       setPickerRunning(false)
     }
   }, [state.phase])
+  // The picker animation is driven by the shared server phase, so every
+  // connected player sees the wheel spinning as soon as the chooser starts it.
+  useEffect(() => {
+    if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
+    pickerTimer.current = null
+    if (state.phase !== 'letter_picker_running') {
+      setPickerRunning(false)
+      return
+    }
+    const speed = state.picker_speed === 'fast' ? 'fast' : 'slow'
+    setPickerSpeed(speed)
+    setPickerRunning(true)
+    pickerTimer.current = window.setInterval(() => {
+      setPickerIndex((current) => (current + 1) % 26)
+    }, speed === 'fast' ? 80 : 280)
+    return () => {
+      if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
+      pickerTimer.current = null
+    }
+  }, [state.phase, state.picker_speed])
   useEffect(() => {
     timeoutSent.current = false
     if (state.phase !== 'answering' || !state.deadline) return
@@ -161,18 +182,10 @@ function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (a
     if (pickerRunning) return
     setPickerSpeed(speed)
     setPickerIndex(0)
-    setPickerRunning(true)
     send({ action: 'start_picker', speed })
-    if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
-    pickerTimer.current = window.setInterval(() => {
-      setPickerIndex((current) => (current + 1) % 26)
-    }, speed === 'fast' ? 80 : 280)
   }
   const stopPicker = () => {
     if (!pickerRunning) return
-    if (pickerTimer.current !== null) window.clearInterval(pickerTimer.current)
-    pickerTimer.current = null
-    setPickerRunning(false)
     send({ action: 'stop_picker' })
   }
   const voted = state.votes?.[seat] ?? {}
