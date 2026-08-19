@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
-import { ArrowLeft, Sparkle, Trophy } from '@phosphor-icons/react'
+import { ArrowLeft, Eye, Sparkle, Trophy } from '@phosphor-icons/react'
 
 import { LudoGame } from '../components/ludo-game'
 import type { LudoState } from '../components/ludo-game'
@@ -67,6 +67,7 @@ function GameSessionScreen() {
     return () => connection.close()
   }, [gameSession.data, matchId])
   const send = (action: Record<string, unknown>) => {
+    if (match?.spectator) return
     setError('')
     if (action.action === 'play_again') void api.gameAction(matchId, action).then(setMatch).catch((reason: Error) => setError(reason.message))
     else if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'action', action }))
@@ -84,6 +85,7 @@ function GameSessionScreen() {
     }
   }
   const state = match?.state
+  const isSpectator = Boolean(match?.spectator)
   if (!match && gameSession.isPending)
     return <main className="page-content game-play-page"><GeneralLoader label="Loading your game…" /></main>
   if (!match && gameSession.isError)
@@ -97,17 +99,20 @@ function GameSessionScreen() {
     ? opponents.map((player: { name: string; is_bot: boolean }) => player.name).join(', ')
     : 'a friendly opponent'
   return <main className="page-content game-play-page">
-    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>
+    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link>{!isSpectator && <div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>}</div>
     <section className="game-play-header"><div><span className="eyebrow">Friendly match · {title}</span><h1>{isTrivia ? 'Think fast. Stay curious.' : 'Play at your own pace'}</h1><p>{isTrivia ? 'Five bright questions, kind competition, and something new to learn.' : 'Kind competition, clear rules, and a little room to breathe.'}</p></div><div className="game-play-badge"><Sparkle size={22} /> {isTrivia ? '15 seconds per question' : `Playing with ${opponentLabel}`}</div></section>
+    {isSpectator && <p className="spectator-banner" role="status"><Eye size={18} aria-hidden="true" /> You are spectating this live game. The game is read-only.</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    {match?.game !== 'ludo' && match?.game !== 'dominoes' && match?.game !== 'trivia' && state?.winner !== null && state?.winner !== undefined && <div className="game-result"><Trophy size={22} /> {state.winner === seat ? 'You won this round!' : `${players[state.winner]?.name ?? 'Your opponent'} won this round.`}</div>}
-    {match?.game === 'ludo' && <LudoGame state={(state ?? {}) as Partial<LudoState>} send={send} playerIndex={viewerSeat.current} />}
-    {match?.game === 'dominoes' && <DominoGame state={(state ?? {}) as Partial<DominoState>} send={send} error={error} playerIndex={viewerSeat.current} />}
-    {match?.game === 'bingo' && <BingoBoard state={state ?? {}} send={send} />}
-    {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} playerIndex={viewerSeat.current} />}
-    {match?.game === 'scribble' && <ScribbleGame state={(state ?? {}) as Partial<ScribbleState>} send={send} error={error} />}
-    {match?.game === 'abc-fast-slow' && <AbcFastSlowGame state={state ?? {}} send={send} />}
-    {match?.game === 'checkers' && <CheckersGame state={(state ?? {}) as any} send={send} />}
+    {match?.game !== 'ludo' && match?.game !== 'dominoes' && match?.game !== 'trivia' && state?.winner !== null && state?.winner !== undefined && <div className="game-result"><Trophy size={22} /> {isSpectator ? `${players[state.winner]?.name ?? 'A player'} won this round.` : state.winner === seat ? 'You won this round!' : `${players[state.winner]?.name ?? 'Your opponent'} won this round.`}</div>}
+    <div className="spectator-game-view" inert={isSpectator || undefined}>
+      {match?.game === 'ludo' && <LudoGame state={(state ?? {}) as Partial<LudoState>} send={send} playerIndex={isSpectator ? 0 : viewerSeat.current} />}
+      {match?.game === 'dominoes' && <DominoGame state={(state ?? {}) as Partial<DominoState>} send={send} error={error} playerIndex={isSpectator ? 0 : viewerSeat.current} />}
+      {match?.game === 'bingo' && <BingoBoard state={state ?? {}} send={send} />}
+      {match?.game === 'trivia' && <TriviaGame state={(state ?? {}) as Partial<TriviaState>} send={send} error={error} playerIndex={isSpectator ? 0 : viewerSeat.current} />}
+      {match?.game === 'scribble' && <ScribbleGame state={(state ?? {}) as Partial<ScribbleState>} send={send} error={error} />}
+      {match?.game === 'abc-fast-slow' && <AbcFastSlowGame state={state ?? {}} send={send} />}
+      {match?.game === 'checkers' && <CheckersGame state={(state ?? {}) as any} send={send} />}
+    </div>
   </main>
 }
 

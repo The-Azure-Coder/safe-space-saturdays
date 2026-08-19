@@ -1193,6 +1193,8 @@ html[data-theme='night'] .welcome-carousel__controls > button { border-color: va
 .room-row:first-of-type, .winner-row:first-of-type { margin-top: 16px; }
 .room-row > div, .winner-row > div { display: grid; flex: 1; gap: 4px; min-width: 0; }
 .room-row__name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spectator-banner { display: flex; align-items: center; gap: 8px; margin: 14px 0; padding: 11px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--sage-pale); color: var(--sage-dark); font-weight: 700; }
+.spectator-game-view[ inert ] { pointer-events: none; }
 .room-row small, .winner-row small { color: var(--muted); font-size: 12px; }
 .winner-rank { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--sage-dark); font-size: 13px; font-weight: 800; }
 .winner-row--empty { border-top: 0; }

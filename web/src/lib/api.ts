@@ -261,7 +261,7 @@ export type RoomParticipant = {
 export type LeaderboardPeriod = 'day' | 'week' | 'month' | 'all'
 export type RoomInvite = Pick<
   Room,
-  'id' | 'name' | 'game' | 'players' | 'max_players' | 'status'
+  'id' | 'name' | 'game' | 'players' | 'max_players' | 'status' | 'match_id'
 > & { invite_token: string }
 export type Match = {
   match_id: string
@@ -278,12 +278,14 @@ export type Match = {
   players: Array<{ name: string; is_bot: boolean }>
   game_level: number
   game_streak: number
+  spectator: boolean
 }
 export type GameSession = {
   match_id: string
   room_id: number
   game: string
   state: Record<string, any>
+  spectator: boolean
 }
 export type Winner = {
   position: number
@@ -472,7 +474,7 @@ export const api = {
     }),
   joinRoom: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
-  room: (id: number) => apiFetch<Room>(`/api/games/rooms/${id}`),
+  room: (id: number, spectator = false) => apiFetch<Room>(`/api/games/rooms/${id}${spectator ? '?spectate=true' : ''}`),
   roomParticipants: (id: number) =>
     apiFetch<Array<RoomParticipant>>(`/api/games/rooms/${id}/participants`),
   roomInvite: (token: string) =>
@@ -492,6 +494,14 @@ export const api = {
         body: JSON.stringify({ name }),
       },
     ),
+  spectateGuestRoom: (token: string, name: string) =>
+    apiFetch<{ room: Room; user: User }>(
+      `/api/games/rooms/invite/${encodeURIComponent(token)}/spectate`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      },
+    ),
   createMatch: (body: {
     room_id: number
     with_bot: boolean
@@ -501,7 +511,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  match: (id: string) => apiFetch<Match>(`/api/games/matches/${id}`),
+  match: (id: string) => apiFetch<Match>(`/api/games/matches/${id}?spectate=true`),
   move: (id: string, column: number) =>
     apiFetch<Match>(`/api/games/matches/${id}/moves`, {
       method: 'POST',
@@ -526,7 +536,7 @@ export const api = {
       method: 'POST',
     }),
   gameSession: (id: string) =>
-    apiFetch<GameSession>(`/api/games/sessions/${id}`),
+    apiFetch<GameSession>(`/api/games/sessions/${id}?spectate=true`),
   gameAction: (id: string, action: Record<string, any>) =>
     apiFetch<GameSession>(`/api/games/sessions/${id}/actions`, {
       method: 'POST',

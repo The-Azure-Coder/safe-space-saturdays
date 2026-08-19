@@ -329,12 +329,20 @@ async def notify_admins_of_application(
     )
 
 
-def match_response(match: LiveMatch, user_id: int | None = None) -> MatchResponse:
-    return MatchResponse.model_validate(match.snapshot(user_id))
+def match_response(
+    match: LiveMatch, user_id: int | None = None, spectator: bool = False
+) -> MatchResponse:
+    response = MatchResponse.model_validate(match.snapshot(user_id))
+    response.spectator = spectator
+    return response
 
 
-def universal_response(match: UniversalMatch, user_id: int | None = None) -> GameSessionResponse:
-    return GameSessionResponse.model_validate(match.snapshot(user_id))
+def universal_response(
+    match: UniversalMatch, user_id: int | None = None, spectator: bool = False
+) -> GameSessionResponse:
+    response = GameSessionResponse.model_validate(match.snapshot(user_id, spectator=spectator))
+    response.spectator = spectator
+    return response
 
 
 def match_channel(match_id: str) -> str:
@@ -1938,7 +1946,9 @@ async def list_games(
     ]
 
 
-async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomResponse:
+async def room_out(
+    room: GameRoom, user_id: int, db: AsyncSession, spectator: bool = False
+) -> RoomResponse:
     game = await db.get(Game, room.game_id)
     participants = (
         await db.scalar(
@@ -1969,7 +1979,7 @@ async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomRespon
         ready=room_participant_is_ready(room, participant) if participant else False,
         bot_difficulty=room.bot_difficulty,
         fill_with_bots=room.fill_with_bots,
-        invite_token=room.invite_token if participant is not None else None,
+        invite_token=room.invite_token if participant is not None or spectator else None,
     )
 
 
@@ -2026,6 +2036,11 @@ async def get_room_invite(invite_token: str, db: DbSession) -> RoomInviteRespons
     players = await db.scalar(
         select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)
     ) or 0
+    match_id = await db.scalar(
+        select(GameMatch.id)
+        .where(GameMatch.room_id == room.id, GameMatch.status == "active")
+        .limit(1)
+    )
     return RoomInviteResponse(
         id=room.id,
         name=room.name,
@@ -2033,6 +2048,7 @@ async def get_room_invite(invite_token: str, db: DbSession) -> RoomInviteRespons
         players=players,
         max_players=room.max_players,
         status=room.status,
+        match_id=match_id,
         invite_token=room.invite_token,
     )
 
@@ -2100,6 +2116,37 @@ async def join_room_as_guest(
     return GuestRoomJoinResponse(room=guest_room, user=guest_user)
 
 
+@router.post("/games/rooms/invite/{invite_token}/spectate", response_model=GuestRoomJoinResponse)
+async def spectate_room_as_guest(
+    invite_token: str,
+    payload: GuestRoomJoinRequest,
+    response: Response,
+    db: DbSession,
+) -> GuestRoomJoinResponse:
+    room = await db.scalar(select(GameRoom).where(GameRoom.invite_token == invite_token))
+    if room is None or room.status != "active":
+        raise HTTPException(status_code=404, detail="This game is not currently in progress")
+    guest_name = payload.name.strip()
+    existing_guest = await db.scalar(
+        select(User).where(User.is_guest.is_(True), func.lower(User.name) == guest_name.casefold())
+    )
+    guest = existing_guest
+    if guest is None:
+        guest = User(
+            name=guest_name,
+            email=new_guest_email(),
+            password_hash=hash_password(secrets.token_urlsafe(32)),
+            role="guest",
+            is_guest=True,
+            is_approved=True,
+        )
+        db.add(guest)
+        await db.flush()
+    guest_room = await room_out(room, guest.id, db, spectator=True)
+    await set_session(response, db, guest, remember_me=False)
+    return GuestRoomJoinResponse(room=guest_room, user=user_response(guest))
+
+
 @router.post("/games/rooms/{room_id}/join", response_model=RoomResponse)
 async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
     room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
@@ -2129,7 +2176,9 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
 
 
 @router.get("/games/rooms/{room_id}", response_model=RoomResponse)
-async def get_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
+async def get_room(
+    room_id: int, user: CurrentUser, db: DbSession, spectate: bool = False
+) -> RoomResponse:
     room = await db.get(GameRoom, room_id)
     if room is None or room.status not in {"open", "active"}:
         raise HTTPException(status_code=404, detail="Room not available")
@@ -2138,14 +2187,14 @@ async def get_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespon
             RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
         )
     )
-    if participant is None:
+    if participant is None and not (spectate and room.status == "active"):
         raise HTTPException(status_code=403, detail="You are not a participant in this room")
-    return await room_out(room, user.id, db)
+    return await room_out(room, user.id, db, spectator=participant is None)
 
 
 @router.get("/games/rooms/{room_id}/participants", response_model=list[RoomParticipantResponse])
 async def list_room_participants(
-    room_id: int, user: CurrentUser, db: DbSession
+    room_id: int, user: CurrentUser, db: DbSession, spectate: bool = False
 ) -> list[RoomParticipantResponse]:
     room = await db.get(GameRoom, room_id)
     if room is None:
@@ -2155,7 +2204,7 @@ async def list_room_participants(
             RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
         )
     )
-    if membership is None:
+    if membership is None and not (spectate and room.status == "active"):
         raise HTTPException(status_code=403, detail="You are not a participant in this room")
     participants = (
         await db.execute(
@@ -2392,15 +2441,16 @@ async def create_match(
 
 
 @router.get("/games/matches/{match_id}", response_model=MatchResponse)
-async def get_match(match_id: str, user: CurrentUser) -> MatchResponse:
+async def get_match(match_id: str, user: CurrentUser, spectate: bool = False) -> MatchResponse:
     match = match_manager.get(match_id)
     if match is None:
         match, _ = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Match not found")
-    if user.id not in match.player_ids:
+    is_spectator = user.id not in match.player_ids
+    if is_spectator and not spectate:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
-    return match_response(match, user.id)
+    return match_response(match, None if is_spectator else user.id, spectator=is_spectator)
 
 
 @router.post("/games/matches/{match_id}/moves", response_model=MatchResponse)
@@ -2461,16 +2511,20 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
     if match is None:
         match, _ = await hydrate_match(match_id)
     user = await websocket_user(websocket)
-    if match is None or user is None or user.id not in match.player_ids:
+    if match is None or user is None:
         await websocket.close(code=1008)
         return
+    is_spectator = user.id not in match.player_ids
     await websocket.accept()
     match.sockets[websocket] = user.id
     relay_task = asyncio.create_task(relay_remote_events(websocket, match.id))
-    await websocket.send_json({"type": "state", "state": match.snapshot(user.id)})
+    await websocket.send_json({"type": "state", "state": {**match.snapshot(None if is_spectator else user.id), "spectator": is_spectator}})
     try:
         while True:
             message = await websocket.receive_json()
+            if is_spectator:
+                await websocket.send_json({"type": "error", "detail": "Spectators cannot play moves"})
+                continue
             if message.get("type") == "play_again":
                 try:
                     await match_manager.play_again(match, user.id)
@@ -2571,15 +2625,16 @@ async def create_game_session(
 
 
 @router.get("/games/sessions/{match_id}", response_model=GameSessionResponse)
-async def get_game_session(match_id: str, user: CurrentUser) -> GameSessionResponse:
+async def get_game_session(match_id: str, user: CurrentUser, spectate: bool = False) -> GameSessionResponse:
     match = universal_matches.get(match_id)
     if match is None:
         _, match = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Game session not found")
-    if user.id not in match.player_ids:
+    is_spectator = user.id not in match.player_ids
+    if is_spectator and not spectate:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
-    return universal_response(match, user.id)
+    return universal_response(match, None if is_spectator else user.id, spectator=is_spectator)
 
 
 @router.post("/games/sessions/{match_id}/actions", response_model=GameSessionResponse)
@@ -2591,6 +2646,8 @@ async def game_session_action(
         _, match = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Game session not found")
+    if user.id not in match.player_ids:
+        raise HTTPException(status_code=403, detail="Spectators cannot play actions")
     if payload.action.get("action") == "play_again":
         # The completed state is visible before websocket persistence finishes.
         # Settle it here first so a fast replay click cannot lose the win.
@@ -2627,16 +2684,20 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
     if match is None:
         _, match = await hydrate_match(match_id)
     user = await websocket_user(websocket)
-    if match is None or user is None or user.id not in match.player_ids:
+    if match is None or user is None:
         await websocket.close(code=1008)
         return
+    is_spectator = user.id not in match.player_ids
     await websocket.accept()
     match.sockets[websocket] = user.id
     relay_task = asyncio.create_task(relay_remote_universal_events(websocket, match, user.id))
-    await websocket.send_json({"type": "state", "match": match.snapshot(user.id)})
+    await websocket.send_json({"type": "state", "match": match.snapshot(None if is_spectator else user.id, spectator=is_spectator)})
     try:
         while True:
             message = await websocket.receive_json()
+            if is_spectator:
+                await websocket.send_json({"type": "error", "detail": "Spectators cannot play actions"})
+                continue
             if message.get("type") != "action" or not isinstance(message.get("action"), dict):
                 await websocket.send_json({"type": "error", "detail": "Send an action object"})
                 continue

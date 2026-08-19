@@ -3483,6 +3483,27 @@ function GamesScreen() {
                       Enter game
                     </button>
                   )}
+                  {room.status === 'active' && room.match_id && (
+                    <button
+                      className="button button--small button--secondary room-spectate-button"
+                      type="button"
+                      aria-label={`Watch ${room.name}`}
+                      title="Watch game"
+                      onClick={() =>
+                        room.game === 'Connect Four'
+                          ? navigate({
+                              to: '/games/play/$matchId',
+                              params: { matchId: room.match_id! },
+                            })
+                          : navigate({
+                              to: '/games/session/$matchId',
+                              params: { matchId: room.match_id! },
+                            })
+                      }
+                    >
+                      <Eye size={17} aria-hidden="true" /> <span className="sr-only">Watch game</span>
+                    </button>
+                  )}
                 </div>
               ))
             )}
