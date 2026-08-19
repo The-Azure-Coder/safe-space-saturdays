@@ -285,6 +285,13 @@ class ReactionRequest(BaseModel):
 class CommentCreateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
 
+    @model_validator(mode="after")
+    def text_is_not_blank(self) -> "CommentCreateRequest":
+        self.text = self.text.strip()
+        if not self.text:
+            raise ValueError("Comment text cannot be blank")
+        return self
+
 
 class CommentUpdateRequest(CommentCreateRequest):
     pass
