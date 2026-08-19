@@ -139,6 +139,7 @@ export type Announcement = {
   id: number
   title: string
   body: string
+  image_url: string | null
   cta_label: string | null
   cta_path: string | null
   is_published: boolean
@@ -246,6 +247,7 @@ export type Room = {
   match_id: string | null
   ready: boolean
   fill_with_bots: boolean
+  bot_difficulty: 'friendly' | 'thoughtful'
   invite_token?: string | null
 }
 export type RoomParticipant = {
@@ -274,6 +276,8 @@ export type Match = {
   winning_cells: Array<[number, number]>
   player: 1 | 2 | null
   players: Array<{ name: string; is_bot: boolean }>
+  game_level: number
+  game_streak: number
 }
 export type GameSession = {
   match_id: string
@@ -288,6 +292,8 @@ export type Winner = {
   points: number
   match_points: number
   wins: number
+  level: number
+  streak: number
   game: string
   created_at: string
 }
@@ -501,10 +507,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ column }),
     }),
-  createGameSession: (room_id: number, fill_with_bots = true) =>
+  createGameSession: (room_id: number, fill_with_bots = true, bot_difficulty: 'friendly' | 'thoughtful' = 'friendly') =>
     apiFetch<GameSession>('/api/games/sessions', {
       method: 'POST',
-      body: JSON.stringify({ room_id, fill_with_bots }),
+      body: JSON.stringify({ room_id, fill_with_bots, bot_difficulty }),
     }),
   setRoomReady: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/ready`, { method: 'POST' }),
@@ -593,11 +599,16 @@ export const api = {
     apiFetch<Array<Quote>>(
       `/api/admin/quotes?page=${page}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}`,
     ),
-  createAnnouncement: (body: { title: string; body: string; cta_label?: string; cta_path?: string }) =>
-    apiFetch<Announcement>('/api/admin/announcements', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
+  createAnnouncement: (body: { title: string; body: string; cta_label?: string; cta_path?: string; image?: File }) => {
+    const form = new FormData()
+    form.append('title', body.title); form.append('body', body.body)
+    if (body.cta_label) form.append('cta_label', body.cta_label)
+    if (body.cta_path) form.append('cta_path', body.cta_path)
+    if (body.image) form.append('image', body.image)
+    return apiFetch<Announcement>('/api/admin/announcements', {
+      method: 'POST', body: form,
+    })
+  },
   createAdminQuote: (body: {
     text: string
     author: string

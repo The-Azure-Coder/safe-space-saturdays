@@ -25,6 +25,7 @@ test('Connect Four launches, animates a full turn, and fits mobile', async ({ pa
   const game = page.getByRole('region', { name: 'Connect Four game' })
   const board = page.getByRole('grid', { name: 'Six row by seven column Connect Four board' })
   await expect(game).toBeVisible({ timeout: 110_000 })
+  await expect(game.getByText('Game level 1 · Win streak 0')).toBeVisible()
   await expect(board.getByRole('gridcell')).toHaveCount(42)
   await expect(page.getByRole('button', { name: 'Drop coral disc in column 4' })).toBeEnabled()
   await page.screenshot({ path: testInfo.outputPath('connect-four-desktop-empty.png'), fullPage: true })

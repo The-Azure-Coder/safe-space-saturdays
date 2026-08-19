@@ -2079,9 +2079,9 @@ function CheckInScreen() {
               <Quotes size={22} weight="fill" /> <span>Quote of the Day</span>
             </div>
             <blockquote>
-              “You don’t have to have it all figured out to move forward.”
+              “{dashboard.data?.featured_quote?.text ?? 'Take a moment for yourself today.'}”
             </blockquote>
-            <cite>— Unknown</cite>
+            <cite>— {dashboard.data?.featured_quote?.author ?? 'Safe Space Saturdays'}</cite>
           </article>
           <article className="support-card">
             <div className="card-title">
@@ -2463,6 +2463,7 @@ function CommunityScreen() {
   const [announcementBody, setAnnouncementBody] = useState('')
   const [announcementCtaLabel, setAnnouncementCtaLabel] = useState('')
   const [announcementCtaPath, setAnnouncementCtaPath] = useState('')
+  const [announcementImage, setAnnouncementImage] = useState<File | undefined>()
   const [imageFile, setImageFile] = useState<File | undefined>()
   const [imageError, setImageError] = useState('')
   const imageInput = useRef<HTMLInputElement>(null)
@@ -2548,12 +2549,14 @@ function CommunityScreen() {
       body: announcementBody.trim(),
       cta_label: announcementCtaLabel.trim() || undefined,
       cta_path: announcementCtaPath.trim() || undefined,
+      image: announcementImage,
     }),
     onSuccess: () => {
       setAnnouncementTitle('')
       setAnnouncementBody('')
       setAnnouncementCtaLabel('')
       setAnnouncementCtaPath('')
+      setAnnouncementImage(undefined)
       void queryClient.invalidateQueries({ queryKey: ['community-announcements'] })
     },
   })
@@ -2626,6 +2629,7 @@ function CommunityScreen() {
             <label>Title<input value={announcementTitle} onChange={(event) => setAnnouncementTitle(event.target.value)} maxLength={160} required placeholder="A little good news…" /></label>
             <label>Message<textarea value={announcementBody} onChange={(event) => setAnnouncementBody(event.target.value)} maxLength={1000} required placeholder="Tell the community what is happening." /></label>
             <div className="announcement-compose-form__grid"><label>Button label <input value={announcementCtaLabel} onChange={(event) => setAnnouncementCtaLabel(event.target.value)} maxLength={80} placeholder="Explore" /></label><label>Button link <input value={announcementCtaPath} onChange={(event) => setAnnouncementCtaPath(event.target.value)} maxLength={200} placeholder="/games" /></label></div>
+            <label>Image <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setAnnouncementImage(event.target.files?.[0])} /></label>
             <button className="button button--primary" type="submit" disabled={!announcementTitle.trim() || !announcementBody.trim() || createAnnouncement.isPending}>{createAnnouncement.isPending ? 'Posting…' : 'Post announcement'}</button>
           </form>
         </section> : <div className="community-layout">
@@ -2853,7 +2857,7 @@ function CommunityScreen() {
               <p className="announcement-card__intro">The latest little updates from your Safe Space.</p>
               <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Game night is here</strong><p>Friendly rooms, bot play, and game-night rules are ready whenever you are.</p><Link to="/games">Explore the games <ArrowRight size={15} /></Link></div></div>
               <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>ABC Fast or Slow is now available</strong><p>Spin the letter wheel, choose your pace, and race to find creative answers.</p><Link to="/games">Play ABC Fast or Slow <ArrowRight size={15} /></Link></div></div>
-              {(announcementsQuery.data ?? []).map((announcement) => <div className="announcement-item" key={announcement.id}><span className="announcement-item__badge announcement-item__badge--sage">New</span><div><strong>{announcement.title}</strong><p>{announcement.body}</p>{announcement.cta_label && announcement.cta_path && <a href={announcement.cta_path}>{announcement.cta_label} <ArrowRight size={15} /></a>}</div></div>)}
+              {(announcementsQuery.data ?? []).map((announcement) => <div className="announcement-item" key={announcement.id}><span className="announcement-item__badge announcement-item__badge--sage">New</span><div>{announcement.image_url && <img className="announcement-item__image" src={announcement.image_url} alt="" />}</div><div><strong>{announcement.title}</strong><p>{announcement.body}</p>{announcement.cta_label && announcement.cta_path && <a href={announcement.cta_path}>{announcement.cta_label} <ArrowRight size={15} /></a>}</div></div>)}
             </section>
             <section className="guidelines-card">
               <div className="card-title">
@@ -3087,6 +3091,7 @@ function GamesScreen() {
   const [roomGameId, setRoomGameId] = useState<number | null>(null)
   const [roomPlayers, setRoomPlayers] = useState(4)
   const [roomFillBots, setRoomFillBots] = useState(true)
+  const [roomBotDifficulty, setRoomBotDifficulty] = useState<'friendly' | 'thoughtful'>('friendly')
   const [copiedRoomId, setCopiedRoomId] = useState<number | null>(null)
   const [shareRoomId, setShareRoomId] = useState<number | null>(null)
   useEffect(() => {
@@ -3229,6 +3234,7 @@ function GamesScreen() {
                   name: roomName.trim(),
                   max_players: roomPlayers,
                   fill_with_bots: roomFillBots,
+                  bot_difficulty: roomBotDifficulty,
                 })
             }}
           >
@@ -3283,6 +3289,13 @@ function GamesScreen() {
                 <option value="humans">Humans only</option>
               </select>
             </label>
+            {roomFillBots && <label className="field-label">
+              Bot difficulty
+              <select value={roomBotDifficulty} onChange={(event) => setRoomBotDifficulty(event.target.value as 'friendly' | 'thoughtful')}>
+                <option value="friendly">Friendly · relaxed play</option>
+                <option value="thoughtful">Thoughtful · stronger moves</option>
+              </select>
+            </label>}
             <div className="room-create-actions">
               <button
                 className="button button--primary"
@@ -3489,7 +3502,7 @@ function GamesScreen() {
                 <Avatar initials={winner.name.slice(0, 1).toUpperCase()} color={winner.position === 1 ? 'gold' : 'sage'} imageUrl={winner.avatar_url} />
                 <div>
                   <strong>{winner.name}</strong>
-                  <small>+{winner.match_points} XP · {winner.game} · Recent win</small>
+                  <small>{winner.game} · Level {winner.level} · {winner.streak} win streak</small>
                 </div>
               </div>
             )) : !winnersQuery.isLoading && (

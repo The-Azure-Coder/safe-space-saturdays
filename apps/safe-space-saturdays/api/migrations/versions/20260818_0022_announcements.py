@@ -16,6 +16,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("title", sa.String(length=160), nullable=False),
         sa.Column("body", sa.Text(), nullable=False),
+        sa.Column("image_url", sa.String(length=500), nullable=True),
         sa.Column("cta_label", sa.String(length=80), nullable=True),
         sa.Column("cta_path", sa.String(length=200), nullable=True),
         sa.Column("is_published", sa.Boolean(), server_default=sa.true(), nullable=False),

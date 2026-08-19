@@ -63,6 +63,8 @@ main { min-height: 100vh; }
 .announcement-item strong { display: block; margin-bottom: 4px; font-size: 14px; }
 .announcement-item p { margin: 0 0 8px; color: var(--muted); font-size: 13px; line-height: 1.4; }
 .announcement-item a { display: inline-flex; align-items: center; gap: 5px; color: var(--sage-dark); font-size: 13px; font-weight: 700; }
+.announcement-item__image { width: 100%; max-width: 260px; border-radius: 12px; object-fit: cover; }
+.game-level-badge { display: inline-flex; margin-top: 10px; padding: 6px 10px; border: 1px solid rgb(122 140 105 / 28%); border-radius: 999px; background: var(--sage-pale); color: var(--sage-dark); font-size: 12px; font-weight: 700; }
 .coming-soon-banner { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 22px; margin-top: 24px; padding: 24px 28px; border: 1px solid rgb(198 111 81 / 20%); border-radius: 24px; background: linear-gradient(110deg, #fff8ed, #f1f4e8); box-shadow: var(--shadow); }
 .coming-soon-banner__mark { display: grid; width: 62px; height: 62px; place-items: center; border-radius: 20px; background: var(--orange-pale); color: var(--orange); font-size: 31px; transform: rotate(-8deg); }
 .coming-soon-banner h2 { margin: 0; color: var(--ink); font-family: 'Playfair Display', Georgia, serif; font-size: clamp(23px, 2.5vw, 32px); line-height: 1.15; }

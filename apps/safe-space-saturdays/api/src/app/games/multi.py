@@ -79,7 +79,8 @@ def _deal_domino_hands(player_count: int, starting_player: int, force_double_six
 
 
 def new_state(
-    game_type: str, player_count: int = 2, bot_players: tuple[int, ...] | None = None
+    game_type: str, player_count: int = 2, bot_players: tuple[int, ...] | None = None,
+    bot_difficulty: str = "friendly",
 ) -> dict[str, Any]:
     if game_type not in GAME_TYPES:
         raise IllegalMove("This game is not available yet")
@@ -573,7 +574,11 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
         old_players = state.get("players", [])
         player_count = int(state.get("player_count", len(old_players) or 2))
         bot_players = tuple(index for index, entry in enumerate(old_players) if entry.get("is_bot"))
-        replacement = new_state(game, player_count, bot_players)
+        replacement = new_state(
+            game, player_count, bot_players, state.get("bot_difficulty", "friendly")
+        )
+        replacement["game_level"] = state.get("game_level", 1)
+        replacement["game_streak"] = state.get("game_streak", 0)
         if old_players and replacement.get("players"):
             replacement["players"] = old_players
         for score_key in ("scores", "round_wins"):
@@ -674,5 +679,5 @@ def bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
         return abc_bot_action(state, player)
     if game == "checkers":
         normalise_checkers_state(state)
-        return checkers_bot_action(state, player)
+        return checkers_bot_action(state, player, state.get("bot_difficulty", "friendly"))
     return {"answer": state["correct"] if _RNG.random() > 0.35 else _RNG.randrange(4)}
