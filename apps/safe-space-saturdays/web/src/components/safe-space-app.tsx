@@ -536,21 +536,25 @@ function Avatar({
   color = 'sage',
   imageUrl,
   online = false,
+  showPresence = true,
 }: {
   initials: string
   color?: string
   imageUrl?: string | null
   online?: boolean
+  showPresence?: boolean
 }) {
   return (
     <span className={`avatar avatar--${color}`}>
       {imageUrl ? <img src={assetUrl(imageUrl)} alt="" /> : initials}
-      <span
-        className={`avatar__presence${online ? ' avatar__presence--online' : ''}`}
-        role="img"
-        aria-label={online ? 'Online now' : 'Offline'}
-        title={online ? 'Online now' : 'Offline'}
-      />
+      {showPresence && (
+        <span
+          className={`avatar__presence${online ? ' avatar__presence--online' : ''}`}
+          role="img"
+          aria-label={online ? 'Online now' : 'Offline'}
+          title={online ? 'Online now' : 'Offline'}
+        />
+      )}
     </span>
   )
 }
@@ -2457,6 +2461,7 @@ function CommunityScreen() {
   const [openReplyPostId, setOpenReplyPostId] = useState<number | null>(null)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [editingCommentDraft, setEditingCommentDraft] = useState('')
+  const [commentEditError, setCommentEditError] = useState('')
   const [removedPostIds, setRemovedPostIds] = useState<number[]>([])
   const [moderatingPostId, setModeratingPostId] = useState<number | null>(null)
   const [announcementTitle, setAnnouncementTitle] = useState('')
@@ -2522,8 +2527,10 @@ function CommunityScreen() {
     onSuccess: async () => {
       setEditingCommentId(null)
       setEditingCommentDraft('')
+      setCommentEditError('')
       await queryClient.refetchQueries({ queryKey: ['posts', page, sort], type: 'active' })
     },
+    onError: (error) => setCommentEditError(error instanceof Error ? error.message : 'We could not update your reply.'),
   })
   const moderatePost = useMutation({
     mutationFn: ({ id, action }: { id: number; action: 'flag' | 'unflag' | 'timeout' }) => api.moderatePost(id, action),
@@ -2775,12 +2782,13 @@ function CommunityScreen() {
                                 <strong>{comment.author}</strong>
                                 {editingCommentId === comment.id ? (
                                   <form className="post-reply__edit" onSubmit={(event) => { event.preventDefault(); const text = editingCommentDraft.trim(); if (text) editReply.mutate({ id: comment.id, text }) }}>
-                                    <input value={editingCommentDraft} onChange={(event) => setEditingCommentDraft(event.target.value)} maxLength={1000} autoFocus />
+                                    <input aria-label="Edit reply" value={editingCommentDraft} onChange={(event) => { setCommentEditError(''); setEditingCommentDraft(event.target.value) }} maxLength={1000} autoFocus />
                                     <button className="button button--secondary button--small" type="submit" disabled={!editingCommentDraft.trim() || editReply.isPending}>Save</button>
-                                    <button className="button button--secondary button--small" type="button" onClick={() => setEditingCommentId(null)}>Cancel</button>
+                                    <button className="button button--secondary button--small" type="button" onClick={() => { setEditingCommentId(null); setCommentEditError('') }}>Cancel</button>
                                   </form>
                                 ) : <p>{comment.text}</p>}
-                                {(comment.mine || comment.author === profile.data?.name) && editingCommentId !== comment.id && <button className="edit-reply-button" type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentDraft(comment.text) }}>Edit</button>}
+                                {comment.mine && editingCommentId !== comment.id && <button className="edit-reply-button" type="button" onClick={() => { setCommentEditError(''); setEditingCommentId(comment.id); setEditingCommentDraft(comment.text) }}>Edit</button>}
+                                {editingCommentId === comment.id && commentEditError && <p className="form-error" role="alert">{commentEditError}</p>}
                               </div>
                             </div>
                           ))}
@@ -3499,10 +3507,10 @@ function GamesScreen() {
             {winnersQuery.data?.length ? winnersQuery.data.map((winner) => (
               <div className="winner-row" key={`${winner.position}-${winner.name}`}>
                 <span className="winner-rank" aria-label={`Position ${winner.position}`}>{winner.position}</span>
-                <Avatar initials={winner.name.slice(0, 1).toUpperCase()} color={winner.position === 1 ? 'gold' : 'sage'} imageUrl={winner.avatar_url} />
+                <Avatar initials={winner.name.slice(0, 1).toUpperCase()} color={winner.position === 1 ? 'gold' : 'sage'} imageUrl={winner.avatar_url} showPresence={false} />
                 <div>
                   <strong>{winner.name}</strong>
-                  <small>{winner.game} · Level {winner.level} · {winner.streak} win streak</small>
+                  <small>{winner.game} · Level {winner.level}</small>
                 </div>
               </div>
             )) : !winnersQuery.isLoading && (
