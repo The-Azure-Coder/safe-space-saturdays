@@ -254,6 +254,23 @@ def test_domino_snapshot_hides_bot_hands_but_exposes_counts() -> None:
     assert all(len(hand) == 7 for hand in state["hands"])
 
 
+def test_domino_spectator_snapshot_hides_every_hand() -> None:
+    state = new_state("dominoes", player_count=4)
+    match = UniversalMatch(
+        id="domino-spectator-test",
+        room_id=1,
+        game_type="dominoes",
+        state=state,
+        player_ids={1: 0},
+    )
+
+    spectator_state = match.snapshot(spectator=True)["state"]
+
+    assert spectator_state["seat_index"] == -1
+    assert spectator_state["hands"] == [[], [], [], []]
+    assert spectator_state["hand_counts"] == [7, 7, 7, 7]
+
+
 def test_four_player_dominoes_deals_every_tile_and_cycles_turns() -> None:
     state = new_state("dominoes", player_count=4)
     assert state["player_count"] == 4

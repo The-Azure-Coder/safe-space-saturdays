@@ -25,21 +25,28 @@ class UniversalMatch:
     settlement_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reward_granted: bool = False
 
-    def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
+    def snapshot(self, user_id: int | None = None, spectator: bool = False) -> dict[str, Any]:
         public_state = deepcopy(self.state)
-        seat = self.player_ids.get(user_id, 0) if user_id is not None else 0
+        is_spectator = spectator or (user_id is not None and user_id not in self.player_ids)
+        seat = (
+            -1
+            if spectator
+            else self.player_ids.get(user_id, -1)
+            if user_id is not None
+            else 0
+        )
         public_state["seat_index"] = seat
         if self.game_type == "dominoes":
             hands = public_state.get("hands", [])
             public_state["hand_counts"] = [len(hand) for hand in hands]
-            public_state["hands"] = [
+            public_state["hands"] = [[] for _ in hands] if is_spectator else [
                 hands[seat] if index == seat else [] for index in range(len(hands))
             ]
         if self.game_type == "bingo":
             cards = public_state.pop("cards", [])
             marked_cards = public_state.pop("marked_cards", [])
-            public_state["card"] = cards[seat] if seat < len(cards) else []
-            public_state["marked"] = marked_cards[seat] if seat < len(marked_cards) else []
+            public_state["card"] = [] if is_spectator or seat < 0 else cards[seat]
+            public_state["marked"] = [] if is_spectator or seat < 0 else marked_cards[seat]
         if self.game_type == "trivia":
             public_state.pop("clues", None)
             correct = public_state.pop("correct", None)
@@ -48,7 +55,9 @@ class UniversalMatch:
             selected = public_state.get("selected_answers", [])
             public_state["selected_answers"] = [
                 answer
-                if index == seat or public_state.get("phase") in {"reveal", "complete"}
+                if not is_spectator and (
+                    index == seat or public_state.get("phase") in {"reveal", "complete"}
+                )
                 else None
                 for index, answer in enumerate(selected)
             ]
@@ -63,13 +72,16 @@ class UniversalMatch:
                     )
                     if public_state.get("phase") in {"round_result", "finished"}:
                         public_state["hint"] = str(self.state.get("word", "")).upper()
-            public_state["is_drawer"] = seat == drawer
-            public_state["drawer_name"] = public_state.get("players", [{}])[drawer].get("name", "The drawer")
+            public_state["is_drawer"] = not is_spectator and seat == drawer
+            public_state["drawer_name"] = public_state.get("players", [{}])[drawer].get(
+                "name", "The drawer"
+            )
         return {
             "match_id": self.id,
             "room_id": self.room_id,
             "game": self.game_type,
             "state": public_state,
+            "spectator": is_spectator,
         }
 
 

@@ -346,6 +346,7 @@ class RoomInviteResponse(BaseModel):
     players: int
     max_players: int
     status: str
+    match_id: str | None = None
     invite_token: str
 
 
@@ -402,6 +403,7 @@ class MatchResponse(BaseModel):
     winning_cells: list[tuple[int, int]] = Field(default_factory=list)
     player: Literal[1, 2] | None = None
     players: list[dict[str, object]] = Field(default_factory=list)
+    spectator: bool = False
 
 
 class MoveRequest(BaseModel):
@@ -423,6 +425,7 @@ class GameSessionResponse(BaseModel):
     room_id: int
     game: str
     state: dict[str, object]
+    spectator: bool = False
 
 
 class LeaderboardEntry(BaseModel):

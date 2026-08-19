@@ -124,3 +124,50 @@ test('two authenticated users can play Checkers in the same human room', async (
     await guest.dispose()
   }
 })
+
+test('a regular member can spectate a live game without becoming a player', async () => {
+  const catalogue = await registeredClient('spectator-catalogue')
+  const gamesResponse = await catalogue.get('/api/games?limit=20')
+  expect(gamesResponse.ok()).toBeTruthy()
+  const games = await gamesResponse.json() as Array<{ id: number; name: string }>
+  const checkers = games.find((game) => game.name === 'Checkers')
+  expect(checkers).toBeTruthy()
+  await catalogue.dispose()
+
+  const host = await registeredClient('spectator-host')
+  const spectator = await registeredClient('spectator-viewer')
+  let roomId: number | null = null
+  try {
+    const created = await host.post('/api/games/rooms', { data: { game_id: checkers!.id, name: `Spectator room ${Date.now()}`, max_players: 2, fill_with_bots: true } })
+    expect(created.status()).toBe(201)
+    const room = await created.json() as { id: number; invite_token: string }
+    roomId = room.id
+    const started = await host.post('/api/games/sessions', { data: { room_id: room.id, fill_with_bots: true, bot_difficulty: 'friendly' } })
+    expect(started.status()).toBe(201)
+    const match = await started.json() as { match_id: string }
+
+    expect((await spectator.get(`/api/games/sessions/${match.match_id}`)).status()).toBe(403)
+    const watched = await spectator.get(`/api/games/sessions/${match.match_id}?spectate=true`)
+    expect(watched.status()).toBe(200)
+    const watchedBody = await watched.json() as { spectator: boolean; state: { seat_index: number } }
+    expect(watchedBody.spectator).toBe(true)
+    expect(watchedBody.state.seat_index).toBe(-1)
+    expect((await spectator.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { move: { from: [5, 0], to: [4, 1] } } } })).status()).toBe(403)
+
+    const guest = await request.newContext({ baseURL: 'http://localhost:8000' })
+    try {
+      const guestWatch = await guest.post(`/api/games/rooms/invite/${room.invite_token}/spectate`, { data: { name: `Guest watcher ${Date.now()}` } })
+      expect(guestWatch.status()).toBe(200)
+      const guestRoom = await guestWatch.json() as { room: { match_id: string | null }; user: { role: string } }
+      expect(guestRoom.user.role).toBe('guest')
+      expect(guestRoom.room.match_id).toBe(match.match_id)
+      expect((await guest.get(`/api/games/sessions/${match.match_id}?spectate=true`)).status()).toBe(200)
+    } finally {
+      await guest.dispose()
+    }
+  } finally {
+    if (roomId !== null) await host.delete(`/api/games/rooms/${roomId}`)
+    await host.dispose()
+    await spectator.dispose()
+  }
+})

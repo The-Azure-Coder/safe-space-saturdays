@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
-import { ArrowLeft, CaretDown, Robot, Sparkle, Trophy, UserCircle } from '@phosphor-icons/react'
+import { ArrowLeft, CaretDown, Eye, Robot, Sparkle, Trophy, UserCircle } from '@phosphor-icons/react'
 
 import { GeneralLoader } from '../components/general-loader'
 import { API_URL, api, apiRetryDelay, shouldRetryApiRequest } from '../lib/api'
@@ -42,7 +42,7 @@ function ConnectFourScreen() {
       try {
         const message = JSON.parse(String(event.data)) as { type: string; state?: Match; detail?: string }
         if (message.type === 'state' && message.state) {
-          setMatch((current) => ({ ...message.state!, player: message.state!.player ?? current?.player ?? 1 }))
+          setMatch((current) => ({ ...message.state!, player: message.state!.player ?? current?.player ?? 1, spectator: message.state!.spectator ?? current?.spectator ?? false }))
           setPendingColumn(null)
         }
         if (message.type === 'session_ended') window.location.href = '/games'
@@ -72,17 +72,18 @@ function ConnectFourScreen() {
     }
   }
   const playerNumber = match?.player ?? 1
+  const isSpectator = Boolean(match?.spectator)
   const players = match?.players.length === 2
     ? match.players
     : [{ name: 'You', is_bot: false }, { name: 'Milo Bot', is_bot: true }]
   const coralSeat = connectFourSeat(players, 1, playerNumber)
   const sunshineSeat = connectFourSeat(players, 2, playerNumber)
   const ownDiscLabel = playerNumber === 1 ? coralSeat.disc : sunshineSeat.disc
-  const canPlay = Boolean(match && match.current_player === playerNumber && !match.winner && !match.draw && pendingColumn === null)
+  const canPlay = Boolean(!isSpectator && match && match.current_player === playerNumber && !match.winner && !match.draw && pendingColumn === null)
   const status = match?.winner
-    ? match.winner === playerNumber ? 'Four in a row — you won!' : `${players[match.winner - 1]?.name ?? 'Your opponent'} found four this time.`
+    ? isSpectator ? `${players[match.winner - 1]?.name ?? 'A player'} found four this time.` : match.winner === playerNumber ? 'Four in a row — you won!' : `${players[match.winner - 1]?.name ?? 'Your opponent'} found four this time.`
     : match?.draw ? 'Every space filled. A thoughtful draw.'
-      : match?.current_player === playerNumber ? 'Your turn — choose a column.' : `${players[(match?.current_player ?? 1) - 1]?.name ?? 'Your opponent'} is thinking…`
+      : isSpectator ? `${players[(match?.current_player ?? 1) - 1]?.name ?? 'A player'} is thinking…` : match?.current_player === playerNumber ? 'Your turn — choose a column.' : `${players[(match?.current_player ?? 1) - 1]?.name ?? 'Your opponent'} is thinking…`
 
   const play = (column: number) => {
     if (!canPlay || board[0][column] !== 0) return
@@ -99,7 +100,7 @@ function ConnectFourScreen() {
     if (socket.current?.readyState === WebSocket.OPEN) socket.current.send(JSON.stringify({ type: 'play_again' }))
   }
   const endSession = async () => {
-    if (!match || !window.confirm('End this game session and delete its room? This cannot be undone.')) return
+    if (isSpectator || !match || !window.confirm('End this game session and delete its room? This cannot be undone.')) return
     setEnding(true)
     try {
       await api.endRoom(match.room_id)
@@ -111,11 +112,12 @@ function ConnectFourScreen() {
   }
 
   return <main className="page-content game-play-page connect-four-page">
-    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link><div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div></div>
+    <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link>{!isSpectator && <div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>}</div>
     <section className="game-play-header">
       <div><span className="eyebrow">Friendly match · Connect Four</span><h1>Make a line. Take your time.</h1><p>Plan a step ahead and enjoy a bright little game break.</p><small className="game-level-badge">Game level {match?.game_level ?? 1} · Win streak {match?.game_streak ?? 0}</small></div>
       <div className="game-play-badge"><Sparkle size={20} weight="fill" /><span>{match?.move_count ?? 0} of 42 spaces played</span></div>
     </section>
+    {isSpectator && <p className="spectator-banner" role="status"><Eye size={18} aria-hidden="true" /> You are spectating this live game. The board is read-only.</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
 
     <section className="connect-four-shell" aria-label="Connect Four game">
@@ -136,7 +138,7 @@ function ConnectFourScreen() {
       <div className={`connect-four-status${match?.winner ? ' connect-four-status--winner' : ''}`} aria-live="polite">
         {match?.winner ? <Trophy size={22} weight="fill" /> : <span className="connect-four-status__pulse" aria-hidden="true" />}
         <strong>{status}</strong>
-        {(match?.winner || match?.draw) && <button className="button button--small button--primary game-play-again" type="button" onClick={playAgain}>Play again</button>}
+        {(match?.winner || match?.draw) && !isSpectator && <button className="button button--small button--primary game-play-again" type="button" onClick={playAgain}>Play again</button>}
       </div>
 
       <div className="connect-four-stage">
