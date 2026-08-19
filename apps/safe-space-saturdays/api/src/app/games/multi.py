@@ -680,5 +680,10 @@ def bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
         return abc_bot_action(state, player)
     if game == "checkers":
         normalise_checkers_state(state)
-        return checkers_bot_action(state, player, state.get("bot_difficulty", "friendly"))
+        return checkers_bot_action(
+            state,
+            player,
+            state.get("bot_difficulty", "friendly"),
+            int(state.get("game_level", 1)),
+        )
     return {"answer": state["correct"] if _RNG.random() > 0.35 else _RNG.randrange(4)}
