@@ -45,13 +45,14 @@ function GameSessionScreen() {
     const connection = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/api/games/sessions/${matchId}/ws`)
     socket.current = connection
     connection.onmessage = (event) => {
-      const message = JSON.parse(event.data) as { type: string; match?: GameSession; detail?: string; segment?: ScribbleState['live_stroke'] }
+      const message = JSON.parse(event.data) as { type: string; match?: GameSession; spectator_count?: number; detail?: string; segment?: ScribbleState['live_stroke'] }
       if (message.type === 'drawing_segment' && message.segment) {
         const segment = message.segment
         setMatch((current) => current ? { ...current, state: { ...current.state, live_stroke: segment } } : current)
       }
       if (message.type === 'state' && message.match) {
         const nextMatch = message.match
+        nextMatch.spectator_count = message.spectator_count ?? nextMatch.spectator_count ?? 0
         if (nextMatch.state.seat_index === undefined) {
           nextMatch.state.seat_index = viewerSeat.current
         } else {
@@ -59,6 +60,7 @@ function GameSessionScreen() {
         }
         setMatch(nextMatch)
       }
+      if (message.type === 'spectator_count') setMatch((current) => current ? { ...current, spectator_count: message.spectator_count ?? 0 } : current)
       if (message.type === 'session_ended') window.location.href = '/games'
       if (message.type === 'game_changed') window.location.href = '/games'
       if (message.type === 'error') setError(message.detail ?? 'That action was not accepted')
@@ -100,7 +102,7 @@ function GameSessionScreen() {
     : 'a friendly opponent'
   return <main className="page-content game-play-page">
     <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link>{!isSpectator && <div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>}</div>
-    <section className="game-play-header"><div><span className="eyebrow">Friendly match · {title}</span><h1>{isTrivia ? 'Think fast. Stay curious.' : 'Play at your own pace'}</h1><p>{isTrivia ? 'Five bright questions, kind competition, and something new to learn.' : 'Kind competition, clear rules, and a little room to breathe.'}</p></div><div className="game-play-badge"><Sparkle size={22} /> {isTrivia ? '15 seconds per question' : `Playing with ${opponentLabel}`}</div></section>
+    <section className="game-play-header"><div><span className="eyebrow">Friendly match · {title}</span><h1>{isTrivia ? 'Think fast. Stay curious.' : 'Play at your own pace'}</h1><p>{isTrivia ? 'Five bright questions, kind competition, and something new to learn.' : 'Kind competition, clear rules, and a little room to breathe.'}</p></div><div className="game-play-badge"><Sparkle size={22} /> {isTrivia ? '15 seconds per question' : `Playing with ${opponentLabel}`}{(match?.spectator_count ?? 0) > 0 && <span className="spectator-count" aria-label={`${match?.spectator_count} people watching`}><Eye size={17} aria-hidden="true" /> {match?.spectator_count}</span>}</div></section>
     {isSpectator && <p className="spectator-banner" role="status"><Eye size={18} aria-hidden="true" /> You are spectating this live game. The game is read-only.</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     {match?.game !== 'ludo' && match?.game !== 'dominoes' && match?.game !== 'trivia' && state?.winner !== null && state?.winner !== undefined && <div className="game-result"><Trophy size={22} /> {isSpectator ? `${players[state.winner]?.name ?? 'A player'} won this round.` : state.winner === seat ? 'You won this round!' : `${players[state.winner]?.name ?? 'Your opponent'} won this round.`}</div>}

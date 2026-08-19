@@ -34,6 +34,9 @@ class LiveMatch:
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     settlement_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
+    def spectator_count(self) -> int:
+        return sum(user_id not in self.player_ids for user_id in self.sockets.values())
+
     def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
         player = self.player_ids.get(user_id, 1) if user_id is not None else None
         return {
@@ -45,6 +48,7 @@ class LiveMatch:
             "players": self.players,
             "game_level": getattr(self, "game_level", 1),
             "game_streak": getattr(self, "game_streak", 0),
+            "spectator_count": self.spectator_count(),
         }
 
 
@@ -94,6 +98,7 @@ class MatchManager:
         return self.matches.get(match_id)
 
     async def broadcast(self, match: LiveMatch, message: dict[str, Any]) -> None:
+        message = {**message, "spectator_count": match.spectator_count()}
         disconnected: list[WebSocket] = []
         for socket in list(match.sockets):
             try:

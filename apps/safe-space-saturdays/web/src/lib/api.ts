@@ -279,6 +279,7 @@ export type Match = {
   game_level: number
   game_streak: number
   spectator: boolean
+  spectator_count: number
 }
 export type GameSession = {
   match_id: string
@@ -286,6 +287,7 @@ export type GameSession = {
   game: string
   state: Record<string, any>
   spectator: boolean
+  spectator_count: number
 }
 export type Winner = {
   position: number
