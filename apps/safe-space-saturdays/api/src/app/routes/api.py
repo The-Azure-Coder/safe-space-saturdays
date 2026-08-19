@@ -562,6 +562,31 @@ def apply_progress_to_live_match(
         match.state["bot_difficulty"] = "thoughtful"
 
 
+async def settle_completed_match_progress(
+    db: AsyncSession,
+    match: LiveMatch | UniversalMatch,
+    user_id: int,
+) -> bool:
+    async with match.settlement_lock:
+        winner = match.state.winner if isinstance(match, LiveMatch) else match.state.get("winner")
+        draw = match.state.draw if isinstance(match, LiveMatch) else match.state.get("draw", False)
+        if (winner is None and not draw) or match.reward_granted:
+            return False
+
+        # Claim settlement before the first database await. A simultaneous Play
+        # again request waits on this lock, then resets from the updated state.
+        match.reward_granted = True
+        try:
+            progress = await grant_completed_game_rewards(
+                db, match.player_ids, match.id, winner
+            )
+        except Exception:
+            match.reward_granted = False
+            raise
+        apply_progress_to_live_match(match, user_id, progress)
+        return True
+
+
 async def grant_community_post_reward(db: AsyncSession, user_id: int, post_id: int) -> bool:
     key = f"community-post:{post_id}:{user_id}"
     existing = await db.scalar(select(RewardLedger).where(RewardLedger.idempotency_key == key))
@@ -2383,12 +2408,7 @@ async def play_move(
     if persisted is not None:
         await record_state(db, persisted, user.id, {"column": payload.column}, match.snapshot())
     await grant_game_participation_reward(db, user.id, match.id)
-    if (match.state.winner is not None or match.state.draw) and not match.reward_granted:
-        progress = await grant_completed_game_rewards(
-            db, match.player_ids, match.id, match.state.winner
-        )
-        apply_progress_to_live_match(match, user.id, progress)
-        match.reward_granted = True
+    if await settle_completed_match_progress(db, match, user.id):
         if persisted is not None:
             persisted.state = match.snapshot()
             persisted.status = "completed"
@@ -2472,12 +2492,7 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                         db, persisted, user.id, {"column": message["column"]}, match.snapshot()
                     )
                 await grant_game_participation_reward(db, user.id, match.id)
-                if (match.state.winner is not None or match.state.draw) and not match.reward_granted:
-                    progress = await grant_completed_game_rewards(
-                        db, match.player_ids, match.id, match.state.winner
-                    )
-                    apply_progress_to_live_match(match, user.id, progress)
-                    match.reward_granted = True
+                if await settle_completed_match_progress(db, match, user.id):
                     if persisted is not None:
                         persisted.state = match.snapshot()
                 await db.commit()
@@ -2566,6 +2581,10 @@ async def game_session_action(
         _, match = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Game session not found")
+    if payload.action.get("action") == "play_again":
+        # The completed state is visible before websocket persistence finishes.
+        # Settle it here first so a fast replay click cannot lose the win.
+        await settle_completed_match_progress(db, match, user.id)
     try:
         await universal_matches.action(match, user.id, payload.action)
     except IllegalMove as error:
@@ -2578,14 +2597,7 @@ async def game_session_action(
         elif match.state.get("winner") is not None or match.state.get("draw", False):
             persisted.status = "completed"
     await grant_game_participation_reward(db, user.id, match.id)
-    if (
-        match.state.get("winner") is not None or match.state.get("draw", False)
-    ) and not match.reward_granted:
-        progress = await grant_completed_game_rewards(
-            db, match.player_ids, match.id, match.state.get("winner")
-        )
-        apply_progress_to_live_match(match, user.id, progress)
-        match.reward_granted = True
+    if await settle_completed_match_progress(db, match, user.id):
         if persisted is not None:
             persisted.state = dict(match.state)
     await db.commit()
@@ -2650,14 +2662,7 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                     elif match.state.get("winner") is not None or match.state.get("draw", False):
                         persisted.status = "completed"
                 await grant_game_participation_reward(db, user.id, match.id)
-                if (
-                    match.state.get("winner") is not None or match.state.get("draw", False)
-                ) and not match.reward_granted:
-                    progress = await grant_completed_game_rewards(
-                        db, match.player_ids, match.id, match.state.get("winner")
-                    )
-                    apply_progress_to_live_match(match, user.id, progress)
-                    match.reward_granted = True
+                if await settle_completed_match_progress(db, match, user.id):
                     if persisted is not None:
                         persisted.state = dict(match.state)
                 await db.commit()

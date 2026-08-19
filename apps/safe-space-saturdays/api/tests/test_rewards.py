@@ -1,13 +1,17 @@
+import asyncio
+
 import pytest
 
+from app.routes import api as api_routes
 from app.games.multi import apply_action, new_state
-from app.games.universal import UniversalMatch
+from app.games.universal import UniversalMatch, UniversalMatchManager
 from app.models import GameProgress, User
 from app.routes.api import (
     apply_progress_to_live_match,
     grant_community_post_reward,
     grant_completed_game_rewards,
     record_game_progress_result,
+    settle_completed_match_progress,
 )
 
 
@@ -81,3 +85,74 @@ def test_two_checkers_wins_update_level_and_streak_through_play_again() -> None:
     assert replayed["game_level"] == 3
     assert replayed["game_streak"] == 2
     assert replayed["bot_difficulty"] == "thoughtful"
+
+
+@pytest.mark.asyncio
+async def test_checkers_play_again_opens_the_next_round_for_progression() -> None:
+    state = new_state("checkers", player_count=2, bot_players=(1,))
+    state["winner"] = 0
+    match = UniversalMatch(
+        id="checkers-replay",
+        room_id=1,
+        game_type="checkers",
+        state=state,
+        player_ids={7: 0},
+        reward_granted=True,
+    )
+
+    await UniversalMatchManager().action(match, 7, {"action": "play_again"})
+
+    assert match.reward_granted is False
+    assert match.state["winner"] is None
+
+
+@pytest.mark.asyncio
+async def test_fast_checkers_replay_waits_for_progress_settlement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    progress = GameProgress(
+        user_id=7,
+        game_type="checkers",
+        wins=1,
+        current_streak=1,
+        best_streak=1,
+        level=2,
+    )
+    state = new_state("checkers", player_count=2, bot_players=(1,))
+    state["winner"] = 0
+    match = UniversalMatch(
+        id="checkers-fast-replay",
+        room_id=1,
+        game_type="checkers",
+        state=state,
+        player_ids={7: 0},
+    )
+    settlement_started = asyncio.Event()
+    release_settlement = asyncio.Event()
+
+    async def delayed_rewards(*_args: object) -> dict[int, GameProgress]:
+        settlement_started.set()
+        await release_settlement.wait()
+        return {7: progress}
+
+    monkeypatch.setattr(api_routes, "grant_completed_game_rewards", delayed_rewards)
+    websocket_settlement = asyncio.create_task(
+        settle_completed_match_progress(object(), match, 7)  # type: ignore[arg-type]
+    )
+    await settlement_started.wait()
+
+    async def replay_immediately() -> None:
+        await settle_completed_match_progress(object(), match, 7)  # type: ignore[arg-type]
+        await UniversalMatchManager().action(match, 7, {"action": "play_again"})
+
+    replay = asyncio.create_task(replay_immediately())
+    await asyncio.sleep(0)
+    assert replay.done() is False
+
+    release_settlement.set()
+    await asyncio.gather(websocket_settlement, replay)
+
+    assert match.state["winner"] is None
+    assert match.state["game_level"] == 2
+    assert match.state["game_streak"] == 1
+    assert match.reward_granted is False

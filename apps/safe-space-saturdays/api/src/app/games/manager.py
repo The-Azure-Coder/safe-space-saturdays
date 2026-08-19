@@ -32,6 +32,7 @@ class LiveMatch:
     reward_granted: bool = False
     sockets: dict[WebSocket, int] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    settlement_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
         player = self.player_ids.get(user_id, 1) if user_id is not None else None
