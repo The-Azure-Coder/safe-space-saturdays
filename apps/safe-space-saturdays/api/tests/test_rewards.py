@@ -1,11 +1,15 @@
 import asyncio
+from typing import Any
 
 import pytest
+import sqlalchemy as sa
+from sqlalchemy.orm import Session
 
-from app.routes import api as api_routes
 from app.games.multi import apply_action, new_state
 from app.games.universal import UniversalMatch, UniversalMatchManager
-from app.models import GameProgress, User
+from app.models import GameMatch, GameProgress, User
+from app.models.base import Base
+from app.routes import api as api_routes
 from app.routes.api import (
     apply_progress_to_live_match,
     grant_community_post_reward,
@@ -30,6 +34,22 @@ class FakeRewardDb:
         self.ledger.append(value)
 
 
+class AsyncSessionAdapter:
+    """Exercise async reward code against a real SQLAlchemy database session."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    async def scalar(self, statement: object) -> Any:
+        return self.session.scalar(statement)  # type: ignore[arg-type]
+
+    async def get(self, model: type[object], identity: object) -> Any:
+        return self.session.get(model, identity)
+
+    def add(self, value: object) -> None:
+        self.session.add(value)
+
+
 @pytest.mark.asyncio
 async def test_completed_game_rewards_every_human_and_maps_winner_seat() -> None:
     winner = User(id=11, xp=20, level=1)
@@ -41,6 +61,56 @@ async def test_completed_game_rewards_every_human_and_maps_winner_seat() -> None
     assert winner.xp == 35
     assert participant.xp == 25
     assert len(db.ledger) == 3
+
+
+@pytest.mark.asyncio
+async def test_first_checkers_win_creates_numeric_progress_in_database() -> None:
+    engine = sa.create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(
+            User(
+                id=7,
+                name="First Winner",
+                email="first-winner@example.com",
+                password_hash="not-used-in-test",
+                xp=0,
+                streak=0,
+                level=1,
+            )
+        )
+        session.add(
+            GameMatch(
+                id="first-checkers-win",
+                room_id=1,
+                game_type="checkers",
+                player_user_id=7,
+                state={"winner": 0},
+                version=1,
+                status="completed",
+            )
+        )
+        session.commit()
+
+        await grant_completed_game_rewards(
+            AsyncSessionAdapter(session),  # type: ignore[arg-type]
+            {7: 0},
+            "first-checkers-win",
+            0,
+        )
+        session.flush()
+
+        progress = session.scalar(
+            sa.select(GameProgress).where(
+                GameProgress.user_id == 7,
+                GameProgress.game_type == "checkers",
+            )
+        )
+        assert progress is not None
+        assert progress.wins == 1
+        assert progress.current_streak == 1
+        assert progress.best_streak == 1
+        assert progress.level == 2
 
 
 @pytest.mark.asyncio
