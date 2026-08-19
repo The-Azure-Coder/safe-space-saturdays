@@ -25,7 +25,15 @@ class UniversalMatch:
     settlement_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reward_granted: bool = False
 
-    def snapshot(self, user_id: int | None = None, spectator: bool = False) -> dict[str, Any]:
+    def spectator_count(self) -> int:
+        return sum(user_id not in self.player_ids for user_id in self.sockets.values())
+
+    def snapshot(
+        self,
+        user_id: int | None = None,
+        spectator: bool = False,
+        spectator_count: int | None = None,
+    ) -> dict[str, Any]:
         public_state = deepcopy(self.state)
         is_spectator = spectator or (user_id is not None and user_id not in self.player_ids)
         seat = (
@@ -82,6 +90,7 @@ class UniversalMatch:
             "game": self.game_type,
             "state": public_state,
             "spectator": is_spectator,
+            "spectator_count": self.spectator_count() if spectator_count is None else spectator_count,
         }
 
 
@@ -128,7 +137,7 @@ class UniversalMatchManager:
     async def broadcast(self, match: UniversalMatch) -> None:
         for socket, user_id in list(match.sockets.items()):
             try:
-                await socket.send_json({"type": "state", "match": match.snapshot(user_id)})
+                await socket.send_json({"type": "state", "match": match.snapshot(user_id, spectator_count=match.spectator_count())})
             except Exception:
                 match.sockets.pop(socket, None)
 

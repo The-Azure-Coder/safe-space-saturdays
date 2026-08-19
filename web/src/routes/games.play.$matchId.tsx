@@ -40,11 +40,12 @@ function ConnectFourScreen() {
     socket.current = connection
     connection.onmessage = (event) => {
       try {
-        const message = JSON.parse(String(event.data)) as { type: string; state?: Match; detail?: string }
+        const message = JSON.parse(String(event.data)) as { type: string; state?: Match; spectator_count?: number; detail?: string }
         if (message.type === 'state' && message.state) {
-          setMatch((current) => ({ ...message.state!, player: message.state!.player ?? current?.player ?? 1, spectator: message.state!.spectator ?? current?.spectator ?? false }))
+          setMatch((current) => ({ ...message.state!, player: message.state!.player ?? current?.player ?? 1, spectator: message.state!.spectator ?? current?.spectator ?? false, spectator_count: message.spectator_count ?? message.state!.spectator_count ?? current?.spectator_count ?? 0 }))
           setPendingColumn(null)
         }
+        if (message.type === 'spectator_count') setMatch((current) => current ? { ...current, spectator_count: message.spectator_count ?? 0 } : current)
         if (message.type === 'session_ended') window.location.href = '/games'
         if (message.type === 'game_changed') window.location.href = '/games'
         if (message.type === 'error') {
@@ -115,7 +116,7 @@ function ConnectFourScreen() {
     <div className="game-play-actions"><Link className="text-link game-play-back" to="/games"><ArrowLeft size={17} /> Back to games</Link>{!isSpectator && <div className="game-play-actions__right"><GameRoomControls roomId={match?.room_id ?? 0} /><button className="button button--small button--danger" type="button" disabled={ending} onClick={() => void endSession()}>{ending ? 'Ending…' : 'End session'}</button></div>}</div>
     <section className="game-play-header">
       <div><span className="eyebrow">Friendly match · Connect Four</span><h1>Make a line. Take your time.</h1><p>Plan a step ahead and enjoy a bright little game break.</p><small className="game-level-badge">Game level {match?.game_level ?? 1} · Win streak {match?.game_streak ?? 0}</small></div>
-      <div className="game-play-badge"><Sparkle size={20} weight="fill" /><span>{match?.move_count ?? 0} of 42 spaces played</span></div>
+      <div className="game-play-badge"><Sparkle size={20} weight="fill" /><span>{match?.move_count ?? 0} of 42 spaces played</span>{(match?.spectator_count ?? 0) > 0 && <span className="spectator-count" aria-label={`${match?.spectator_count} people watching`}><Eye size={17} aria-hidden="true" /> {match?.spectator_count}</span>}</div>
     </section>
     {isSpectator && <p className="spectator-banner" role="status"><Eye size={18} aria-hidden="true" /> You are spectating this live game. The board is read-only.</p>}
     {error && <p className="form-error" role="alert">{error}</p>}

@@ -404,6 +404,7 @@ class MatchResponse(BaseModel):
     player: Literal[1, 2] | None = None
     players: list[dict[str, object]] = Field(default_factory=list)
     spectator: bool = False
+    spectator_count: int = 0
 
 
 class MoveRequest(BaseModel):
@@ -426,6 +427,7 @@ class GameSessionResponse(BaseModel):
     game: str
     state: dict[str, object]
     spectator: bool = False
+    spectator_count: int = 0
 
 
 class LeaderboardEntry(BaseModel):

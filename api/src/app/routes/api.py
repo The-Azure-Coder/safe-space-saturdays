@@ -334,6 +334,7 @@ def match_response(
 ) -> MatchResponse:
     response = MatchResponse.model_validate(match.snapshot(user_id))
     response.spectator = spectator
+    response.spectator_count = match.spectator_count()
     return response
 
 
@@ -342,7 +343,20 @@ def universal_response(
 ) -> GameSessionResponse:
     response = GameSessionResponse.model_validate(match.snapshot(user_id, spectator=spectator))
     response.spectator = spectator
+    response.spectator_count = match.spectator_count()
     return response
+
+
+async def broadcast_spectator_count(match: LiveMatch | UniversalMatch) -> None:
+    count = match.spectator_count()
+    disconnected: list[WebSocket] = []
+    for socket in list(match.sockets):
+        try:
+            await socket.send_json({"type": "spectator_count", "spectator_count": count})
+        except Exception:
+            disconnected.append(socket)
+    for socket in disconnected:
+        match.sockets.pop(socket, None)
 
 
 def match_channel(match_id: str) -> str:
@@ -2519,6 +2533,7 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
     match.sockets[websocket] = user.id
     relay_task = asyncio.create_task(relay_remote_events(websocket, match.id))
     await websocket.send_json({"type": "state", "state": {**match.snapshot(None if is_spectator else user.id), "spectator": is_spectator}})
+    await broadcast_spectator_count(match)
     try:
         while True:
             message = await websocket.receive_json()
@@ -2573,6 +2588,8 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
         match.sockets.pop(websocket, None)
     finally:
         relay_task.cancel()
+        match.sockets.pop(websocket, None)
+        await broadcast_spectator_count(match)
 
 
 @router.post(
@@ -2692,6 +2709,7 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
     match.sockets[websocket] = user.id
     relay_task = asyncio.create_task(relay_remote_universal_events(websocket, match, user.id))
     await websocket.send_json({"type": "state", "match": match.snapshot(None if is_spectator else user.id, spectator=is_spectator)})
+    await broadcast_spectator_count(match)
     try:
         while True:
             message = await websocket.receive_json()
@@ -2750,6 +2768,8 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
         match.sockets.pop(websocket, None)
     finally:
         relay_task.cancel()
+        match.sockets.pop(websocket, None)
+        await broadcast_spectator_count(match)
 
 
 @router.get("/games/winners", response_model=list[dict[str, object]])
