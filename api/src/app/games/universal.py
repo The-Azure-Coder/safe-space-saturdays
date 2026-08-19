@@ -22,6 +22,7 @@ class UniversalMatch:
     bot_players: tuple[int, ...] = ()
     sockets: dict[WebSocket, int] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    settlement_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     reward_granted: bool = False
 
     def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
@@ -134,6 +135,8 @@ class UniversalMatchManager:
             if player is None:
                 raise IllegalMove("You are not a player in this match")
             match.state = apply_action(match.state, player, payload)
+            if payload.get("action") == "play_again":
+                match.reward_granted = False
             if match.game_type == "scribble" and payload.get("action") == "stroke_segment":
                 await self.broadcast_drawing_segment(match, match.state["strokes"][-1])
             else:
