@@ -3679,7 +3679,7 @@ function BugReportWidget() {
 }
 
 function LeaderboardScreen() {
-  const [period, setPeriod] = useState<LeaderboardPeriod>('week')
+  const [period, setPeriod] = useState<LeaderboardPeriod>('day')
   const [page, setPage] = useState(1)
   const leaderboard = useQuery({
     queryKey: ['leaderboard', period, page],
@@ -3770,6 +3770,7 @@ function LeaderboardScreen() {
                   : 'filter-chip'
               }
               type="button"
+              aria-pressed={period === value}
               onClick={() => {
                 setPeriod(value)
                 setPage(1)
