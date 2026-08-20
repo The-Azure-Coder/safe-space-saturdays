@@ -124,7 +124,7 @@ test('Google sign-in is accessible and preserves the mobile auth layout', async 
   await expect(googleLink).toBeVisible()
   await expect(googleLink).toHaveAttribute(
     'href',
-    'http://localhost:8000/api/auth/google/start',
+    /\/api\/auth\/google\/start$/,
   )
   await expect(page.getByRole('alert')).toHaveText(
     'Google sign-in could not be completed. Please try again.',

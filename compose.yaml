@@ -62,9 +62,9 @@ services:
       context: ./web
     environment:
       VITE_API_URL: http://localhost:${API_PORT:-8000}
-      CHOKIDAR_USEPOLLING: "true"
+      API_PROXY_URL: http://api:8000
       PORT: "3000"
-    command: npm run dev -- --host 0.0.0.0
+    command: npm run start
     ports:
       - "${WEB_PORT:-3000}:3000"
     healthcheck:
@@ -73,9 +73,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
-    volumes:
-      - ./web:/app
-      - web-node-modules:/app/node_modules
     depends_on:
       api:
         condition: service_healthy
@@ -84,5 +81,4 @@ volumes:
   postgres-data:
   redis-data:
   api-venv:
-  web-node-modules:
   api-uploads:

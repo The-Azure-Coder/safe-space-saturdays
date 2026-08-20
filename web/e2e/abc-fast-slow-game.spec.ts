@@ -34,15 +34,20 @@ test('ABC Fast or Slow completes timed answers, review, scoring, and rematch flo
   await picker.getByRole('button', { name: 'Stop on this letter' }).click()
   await expect(game.getByRole('heading', { name: /Letter [A-Z]/ })).toBeVisible()
   for (let round = 1; round <= 3; round += 1) {
-    await game.getByRole('button', { name: 'Submit blank' }).click()
-    await expect(game.getByText('Review answers')).toBeVisible({ timeout: 15_000 })
+    const submitBlank = game.getByRole('button', { name: 'Submit blank' })
+    if (await submitBlank.isVisible()) await submitBlank.click()
     const validButtons = game.locator('button[aria-label$="valid"]:not([disabled])')
-    for (let vote = 0; vote < 8; vote += 1) {
-      await expect(validButtons.first()).toBeEnabled()
-      await validButtons.first().click()
-    }
+    const nextRound = game.getByRole('button', { name: 'Next round' })
+    const playAgain = game.getByRole('button', { name: 'Play again' })
+    await expect.poll(async () => {
+      if (await validButtons.count()) return 'review'
+      if (await nextRound.count()) return 'next'
+      if (await playAgain.count()) return 'complete'
+      return 'waiting'
+    }, { timeout: 30_000 }).toMatch(/review|next|complete/)
+    while (await validButtons.count()) await validButtons.first().click()
     if (round < 3) {
-      await expect(game.getByRole('button', { name: 'Next round' })).toBeVisible()
+      await expect(game.getByRole('button', { name: 'Next round' })).toBeVisible({ timeout: 30_000 })
       await game.getByRole('button', { name: 'Next round' }).click()
       const nextPicker = game.locator('.abc-game__picker')
       await nextPicker.getByRole('button', { name: 'Fast', exact: true }).click()

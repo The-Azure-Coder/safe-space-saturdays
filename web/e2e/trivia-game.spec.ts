@@ -24,6 +24,7 @@ test('Trivia answers, reveals, advances, toggles sound, and fits mobile', async 
 
   const game = page.getByRole('region', { name: 'Trivia arena' })
   await expect(game).toBeVisible({ timeout: 110_000 })
+  await page.locator('.trivia-board__tile:not(:disabled)').first().click()
   await expect(page.locator('.trivia-option')).toHaveCount(4)
   await page.getByRole('button', { name: 'Turn on game sounds' }).click()
   await expect(page.getByRole('button', { name: 'Mute game sounds' })).toHaveAttribute('aria-pressed', 'true')
@@ -32,11 +33,12 @@ test('Trivia answers, reveals, advances, toggles sound, and fits mobile', async 
   const firstQuestion = await page.locator('.trivia-question h2').innerText()
   await page.locator('.trivia-option').first().click()
   await expect(page.locator('.trivia-option--correct')).toHaveCount(1, { timeout: 15_000 })
-  await expect(page.getByRole('button', { name: 'Next question' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Back to board' })).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('trivia-desktop-reveal.png'), fullPage: true })
-  await page.getByRole('button', { name: 'Next question' }).click()
+  await page.getByRole('button', { name: 'Back to board' }).click()
+  await page.locator('.trivia-board__tile:not(:disabled)').first().click()
   await expect(page.locator('.trivia-question h2')).not.toHaveText(firstQuestion)
-  await expect(page.getByText('Question 2 of 5')).toBeVisible()
+  await expect(page.getByText(/Clue \d+ of \d+/)).toBeVisible()
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(game).toBeVisible()
