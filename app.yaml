@@ -1,0 +1,32 @@
+schema_version: 1
+name: safe-space-saturdays
+workflow: fullstack
+repository:
+  url: https://github.com/The-Azure-Coder/safe-space-saturdays.git
+  delivery_branch: refactor/app-root-boundary
+requirements:
+  containers: true
+  health: true
+  e2e: true
+  ui_check: true
+  graph: true
+healthchecks:
+  - http://127.0.0.1:${API_PORT:-8000}/health/live
+  - http://127.0.0.1:${WEB_PORT:-3000}
+commands:
+  compose_config: [docker, compose, config, --quiet]
+  compose_build: [docker, compose, build]
+  compose_up: [docker, compose, up, -d, --wait]
+  focused:
+    argv: [docker, compose, exec, -T, api, uv, run, pytest, tests/test_health.py]
+  test:
+    argv: [docker, compose, exec, -T, api, uv, run, pytest]
+  e2e:
+    argv: [npm, run, visual:capture]
+    cwd: web
+  ui_check:
+    argv: [npm, run, ui:check]
+    cwd: web
+  graph: [graphify, update, .]
+  compose_down: [docker, compose, down]
+
