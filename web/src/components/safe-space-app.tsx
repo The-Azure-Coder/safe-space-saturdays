@@ -41,6 +41,7 @@ import {
 import { ApiError, api, apiRetryDelay, assetUrl, googleLoginUrl, shouldRetryApiRequest } from '../lib/api'
 import type { CheckIn, CommunityApplication, LeaderboardPeriod, Post, Quote } from '../lib/api'
 import { GeneralLoader } from './general-loader'
+import { ServerWakeLoader } from './server-wake-loader'
 
 type Screen =
   | 'home'
@@ -2524,11 +2525,20 @@ function CommunityScreen() {
   })
   const editReply = useMutation({
     mutationFn: ({ id, text }: { id: number; text: string }) => api.editReply(id, text),
-    onSuccess: async () => {
+    onSuccess: async (updatedComment) => {
       setEditingCommentId(null)
       setEditingCommentDraft('')
       setCommentEditError('')
-      await queryClient.refetchQueries({ queryKey: ['posts', page, sort], type: 'active' })
+      queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) =>
+        current.map((post) => ({
+          ...post,
+          comments: post.comments.map((comment) =>
+            comment.id === updatedComment.id
+              ? { ...comment, ...updatedComment }
+              : comment,
+          ),
+        })),
+      )
     },
     onError: (error) => setCommentEditError(error instanceof Error ? error.message : 'We could not update your reply.'),
   })
@@ -3137,13 +3147,15 @@ function GamesScreen() {
   })
   const playGame = useMutation({
     mutationFn: async (game: GameDefinition) => {
-      if (!game.id) throw new Error('This game is not available yet')
+      const catalogGame = (gamesQuery.data ?? []).find((entry) => entry.name === game.name)
+        ?? (await gamesQuery.refetch()).data?.find((entry) => entry.name === game.name)
+      if (!catalogGame?.id) throw new Error('This game is not available yet')
       const room = await api.createRoom({
-        game_id: game.id,
+        game_id: catalogGame.id,
         name: `${game.name} · Friendly bot`,
         max_players: 2,
       })
-      if (game.name === 'Connect Four') {
+      if (catalogGame.name === 'Connect Four') {
         const match = await api.createMatch({
           room_id: room.id,
           with_bot: true,
@@ -4764,7 +4776,14 @@ function ProtectedApp({
   if (!sessionCheckEnabled || currentUser.isPending)
     return (
       <main className="page-content auth-gate">
-        <GeneralLoader label="Checking your safe-space session…" />
+        {currentUser.failureCount > 0 ? (
+          <ServerWakeLoader
+            context="game"
+            attempt={currentUser.failureCount - 1}
+          />
+        ) : (
+          <GeneralLoader label="Checking your safe-space session…" />
+        )}
       </main>
     )
   if (currentUser.isError && !isUnauthenticated)

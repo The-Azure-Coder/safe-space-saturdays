@@ -78,6 +78,12 @@ test('two authenticated users can fill a human room and take turns in every game
         const guestMove = guestState.legal_moves[0]
         expect((await guest.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { move: { from: guestMove.from, to: guestMove.to } } } })).status()).toBe(200)
       } else {
+        if (gameName === 'Trivia Battle') {
+          const clue = match.state.board.find((column: { values: number[] }) => column.values.length)?.category
+          expect(clue).toBeTruthy()
+          const selected = await host.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { action: 'select_clue', category: clue, value: 100 } } })
+          expect(selected.status()).toBe(200)
+        }
         expect((await host.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { answer: 0 } } })).status()).toBe(200)
         expect((await guest.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { answer: 0 } } })).status()).toBe(200)
       }

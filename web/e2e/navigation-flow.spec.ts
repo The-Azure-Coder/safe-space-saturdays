@@ -1,5 +1,28 @@
 import { expect, test } from '@playwright/test'
 
+const profile = {
+  id: 27,
+  name: 'Navigation Member',
+  email: 'navigation@example.com',
+  avatar_url: null,
+  is_online: true,
+  role: 'member',
+  xp: 20,
+  streak: 1,
+  level: 1,
+  is_approved: true,
+  email_notifications_enabled: true,
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.route('**/health/ready*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ready' }) }),
+  )
+  await page.route('**/api/auth/me', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile) }),
+  )
+})
+
 test('primary navigation changes screens without a document reload', async ({ page }) => {
   let documentNavigations = 0
   page.on('request', (request) => {
@@ -73,9 +96,9 @@ test('mobile navigation opens and closes around route changes', async ({ page })
   await expect(page.getByRole('button', { name: 'Open navigation menu' })).toBeVisible()
 })
 
-test('generated game artwork renders without broken images', async ({ page }) => {
+test('home artwork renders without broken images', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' })
-  const abc = page.locator('img[src="/assets/game-abc-fast-slow.png"]')
-  await expect(abc).toBeVisible({ timeout: 110_000 })
-  await expect.poll(() => abc.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
+  const artwork = page.locator('img[src="/assets/community-circle.png"]')
+  await expect(artwork).toBeVisible({ timeout: 110_000 })
+  await expect.poll(() => artwork.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
 })

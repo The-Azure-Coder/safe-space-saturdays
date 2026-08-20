@@ -1,25 +1,29 @@
-# AI Harness Agent Instructions
+# Safe Space Saturdays application instructions
 
-## Privileged commands
+## Repository
 
-When a command needs `sudo` or another privileged authentication prompt, run it in a visible terminal window so the user can enter their password directly. Do not leave a hidden background process waiting for a password.
+- URL: `https://github.com/The-Azure-Coder/safe-space-saturdays.git`
+- Delivery branch: `refactor/app-root-boundary`
+- Commit and push all Safe Space Saturdays source, test, migration, deployment,
+  and documentation changes to this repository and branch. Never commit these
+  files to the AI Harness repository.
 
-On graphical Linux sessions, use this pattern:
+This directory is the complete Safe Space Saturdays application. Keep all product
+features, API changes, web and mobile UI, migrations, deployment configuration,
+assets, screenshots, and application tests inside this directory.
+
+Run application commands from this directory:
 
 ```bash
-gnome-terminal -- bash -lc 'sudo <command>; printf "\nFinished. Press Enter to close.\n"; read'
+docker compose up --build
+cd web && npm run verify
+cd ../api && uv run ruff check . && uv run mypy src && uv run pytest
+docker compose config --quiet
+graphify update .
 ```
 
-Replace `<command>` with the complete command, for example:
+The parent AI Harness validates this checkout through `app.yaml`. Containerized
+web and API services must be healthy before browser tests run.
 
-```bash
-gnome-terminal -- bash -lc 'sudo snap install android-studio --classic; printf "\nFinished. Press Enter to close.\n"; read'
-```
-
-Never request, record, print, or store the user’s password. If a graphical terminal is unavailable, stop and tell the user to run the privileged command in their own terminal.
-
-After launching the visible terminal, tell the user where the prompt is and wait for confirmation before continuing with steps that depend on the privileged command.
-
-## Change tracking
-
-Run `graphify update .` after every code or documentation change, then run the relevant validation checks before committing. Push requested repository changes to the correct remote branch.
+Do not move application-specific requirements or documentation into the parent AI
+harness. Reusable workflow behavior belongs in the parent repository instead.

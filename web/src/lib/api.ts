@@ -14,7 +14,7 @@ export const API_URL =
 // and keeps retrying upstream while the API service wakes.
 export const API_HEALTH_URL =
   typeof window !== 'undefined' && import.meta.env.PROD
-    ? `${window.location.origin}/api/system/ready`
+    ? `${window.location.origin}/health/ready`
     : `${API_URL}/health/ready`
 
 export const googleLoginUrl = `${API_URL}/api/auth/google/start`

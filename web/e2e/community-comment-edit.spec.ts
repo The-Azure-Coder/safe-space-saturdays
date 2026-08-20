@@ -49,7 +49,7 @@ function post(commentMine: boolean, commentAuthor: string) {
 
 async function mockCommunity(page: Page, currentPost: ReturnType<typeof post>) {
   await page.route('**/health/ready**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ready' }) }))
-  await page.route('**/api/me', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(profile) }))
+  await page.route('**/api/auth/me', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(profile) }))
   await page.route('**/api/community/announcements', (route) => route.fulfill({ contentType: 'application/json', body: '[]' }))
   await page.route('**/api/community/posts**', async (route) => {
     await route.fulfill({ contentType: 'application/json', body: JSON.stringify([currentPost]) })
@@ -80,7 +80,7 @@ test('a member cannot edit a reply that is not theirs even when names match', as
 
 test('recent winners show game and level without presence or streak indicators', async ({ page }) => {
   await page.route('**/health/ready**', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ready' }) }))
-  await page.route('**/api/me', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(profile) }))
+  await page.route('**/api/auth/me', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(profile) }))
   await page.route('**/api/games?*', async (route) => {
     if (route.request().url().includes('/winners')) {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify([{ position: 1, name: 'Member', avatar_url: null, points: 5, match_points: 5, wins: 1, level: 3, streak: 4, game: 'Checkers', created_at: new Date().toISOString() }]) })
