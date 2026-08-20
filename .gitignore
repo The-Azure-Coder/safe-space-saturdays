@@ -1,0 +1,5 @@
+.graphify-out/
+graphify-out/
+web/node_modules/
+web/test-results/
+**/__pycache__/
