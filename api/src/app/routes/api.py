@@ -122,6 +122,7 @@ from app.schemas import (
     MatchResponse,
     MoveRequest,
     PostCreateRequest,
+    PostUpdateRequest,
     PostResponse,
     ProfileUpdateRequest,
     QuoteResponse,
@@ -1780,6 +1781,24 @@ async def create_post(payload: PostCreateRequest, user: CurrentUser, db: DbSessi
     await db.refresh(post)
     await grant_community_post_reward(db, user.id, post.id)
     await db.commit()
+    return await post_out(post, user.id, db)
+
+
+@router.patch("/community/posts/{post_id}", response_model=PostResponse)
+async def edit_community_post(
+    post_id: int,
+    payload: PostUpdateRequest,
+    user: CurrentUser,
+    db: DbSession,
+) -> PostResponse:
+    post = await db.get(Post, post_id)
+    if post is None or post.is_hidden:
+        raise HTTPException(status_code=404, detail="Post not found")
+    if post.user_id != user.id:
+        raise HTTPException(status_code=403, detail="You can only edit your own posts")
+    post.text = payload.text.strip()
+    await db.commit()
+    await db.refresh(post)
     return await post_out(post, user.id, db)
 
 

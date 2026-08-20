@@ -14,7 +14,7 @@ const profile = {
   email_notifications_enabled: true,
 }
 
-function post(commentMine: boolean, commentAuthor: string) {
+function post(commentMine: boolean, commentAuthor: string, postMine = false) {
   return {
     id: 3,
     author: 'Post author',
@@ -41,7 +41,7 @@ function post(commentMine: boolean, commentAuthor: string) {
     }],
     liked_by: [],
     is_flagged: false,
-    mine: false,
+    mine: postMine,
     post_type: 'original',
     shared_quote_id: null,
   }
@@ -76,6 +76,27 @@ test('a member cannot edit a reply that is not theirs even when names match', as
   await page.goto('/community')
   await page.getByRole('button', { name: 'View 1 reply' }).click()
   await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+})
+
+test('a member can edit their own community post', async ({ page }) => {
+  const currentPost = post(false, 'Other member', true)
+  await mockCommunity(page, currentPost)
+  await page.goto('/community')
+  await page.getByRole('button', { name: 'Edit post' }).click()
+  await page.getByLabel('Edit post').fill('Updated community post')
+  await page.route('**/api/community/posts/3', async (route) => {
+    expect(route.request().method()).toBe('PATCH')
+    expect(route.request().postDataJSON()).toEqual({ text: 'Updated community post' })
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ...currentPost, text: 'Updated community post' }) })
+  })
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('Updated community post')).toBeVisible()
+})
+
+test('a member cannot edit another member\'s community post', async ({ page }) => {
+  await mockCommunity(page, post(false, 'Other member'))
+  await page.goto('/community')
+  await expect(page.getByRole('button', { name: 'Edit post' })).toHaveCount(0)
 })
 
 test('recent winners show game and level without presence or streak indicators', async ({ page }) => {
