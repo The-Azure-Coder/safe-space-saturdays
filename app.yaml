@@ -15,17 +15,18 @@ healthchecks:
   - http://127.0.0.1:${WEB_PORT:-3000}
 commands:
   compose_config: [docker, compose, config, --quiet]
-  compose_build: [docker, compose, build]
+  compose_build: [docker, compose, --profile, test, build]
   compose_up: [docker, compose, up, -d, --wait]
-  focused:
-    argv: [docker, compose, exec, -T, api, uv, run, pytest, tests/test_health.py]
-  test:
-    argv: [docker, compose, exec, -T, api, uv, run, pytest]
+  prepare_web:
+    argv: [npm, ci, --prefer-offline, --no-audit, --no-fund]
+    cwd: web
+  test: [docker, compose, --profile, test, run, --rm, api-test, pytest]
   e2e:
-    argv: [sh, -c, npm ci && npx playwright test]
+    argv: [npx, playwright, test]
     cwd: web
   ui_check:
-    argv: [sh, -c, npm ci && npm run ui:check]
+    argv: [npm, run, ui:check]
     cwd: web
-  graph: [graphify, update, .]
+  focused: [docker, compose, --profile, test, run, --rm, api-test, pytest, tests/test_health.py]
+  graph: [graphify, update, ., --no-cluster]
   compose_down: [docker, compose, down]

@@ -33,6 +33,7 @@ services:
   api:
     build:
       context: ./api
+      target: runtime
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
@@ -43,9 +44,7 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
-      - ./api:/app
       - api-uploads:/app/uploads
-      - api-venv:/app/.venv
     depends_on:
       db:
         condition: service_healthy
@@ -56,6 +55,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  api-test:
+    build:
+      context: ./api
+      target: test
+    environment:
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
+      REDIS_URL: redis://redis:6379/0
+      API_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
+      COOKIE_SECURE: "false"
+    profiles: [test]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   web:
     build:
@@ -80,5 +96,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  api-venv:
   api-uploads:
