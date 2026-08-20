@@ -278,6 +278,10 @@ class PostCreateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
+class PostUpdateRequest(PostCreateRequest):
+    pass
+
+
 class ReactionRequest(BaseModel):
     kind: Literal["like", "dislike", "love"]
 

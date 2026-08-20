@@ -425,6 +425,11 @@ export const api = {
       body: JSON.stringify({ text }),
     })
   },
+  editPost: (id: number, text: string) =>
+    apiFetch<Post>(`/api/community/posts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ text }),
+    }),
   shareQuote: (id: number) =>
     apiFetch<Post>(`/api/community/posts/from-quote/${id}`, { method: 'POST' }),
   react: (id: number, kind: 'like' | 'dislike') =>

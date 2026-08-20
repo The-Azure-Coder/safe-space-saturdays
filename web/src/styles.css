@@ -104,6 +104,10 @@ main { min-height: 100vh; }
 .post-reply strong { font-size: 13px; }
 .post-reply p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .post-reply__edit { display: flex; gap: 6px; margin-top: 6px; }
+.post-edit { display: grid; gap: 8px; margin: 8px 0 10px; }
+.post-edit textarea { min-height: 82px; width: 100%; resize: vertical; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); font: inherit; }
+.post-edit__actions { display: flex; gap: 6px; }
+.edit-post-button { margin: 0 0 10px; padding: 0; border: 0; background: transparent; color: var(--sage-dark); font-size: 11px; font-weight: 700; }
 .post-reply__edit input { min-width: 0; flex: 1; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); }
 .edit-reply-button { margin-top: 4px; padding: 0; border: 0; background: transparent; color: var(--sage-dark); font-size: 11px; font-weight: 700; }
 .post-moderation-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

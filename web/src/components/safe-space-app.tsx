@@ -2463,6 +2463,9 @@ function CommunityScreen() {
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [editingCommentDraft, setEditingCommentDraft] = useState('')
   const [commentEditError, setCommentEditError] = useState('')
+  const [editingPostId, setEditingPostId] = useState<number | null>(null)
+  const [editingPostDraft, setEditingPostDraft] = useState('')
+  const [postEditError, setPostEditError] = useState('')
   const [removedPostIds, setRemovedPostIds] = useState<number[]>([])
   const [moderatingPostId, setModeratingPostId] = useState<number | null>(null)
   const [announcementTitle, setAnnouncementTitle] = useState('')
@@ -2541,6 +2544,18 @@ function CommunityScreen() {
       )
     },
     onError: (error) => setCommentEditError(error instanceof Error ? error.message : 'We could not update your reply.'),
+  })
+  const editPost = useMutation({
+    mutationFn: ({ id, text }: { id: number; text: string }) => api.editPost(id, text),
+    onSuccess: (updatedPost) => {
+      setEditingPostId(null)
+      setEditingPostDraft('')
+      setPostEditError('')
+      queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) =>
+        current.map((post) => post.id === updatedPost.id ? updatedPost : post),
+      )
+    },
+    onError: (error) => setPostEditError(error instanceof Error ? error.message : 'We could not update your post.'),
   })
   const moderatePost = useMutation({
     mutationFn: ({ id, action }: { id: number; action: 'flag' | 'unflag' | 'timeout' }) => api.moderatePost(id, action),
@@ -2732,7 +2747,19 @@ function CommunityScreen() {
                         • {new Date(post.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <p>{post.text}</p>
+                    {editingPostId === post.id ? (
+                      <form className="post-edit" onSubmit={(event) => { event.preventDefault(); const text = editingPostDraft.trim(); if (text) editPost.mutate({ id: post.id, text }) }}>
+                        <textarea aria-label="Edit post" value={editingPostDraft} onChange={(event) => { setPostEditError(''); setEditingPostDraft(event.target.value) }} maxLength={2000} autoFocus />
+                        <div className="post-edit__actions">
+                          <button className="button button--secondary button--small" type="submit" disabled={!editingPostDraft.trim() || editPost.isPending}>Save</button>
+                          <button className="button button--secondary button--small" type="button" onClick={() => { setEditingPostId(null); setPostEditError('') }}>Cancel</button>
+                        </div>
+                        {postEditError && <p className="form-error" role="alert">{postEditError}</p>}
+                      </form>
+                    ) : <>
+                      <p>{post.text}</p>
+                      {post.mine && <button className="edit-post-button" type="button" aria-label="Edit post" onClick={() => { setPostEditError(''); setEditingPostId(post.id); setEditingPostDraft(post.text) }}>Edit post</button>}
+                    </>}
                     {post.post_type === 'shared_quote' && <span className="shared-quote-badge"><Quotes size={15} weight="fill" /> Shared quote</span>}
                     {post.image_url && (
                       <img
