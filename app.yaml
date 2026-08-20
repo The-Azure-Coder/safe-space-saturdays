@@ -22,11 +22,10 @@ commands:
   test:
     argv: [docker, compose, exec, -T, api, uv, run, pytest]
   e2e:
-    argv: [npm, run, visual:capture]
+    argv: [sh, -c, npm ci && npx playwright test e2e/checkers-game.spec.ts e2e/community-application.spec.ts]
     cwd: web
   ui_check:
-    argv: [npm, run, ui:check]
+    argv: [sh, -c, npm ci && npm run ui:check]
     cwd: web
   graph: [graphify, update, .]
   compose_down: [docker, compose, down]
-

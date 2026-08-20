@@ -63,11 +63,16 @@ class MatchManager:
         user_id: int,
         with_bot: bool,
         difficulty: str,
-        game_level: int = 1,
+        game_level: int | dict[int, int] = 1,
         game_streak: int = 0,
         player_ids: dict[int, int] | None = None,
         player_names: dict[int, str] | None = None,
     ) -> LiveMatch:
+        # Preserve compatibility with callers that historically passed the
+        # player-seat map as the fifth positional argument.
+        if isinstance(game_level, dict) and player_ids is None:
+            player_ids = game_level
+            game_level = 1
         match = LiveMatch(
             id=str(uuid4()),
             room_id=room_id,
