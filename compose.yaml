@@ -44,7 +44,13 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
+      # Mount application code for fast local iteration. Dependency changes still
+      # require an image rebuild; source changes are picked up by reload.
+      - ./api/src:/app/src
+      - ./api/migrations:/app/migrations
+      - ./api/alembic.ini:/app/alembic.ini:ro
       - api-uploads:/app/uploads
+    command: ["sh", "-c", ".venv/bin/alembic upgrade head && exec .venv/bin/uvicorn app.main:app --app-dir src --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src"]
     depends_on:
       db:
         condition: service_healthy
@@ -80,9 +86,16 @@ services:
       VITE_API_URL: http://localhost:${API_PORT:-8000}
       API_PROXY_URL: http://api:8000
       PORT: "3000"
-    command: npm run start
+    # Use the Vite dev server against mounted source so UI edits are reflected
+    # without rebuilding the web image.
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     ports:
       - "${WEB_PORT:-3000}:3000"
+    volumes:
+      # Keep the complete Vite workspace on one mount so TanStack Router can
+      # atomically write generated routes and its temporary files.
+      - ./web:/app
+      - web-node-modules:/app/node_modules
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/assets/safe-space-saturdays-logo.jpeg').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 5s
@@ -96,4 +109,5 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  web-node-modules:
   api-uploads:
