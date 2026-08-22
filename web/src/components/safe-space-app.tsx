@@ -3150,7 +3150,6 @@ function GamesScreen() {
   const [roomBotDifficulty, setRoomBotDifficulty] = useState<'friendly' | 'thoughtful'>('friendly')
   const [copiedRoomId, setCopiedRoomId] = useState<number | null>(null)
   const [shareRoomId, setShareRoomId] = useState<number | null>(null)
-  const [roomCode, setRoomCode] = useState('')
   useEffect(() => {
     if (shareRoomId === null) return
     const closeMenu = () => setShareRoomId(null)
@@ -3179,10 +3178,6 @@ function GamesScreen() {
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } })
     },
-  })
-  const joinByCode = useMutation({
-    mutationFn: () => api.joinRoomByCode(roomCode.trim()),
-    onSuccess: (room) => navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } }),
   })
   const cleanupBotRooms = useMutation({
     mutationFn: api.cleanupBotRooms,
@@ -3288,11 +3283,6 @@ function GamesScreen() {
           >
             Create Room
           </button>
-          <form className="room-code-join" onSubmit={(event) => { event.preventDefault(); if (roomCode.trim()) joinByCode.mutate() }}>
-            <label htmlFor="together-room-code">Join Together</label>
-            <input id="together-room-code" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} placeholder="PURPLE7" maxLength={10} />
-            <button className="button button--ghost" type="submit" disabled={joinByCode.isPending || !roomCode.trim()}>{joinByCode.isPending ? 'Joining…' : 'Join by code'}</button>
-          </form>
         </section>
         {showCreateRoom && (
           <form
@@ -3390,12 +3380,12 @@ function GamesScreen() {
             {playGame.error.message}
           </p>
         )}
-        {(join.error || joinByCode.error ||
+        {(join.error ||
           cleanupBotRooms.error) && (
           <p className="form-error" role="alert">
             {
               (
-                join.error || joinByCode.error ||
+                join.error ||
                 cleanupBotRooms.error
               )?.message
             }

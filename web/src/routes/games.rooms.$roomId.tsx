@@ -101,7 +101,6 @@ function GameRoomLobby() {
           const url = `${window.location.origin}/games/rooms/invite/${currentRoom.invite_token}`
           void navigator.clipboard.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800) })
         }}><Copy size={17} /> {copied ? 'Link copied' : 'Copy invite link'}</button>}
-        {currentRoom.game === 'Together' && currentRoom.room_code && <button className="game-lobby-share" type="button" onClick={() => void navigator.clipboard.writeText(currentRoom.room_code!).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800) })}><Copy size={17} /> {copied ? 'Room code copied' : `Room code: ${currentRoom.room_code}`}</button>}
       </div>
       <div className="game-lobby-waiting"><span className="game-lobby-pulse" /> <strong>{currentRoom.is_host ? 'Your room is ready.' : 'Waiting for the host to start…'}</strong><small>Everyone will enter the game automatically when it begins.</small></div>
       <div className="game-lobby-members" aria-label="Room participants">

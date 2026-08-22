@@ -496,10 +496,6 @@ export const api = {
     }),
   joinRoom: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
-  joinRoomByCode: (room_code: string) =>
-    apiFetch<Room>('/api/games/rooms/join-by-code', {
-      method: 'POST', body: JSON.stringify({ room_code }),
-    }),
   room: (id: number, spectator = false) => apiFetch<Room>(`/api/games/rooms/${id}${spectator ? '?spectate=true' : ''}`),
   roomParticipants: (id: number) =>
     apiFetch<Array<RoomParticipant>>(`/api/games/rooms/${id}/participants`),

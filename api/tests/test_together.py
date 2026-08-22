@@ -39,6 +39,13 @@ def test_checkpoint_and_fall_are_authoritative() -> None:
     assert state["falls"] == 1
 
 
+def test_jump_has_real_arc_with_buffered_input() -> None:
+    state = new_together_state(2)
+    apply_together_action(state, 0, {"action": "input", "axis": 0, "jump": True, "dt": 0.066})
+    assert state["players"][0]["y"] > 0
+    assert state["players"][0]["on_ground"] is False
+
+
 def test_all_twenty_levels_can_complete_as_a_team() -> None:
     state = new_together_state(2)
     for _ in range(len(LEVELS)):

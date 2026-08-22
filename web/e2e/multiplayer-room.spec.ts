@@ -94,7 +94,7 @@ test('two authenticated users can fill a human room and take turns in every game
   }
 })
 
-test('Together uses a readable room code and validates cooperative completion', async () => {
+test('Together starts through the normal room flow and validates cooperative completion', async () => {
   const catalogue = await registeredClient('together-catalogue')
   const gamesResponse = await catalogue.get('/api/games?limit=20')
   expect(gamesResponse.ok()).toBeTruthy()
@@ -108,10 +108,9 @@ test('Together uses a readable room code and validates cooperative completion', 
   try {
     const created = await host.post('/api/games/rooms', { data: { game_id: together!.id, name: `Together ${Date.now()}`, max_players: 4, fill_with_bots: false } })
     expect(created.status()).toBe(201)
-    const room = await created.json() as { id: number; room_code: string }
+    const room = await created.json() as { id: number }
     roomId = room.id
-    expect(room.room_code).toMatch(/^[A-Z]+\d{2}$/)
-    const joined = await guest.post('/api/games/rooms/join-by-code', { data: { room_code: room.room_code.toLowerCase() } })
+    const joined = await guest.post(`/api/games/rooms/${room.id}/join`)
     expect(joined.status()).toBe(200)
     expect((await guest.post(`/api/games/rooms/${room.id}/ready`)).status()).toBe(200)
     const started = await host.post('/api/games/sessions', { data: { room_id: room.id, fill_with_bots: false } })
