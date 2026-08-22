@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 
@@ -30,6 +31,11 @@ app = FastAPI(
     docs_url=None if settings.app_env == "production" else "/docs",
     redoc_url=None if settings.app_env == "production" else "/redoc",
     openapi_url=None if settings.app_env == "production" else "/openapi.json",
+)
+app.add_middleware(
+    GZipMiddleware,
+    minimum_size=500,
+    compresslevel=6,
 )
 app.add_middleware(
     CORSMiddleware,

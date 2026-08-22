@@ -98,7 +98,7 @@ test('mobile navigation opens and closes around route changes', async ({ page })
 
 test('home artwork renders without broken images', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' })
-  const artwork = page.locator('img[src="/assets/community-circle.png"]')
+  const artwork = page.locator('img[src="/assets/optimized/community-circle.webp"]')
   await expect(artwork).toBeVisible({ timeout: 110_000 })
   await expect.poll(() => artwork.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
 })

@@ -28,7 +28,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       {
         rel: 'icon',
         type: 'image/png',
-        href: '/assets/safe-space-favicon.png',
+        href: '/assets/optimized/safe-space-favicon.png',
       },
     ],
   }),
