@@ -94,6 +94,40 @@ test('two authenticated users can fill a human room and take turns in every game
   }
 })
 
+test('Together uses a readable room code and validates cooperative completion', async () => {
+  const catalogue = await registeredClient('together-catalogue')
+  const gamesResponse = await catalogue.get('/api/games?limit=20')
+  expect(gamesResponse.ok()).toBeTruthy()
+  const games = await gamesResponse.json() as Array<{ id: number; name: string }>
+  const together = games.find((game) => game.name === 'Together')
+  expect(together).toBeTruthy()
+  await catalogue.dispose()
+  const host = await registeredClient('together-host')
+  const guest = await registeredClient('together-guest')
+  let roomId: number | null = null
+  try {
+    const created = await host.post('/api/games/rooms', { data: { game_id: together!.id, name: `Together ${Date.now()}`, max_players: 4, fill_with_bots: false } })
+    expect(created.status()).toBe(201)
+    const room = await created.json() as { id: number; room_code: string }
+    roomId = room.id
+    expect(room.room_code).toMatch(/^[A-Z]+\d{2}$/)
+    const joined = await guest.post('/api/games/rooms/join-by-code', { data: { room_code: room.room_code.toLowerCase() } })
+    expect(joined.status()).toBe(200)
+    expect((await guest.post(`/api/games/rooms/${room.id}/ready`)).status()).toBe(200)
+    const started = await host.post('/api/games/sessions', { data: { room_id: room.id, fill_with_bots: false } })
+    expect(started.status()).toBe(201)
+    const match = await started.json() as { match_id: string; state: { game: string; player_count: number } }
+    expect(match.state.game).toBe('together')
+    expect(match.state.player_count).toBe(2)
+    expect((await host.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { action: 'input', axis: 1, dt: 0.1 } } })).status()).toBe(200)
+    expect((await host.post(`/api/games/sessions/${match.match_id}/actions`, { data: { action: { action: 'finish' } } })).status()).toBe(409)
+  } finally {
+    if (roomId !== null) await host.delete(`/api/games/rooms/${roomId}`)
+    await host.dispose()
+    await guest.dispose()
+  }
+})
+
 test('two authenticated users can play Checkers in the same human room', async () => {
   const catalogue = await registeredClient('checkers-catalogue')
   const gamesResponse = await catalogue.get('/api/games?limit=20')

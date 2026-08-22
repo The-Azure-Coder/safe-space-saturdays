@@ -9,6 +9,7 @@ from fastapi import WebSocket
 from app.games.connect_four import IllegalMove
 from app.games.multi import apply_action, bot_action, new_state
 from app.games.scribble import progressive_hint
+from app.games.together import together_public_event
 
 
 @dataclass
@@ -109,9 +110,9 @@ class UniversalMatchManager:
         player_names: dict[int, str] | None = None,
         bot_difficulty: str = "friendly",
     ) -> UniversalMatch:
-        effective_count = player_count if game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow"} else 2
+        effective_count = player_count if game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow", "together"} else 2
         resolved_bot_players = (
-            bot_players if bot_players is not None else tuple(range(1, effective_count))
+            () if game_type == "together" else bot_players if bot_players is not None else tuple(range(1, effective_count))
         )
         state = new_state(game_type, effective_count, resolved_bot_players, bot_difficulty)
         state["bot_difficulty"] = bot_difficulty
@@ -158,6 +159,9 @@ class UniversalMatchManager:
             match.state = apply_action(match.state, player, payload)
             if payload.get("action") == "play_again":
                 match.reward_granted = False
+            if match.game_type == "together":
+                await self.broadcast_together(match)
+                return match
             if match.game_type == "scribble" and payload.get("action") == "stroke_segment":
                 await self.broadcast_drawing_segment(match, match.state["strokes"][-1])
             else:
@@ -235,6 +239,14 @@ class UniversalMatchManager:
                 else:
                     raise IllegalMove("The bot turns could not be completed")
             return match
+
+    async def broadcast_together(self, match: UniversalMatch) -> None:
+        event = {"type": "together", "match_id": match.id, **together_public_event(match.state)}
+        for socket in list(match.sockets):
+            try:
+                await socket.send_json(event)
+            except Exception:
+                match.sockets.pop(socket, None)
 
 
 universal_matches = UniversalMatchManager()

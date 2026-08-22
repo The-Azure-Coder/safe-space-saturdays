@@ -150,6 +150,13 @@ const games: Array<GameDefinition> = [
     icon: '/assets/optimized/game-checkers.webp',
     color: 'coral',
   },
+  {
+    name: 'Together',
+    players: '2–4 players',
+    description: 'Grab your friends and work together through chaotic obstacle courses where nobody gets left behind.',
+    icon: '/assets/optimized/game-together.webp',
+    color: 'lilac',
+  },
 ]
 
 function Logo({ compact = false }: { compact?: boolean }) {
@@ -1117,6 +1124,7 @@ function GameStrip() {
         name: `${catalogGame.name} · Friendly bot`,
         max_players: 2,
       })
+      if (catalogGame.name === 'Together') return { kind: 'room' as const, id: room.id }
       if (catalogGame.name === 'Connect Four') {
         const match = await api.createMatch({
           room_id: room.id,
@@ -1129,7 +1137,9 @@ function GameStrip() {
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {
-      if (match.kind === 'connect-four')
+      if (match.kind === 'room')
+        navigate({ to: '/games/rooms/$roomId', params: { roomId: String(match.id) } })
+      else if (match.kind === 'connect-four')
         navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
       else
         navigate({
@@ -1757,6 +1767,7 @@ function GameTile({
     Scribble: '/assets/optimized/game-scribble.webp',
     'ABC Fast or Slow': '/assets/optimized/game-abc-fast-slow.webp',
     Checkers: '/assets/optimized/game-checkers.webp',
+    Together: '/assets/optimized/game-together.webp',
   }
   const generatedIcon =
     typeof game.icon === 'string' && game.icon.startsWith('/')
@@ -3139,6 +3150,7 @@ function GamesScreen() {
   const [roomBotDifficulty, setRoomBotDifficulty] = useState<'friendly' | 'thoughtful'>('friendly')
   const [copiedRoomId, setCopiedRoomId] = useState<number | null>(null)
   const [shareRoomId, setShareRoomId] = useState<number | null>(null)
+  const [roomCode, setRoomCode] = useState('')
   useEffect(() => {
     if (shareRoomId === null) return
     const closeMenu = () => setShareRoomId(null)
@@ -3168,6 +3180,10 @@ function GamesScreen() {
       navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } })
     },
   })
+  const joinByCode = useMutation({
+    mutationFn: () => api.joinRoomByCode(roomCode.trim()),
+    onSuccess: (room) => navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } }),
+  })
   const cleanupBotRooms = useMutation({
     mutationFn: api.cleanupBotRooms,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rooms'] }),
@@ -3182,6 +3198,7 @@ function GamesScreen() {
         name: `${game.name} · Friendly bot`,
         max_players: 2,
       })
+      if (catalogGame.name === 'Together') return { kind: 'room' as const, id: room.id }
       if (catalogGame.name === 'Connect Four') {
         const match = await api.createMatch({
           room_id: room.id,
@@ -3194,7 +3211,9 @@ function GamesScreen() {
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {
-      if (match.kind === 'connect-four')
+      if (match.kind === 'room')
+        navigate({ to: '/games/rooms/$roomId', params: { roomId: String(match.id) } })
+      else if (match.kind === 'connect-four')
         navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
       else
         navigate({
@@ -3269,6 +3288,11 @@ function GamesScreen() {
           >
             Create Room
           </button>
+          <form className="room-code-join" onSubmit={(event) => { event.preventDefault(); if (roomCode.trim()) joinByCode.mutate() }}>
+            <label htmlFor="together-room-code">Join Together</label>
+            <input id="together-room-code" value={roomCode} onChange={(event) => setRoomCode(event.target.value.toUpperCase())} placeholder="PURPLE7" maxLength={10} />
+            <button className="button button--ghost" type="submit" disabled={joinByCode.isPending || !roomCode.trim()}>{joinByCode.isPending ? 'Joining…' : 'Join by code'}</button>
+          </form>
         </section>
         {showCreateRoom && (
           <form
@@ -3366,12 +3390,12 @@ function GamesScreen() {
             {playGame.error.message}
           </p>
         )}
-        {(join.error ||
+        {(join.error || joinByCode.error ||
           cleanupBotRooms.error) && (
           <p className="form-error" role="alert">
             {
               (
-                join.error ||
+                join.error || joinByCode.error ||
                 cleanupBotRooms.error
               )?.message
             }
