@@ -1240,7 +1240,8 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
 .game-lobby-heading h1 { margin: 2px 0 7px; font-family: 'Playfair Display', serif; font-size: clamp(30px, 5vw, 48px); line-height: 1.05; }
 .game-lobby-heading p { margin: 0; color: var(--muted); }
 .game-lobby-icon { display: grid; width: 58px; height: 58px; flex: 0 0 58px; place-items: center; border-radius: 18px; background: var(--sage-pale); color: var(--sage-dark); }
-.game-lobby-share { position: absolute; top: 32px; right: 32px; display: inline-flex; min-height: 38px; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--sage-dark); font-size: 12px; font-weight: 700; }
+.game-lobby-share-actions { position: absolute; top: 32px; right: 32px; display: flex; max-width: calc(100% - 64px); flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.game-lobby-share { position: static; display: inline-flex; min-height: 38px; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--sage-dark); font-size: 12px; font-weight: 700; }
 .game-lobby-share:hover, .game-lobby-share:focus-visible { border-color: var(--sage); background: var(--sage-pale); }
 .game-lobby-waiting { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 3px 10px; margin: 28px 0 20px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--sage-pale); }
 .game-lobby-waiting small { grid-column: 2; color: var(--muted); }
@@ -1260,7 +1261,7 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
   .game-lobby-card { padding: 24px 18px; border-radius: 20px; }
   .game-lobby-heading { align-items: flex-start; padding-right: 0; }
   .game-lobby-icon { width: 48px; height: 48px; flex-basis: 48px; border-radius: 15px; }
-  .game-lobby-share { position: static; margin-top: 18px; }
+  .game-lobby-share-actions { position: static; max-width: none; justify-content: flex-start; margin-top: 18px; }
   .game-lobby-member { grid-template-columns: auto 1fr; }
   .game-lobby-member .lobby-ready { grid-column: 2; justify-self: start; }
   .game-lobby-actions .button { width: 100%; }
