@@ -59,20 +59,29 @@ class TogetherScene extends Phaser.Scene {
     const scale = Math.min(1, viewWidth / 1100)
     this.cameras.main.setZoom(scale)
     this.cameras.main.setBounds(0, 0, config.width, 620)
+    this.add.rectangle(config.width / 2, 310, config.width, 620, 0xf5eee5)
+    for (let index = 0; index < 9; index += 1) {
+      const hill = this.add.ellipse(180 + index * 260, 430 - (index % 3) * 22, 420, 190, index % 2 ? 0xded5ed : 0xd8e8df).setAlpha(0.72)
+      hill.setScrollFactor(0.28)
+    }
     const ground = this.add.rectangle(config.width / 2, 535, config.width, 170, 0xe6ddd1).setStrokeStyle(3, 0xd0c2b1)
     ground.setOrigin(0.5)
-    this.add.text(36, 28, `WORLD 1  ·  LEVEL ${this.state.level ?? 1}/${this.state.levels_total ?? 20}`, { fontFamily: 'Nunito, sans-serif', fontSize: '20px', color: '#5f5368', fontStyle: 'bold' })
-    this.add.text(36, 58, config.name, { fontFamily: 'Nunito, sans-serif', fontSize: '34px', color: '#332d3c', fontStyle: 'bold' })
-    this.add.text(36, 100, this.state.last_event ?? 'Stay close. Nobody makes it alone.', { fontFamily: 'Nunito, sans-serif', fontSize: '17px', color: '#6f6574' })
-    this.add.text(36, 132, config.cooperation ?? 'Coordinate your timing', { fontFamily: 'Nunito, sans-serif', fontSize: '15px', color: '#8f79d8', fontStyle: 'bold' })
-    for (const platform of config.platforms ?? []) this.add.rectangle(platform.x, 535 - platform.y, platform.width, platform.height, 0xb59bd9).setStrokeStyle(3, 0x8f79d8)
+    const hud = this.add.container(0, 0).setScrollFactor(0)
+    hud.add(this.add.text(36, 28, `WORLD 1  ·  LEVEL ${this.state.level ?? 1}/${this.state.levels_total ?? 20}`, { fontFamily: 'Nunito, sans-serif', fontSize: '20px', color: '#5f5368', fontStyle: 'bold' }))
+    hud.add(this.add.text(36, 58, config.name, { fontFamily: 'Nunito, sans-serif', fontSize: '34px', color: '#332d3c', fontStyle: 'bold' }))
+    hud.add(this.add.text(36, 100, this.state.last_event ?? 'Stay close. Nobody makes it alone.', { fontFamily: 'Nunito, sans-serif', fontSize: '17px', color: '#6f6574' }))
+    hud.add(this.add.text(36, 132, config.cooperation ?? 'Coordinate your timing', { fontFamily: 'Nunito, sans-serif', fontSize: '15px', color: '#8f79d8', fontStyle: 'bold' }))
+    for (const platform of config.platforms ?? []) {
+      const graphic = this.add.graphics().fillStyle(0xb59bd9).fillRoundedRect(platform.x - platform.width / 2, 535 - platform.y, platform.width, platform.height, 10).lineStyle(3, 0x8f79d8).strokeRoundedRect(platform.x - platform.width / 2, 535 - platform.y, platform.width, platform.height, 10)
+      graphic.setDepth(2)
+    }
     for (const hazard of config.hazards ?? []) {
       this.add.rectangle(hazard.x, 495, hazard.width, 18, 0xe895b4).setStrokeStyle(2, 0xc55f86)
       this.add.text(hazard.x + 8, 470, 'oops zone', { fontFamily: 'Nunito, sans-serif', fontSize: '12px', color: '#a64e74' })
     }
-    this.add.rectangle(config.checkpoint, 455, 12, 160, 0x9ed2bd).setAlpha(0.75)
+    this.add.rectangle(config.checkpoint, 455, 12, 160, 0x9ed2bd).setAlpha(0.75).setDepth(1)
     this.add.text(config.checkpoint - 58, 355, 'CHECKPOINT', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#4f967e' })
-    this.add.rectangle(config.finish, 455, 28, 160, 0xf1c476).setAlpha(0.9)
+    this.add.rectangle(config.finish, 455, 28, 160, 0xf1c476).setAlpha(0.9).setDepth(1)
     this.add.text(config.finish - 35, 355, 'FINISH', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#a26c24' })
     this.add.text(config.width - 460, 75, config.mechanic.replaceAll('-', ' ').toUpperCase(), { fontFamily: 'Nunito, sans-serif', fontSize: '16px', color: '#9a7b9b', fontStyle: 'bold' })
     this.playerSprites = []
@@ -99,15 +108,13 @@ class TogetherScene extends Phaser.Scene {
 export function TogetherGame({ state, send, spectator = false }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const game = useRef<Phaser.Game | null>(null)
-  const latest = useRef({ state, send, spectator })
-  latest.current = { state, send, spectator }
   useEffect(() => {
     if (!host.current) return
     const scene = new TogetherScene()
     scene.state = state
     scene.send = send
     scene.spectator = spectator
-    game.current = new Phaser.Game({ type: Phaser.AUTO, width: 1100, height: 620, parent: host.current, scene, render: { antialias: true }, scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH } })
+    game.current = new Phaser.Game({ type: Phaser.CANVAS, width: 1100, height: 620, parent: host.current, scene, render: { antialias: true, roundPixels: true }, scale: { mode: Phaser.Scale.RESIZE, autoCenter: Phaser.Scale.CENTER_BOTH } })
     return () => { game.current?.destroy(true); game.current = null }
   }, [])
   useEffect(() => {
