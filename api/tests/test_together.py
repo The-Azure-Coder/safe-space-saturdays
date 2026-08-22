@@ -46,6 +46,19 @@ def test_jump_has_real_arc_with_buffered_input() -> None:
     assert state["players"][0]["on_ground"] is False
 
 
+def test_authoritative_physics_lands_on_an_elevated_platform() -> None:
+    state = new_together_state(2)
+    platform = state["level_config"]["platforms"][0]
+    player = state["players"][0]
+    player["x"] = platform["x"]
+    player["y"] = platform["y"] + 12
+    player["vy"] = -120
+    player["on_ground"] = False
+    apply_together_action(state, 0, {"action": "input", "axis": 0, "dt": 0.12})
+    assert player["y"] == platform["y"]
+    assert player["on_ground"] is True
+
+
 def test_all_twenty_levels_can_complete_as_a_team() -> None:
     state = new_together_state(2)
     for _ in range(len(LEVELS)):

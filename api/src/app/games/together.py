@@ -7,6 +7,7 @@ from typing import Any
 from app.games.connect_four import IllegalMove
 
 COLORS = ("purple", "pink", "blue", "green")
+WORLD_THEMES = ("meadow", "crystal", "sunset", "moonlit")
 MECHANICS = (
     "two-buttons",
     "hold-the-door",
@@ -37,11 +38,25 @@ LEVELS = tuple(
         "width": 1800 + (index % 4) * 300,
         "checkpoint": 650 + (index % 3) * 350,
         "finish": 1550 + (index % 4) * 250,
+        "theme": WORLD_THEMES[index // 5],
         "platforms": [
             {"x": 420 + (index % 3) * 60, "y": 100 + (index % 2) * 45, "width": 220, "height": 24},
             {"x": 840 + (index % 4) * 55, "y": 150 + (index % 3) * 35, "width": 190, "height": 24},
             {"x": 1210 + (index % 2) * 80, "y": 95 + (index % 4) * 30, "width": 230, "height": 24},
         ],
+        "collectibles": [
+            {"x": 320 + index * 18, "y": 82 + (index % 2) * 34},
+            {"x": 560 + index * 22, "y": 148 + (index % 3) * 28},
+            {"x": 930 + index * 16, "y": 104 + (index % 4) * 26},
+            {"x": 1320 + index * 12, "y": 88 + (index % 3) * 38},
+        ],
+        "plates": [
+            {"x": 250 + (index % 2) * 120, "label": "A"},
+            {"x": 470 + (index % 3) * 120, "label": "B"},
+        ],
+        "moving_platforms": [
+            {"x": 740 + (index % 3) * 90, "y": 210 + (index % 2) * 32, "width": 150, "range": 90}
+        ] if index >= 2 else [],
         "hazards": [{"x": 720 + (index % 2) * 90, "width": 120}, {"x": 1090 + (index % 3) * 60, "width": 100}],
         "cooperation": "Stand on both buttons" if name == "two-buttons" else "Coordinate your timing",
     }
@@ -51,6 +66,18 @@ LEVELS = tuple(
 
 def level_config(level: int) -> dict[str, Any]:
     return dict(LEVELS[max(1, min(len(LEVELS), level)) - 1])
+
+
+def _platform_support(level: dict[str, Any], x: float, previous_y: float, next_y: float) -> float | None:
+    """Return the highest platform crossed while falling this simulation step."""
+    supports = [0.0]
+    for platform in level.get("platforms", []):
+        left = float(platform["x"]) - float(platform["width"]) / 2
+        right = float(platform["x"]) + float(platform["width"]) / 2
+        top = float(platform["y"])
+        if left <= x <= right and previous_y >= top >= next_y:
+            supports.append(top)
+    return max(supports) if len(supports) > 1 else (0.0 if next_y <= 0 else None)
 
 
 def new_together_state(
@@ -123,12 +150,16 @@ def apply_together_action(
         if player["jump_buffer"] > 0 and (player["on_ground"] or player["coyote"] > 0):
             player["vy"] = 660
             player["on_ground"], player["coyote"], player["jump_buffer"] = False, 0, 0
+        previous_y = float(player.get("y", 0))
         player["vy"] = round(float(player.get("vy", 0)) - 1750 * dt, 2)
-        player["y"] = round(float(player.get("y", 0)) + player["vy"] * dt, 2)
-        if player["y"] <= 0:
-            player["y"], player["vy"], player["on_ground"] = 0, 0, True
-        elif player["y"] < 40:
-            player["coyote"] = 0.1
+        next_y = round(previous_y + player["vy"] * dt, 2)
+        support = _platform_support(state["level_config"], player["x"], previous_y, next_y)
+        if support is not None:
+            player["y"], player["vy"], player["on_ground"] = support, 0, True
+        else:
+            player["y"], player["on_ground"] = next_y, False
+            if previous_y <= 40 and player["vy"] < 0:
+                player["coyote"] = 0.1
         if player["x"] >= state["level_config"]["checkpoint"] and not state["checkpoint_reached"]:
             state["checkpoint_reached"] = True
             for item in state["players"]:
