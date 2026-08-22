@@ -2158,7 +2158,3 @@ html[data-theme='purple'] .app-nav__link--active { border-color: rgb(200 169 237
 .together-game__complete strong { color: var(--lilac-dark, #7659ad); font-family: 'Playfair Display', serif; font-size: clamp(38px, 7vw, 76px); }
 .together-game__complete span { color: var(--muted); }
 @media (max-width: 760px) { .together-game__mobile-controls { display: flex; } .together-game__canvas { min-height: 58vh; } .together-game__hud { font-size: 11px; } }
-.room-code-join { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
-.room-code-join label { color: var(--muted); font-size: 13px; font-weight: 800; }
-.room-code-join input { width: 112px; min-height: 40px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); padding: 0 11px; font: inherit; font-weight: 800; letter-spacing: .08em; }
-@media (max-width: 760px) { .room-code-join { width: 100%; margin-left: 0; } .room-code-join input { flex: 1; } }

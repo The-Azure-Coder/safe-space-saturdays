@@ -2080,24 +2080,6 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
     return await room_out(room, user.id, db)
 
 
-@router.post("/games/rooms/join-by-code", response_model=RoomResponse)
-async def join_room_by_code(payload: dict[str, str], user: CurrentUser, db: DbSession) -> RoomResponse:
-    code = str(payload.get("room_code", "")).strip().upper()
-    if not code or len(code) > 10:
-        raise HTTPException(status_code=422, detail="Enter a valid room code")
-    room = await db.scalar(select(GameRoom).where(GameRoom.room_code == code).with_for_update())
-    if room is None or room.status != "open":
-        raise HTTPException(status_code=404, detail="That Together room is not available")
-    count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
-    existing = await db.scalar(select(RoomParticipant.id).where(RoomParticipant.room_id == room.id, RoomParticipant.user_id == user.id))
-    if existing is None:
-        if count >= room.max_players:
-            raise HTTPException(status_code=409, detail="Room is full")
-        db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=count))
-        await db.commit()
-    return await room_out(room, user.id, db)
-
-
 @router.get("/games/rooms/invite/{invite_token}", response_model=RoomInviteResponse)
 async def get_room_invite(invite_token: str, db: DbSession) -> RoomInviteResponse:
     room = await db.scalar(select(GameRoom).where(GameRoom.invite_token == invite_token))

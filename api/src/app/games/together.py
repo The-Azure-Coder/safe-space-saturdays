@@ -37,6 +37,13 @@ LEVELS = tuple(
         "width": 1800 + (index % 4) * 300,
         "checkpoint": 650 + (index % 3) * 350,
         "finish": 1550 + (index % 4) * 250,
+        "platforms": [
+            {"x": 420 + (index % 3) * 60, "y": 100 + (index % 2) * 45, "width": 220, "height": 24},
+            {"x": 840 + (index % 4) * 55, "y": 150 + (index % 3) * 35, "width": 190, "height": 24},
+            {"x": 1210 + (index % 2) * 80, "y": 95 + (index % 4) * 30, "width": 230, "height": 24},
+        ],
+        "hazards": [{"x": 720 + (index % 2) * 90, "width": 120}, {"x": 1090 + (index % 3) * 60, "width": 100}],
+        "cooperation": "Stand on both buttons" if name == "two-buttons" else "Coordinate your timing",
     }
     for index, name in enumerate(MECHANICS)
 )
@@ -64,6 +71,10 @@ def new_together_state(
                 "color": COLORS[seat],
                 "x": 150 + seat * 52,
                 "y": 0,
+                "vy": 0,
+                "on_ground": True,
+                "coyote": 0,
+                "jump_buffer": 0,
                 "vx": 0,
                 "checkpoint": 150,
                 "connected": True,
@@ -101,11 +112,23 @@ def apply_together_action(
     if action == "input":
         axis = max(-1.0, min(1.0, float(payload.get("axis", 0))))
         dt = max(0.01, min(0.12, float(payload.get("dt", 1 / 15))))
-        player["vx"] = round(axis * 260, 2)
+        player["vx"] = round(axis * 280, 2)
         player["x"] = round(
             max(50, min(state["level_config"]["width"] - 50, player["x"] + player["vx"] * dt)), 2
         )
-        player["y"] = 1 if payload.get("jump") else 0
+        player["coyote"] = max(0, float(player.get("coyote", 0)) - dt)
+        player["jump_buffer"] = max(0, float(player.get("jump_buffer", 0)) - dt)
+        if payload.get("jump"):
+            player["jump_buffer"] = 0.12
+        if player["jump_buffer"] > 0 and (player["on_ground"] or player["coyote"] > 0):
+            player["vy"] = 660
+            player["on_ground"], player["coyote"], player["jump_buffer"] = False, 0, 0
+        player["vy"] = round(float(player.get("vy", 0)) - 1750 * dt, 2)
+        player["y"] = round(float(player.get("y", 0)) + player["vy"] * dt, 2)
+        if player["y"] <= 0:
+            player["y"], player["vy"], player["on_ground"] = 0, 0, True
+        elif player["y"] < 40:
+            player["coyote"] = 0.1
         if player["x"] >= state["level_config"]["checkpoint"] and not state["checkpoint_reached"]:
             state["checkpoint_reached"] = True
             for item in state["players"]:
@@ -117,7 +140,7 @@ def apply_together_action(
     elif action == "fall":
         state["falls"] += 1
         player["falls"] = int(player.get("falls", 0)) + 1
-        player["x"] = player["checkpoint"]
+        player["x"], player["y"], player["vy"], player["on_ground"] = player["checkpoint"], 0, 0, True
         state["last_event"] = f"{player['name']} went boop. Back to the checkpoint!"
     elif action == "reset_puzzle":
         state["restarts"] += 1
@@ -137,7 +160,7 @@ def apply_together_action(
             state["switches"] = [False] * state["player_count"]
             state["finishers"], state["checkpoint_reached"] = [], False
             for index, item in enumerate(state["players"]):
-                item.update(x=150 + index * 52, y=0, checkpoint=150)
+                item.update(x=150 + index * 52, y=0, vy=0, on_ground=True, checkpoint=150)
             state["last_event"] = f"Level {state['level']}: {state['level_config']['name']}"
     else:
         raise IllegalMove("That Together action is not available")

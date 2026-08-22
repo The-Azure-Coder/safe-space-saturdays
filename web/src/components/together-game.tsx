@@ -6,8 +6,8 @@ type TogetherState = {
   level?: number
   levels_total?: number
   phase?: string
-  players?: Array<{ name: string; color: string; x: number; y: number; connected?: boolean }>
-  level_config?: { width: number; checkpoint: number; finish: number; name: string; mechanic: string }
+  players?: Array<{ name: string; color: string; x: number; y: number; vx?: number; on_ground?: boolean; connected?: boolean }>
+  level_config?: { width: number; checkpoint: number; finish: number; name: string; mechanic: string; cooperation?: string; platforms?: Array<{ x: number; y: number; width: number; height: number }>; hazards?: Array<{ x: number; width: number }> }
   finishers?: number[]
   last_event?: string
   levels_completed?: number
@@ -16,8 +16,6 @@ type TogetherState = {
 
 type Props = { state: TogetherState; send: (action: Record<string, unknown>) => void; spectator?: boolean }
 
-const palette: Record<string, number> = { purple: 0x8f79d8, pink: 0xe895b4, blue: 0x6fafd7, green: 0x83b99a }
-
 class TogetherScene extends Phaser.Scene {
   state: TogetherState = {}
   send: Props['send'] = () => undefined
@@ -25,16 +23,38 @@ class TogetherScene extends Phaser.Scene {
   keys!: Record<string, Phaser.Input.Keyboard.Key>
   lastInput = 0
   avatars: Phaser.GameObjects.Container[] = []
+  playerSprites: Phaser.GameObjects.Sprite[] = []
   constructor() { super('TogetherScene') }
   create() {
     this.keys = this.input.keyboard!.addKeys('A,D,W,LEFT,RIGHT,UP,SPACE,E') as Record<string, Phaser.Input.Keyboard.Key>
     this.cameras.main.setBackgroundColor('#f8f5f0')
+    for (let index = 1; index <= 5; index += 1) {
+      this.anims.create({ key: `together-${index}-run`, frames: this.anims.generateFrameNumbers(`player${index}`, { start: 2, end: 6 }), frameRate: 10, repeat: -1 })
+      this.anims.create({ key: `together-${index}-idle`, frames: [{ key: `player${index}`, frame: 0 }, { key: `player${index}`, frame: 1 }], frameRate: 3, repeat: -1 })
+    }
     this.redraw()
   }
-  apply(state: TogetherState) { this.state = state; this.redraw() }
+  preload() {
+    for (let index = 1; index <= 5; index += 1) this.load.spritesheet(`player${index}`, `/assets/optimized/together-player${index}.webp`, { frameWidth: 136, frameHeight: 362 })
+  }
+  apply(state: TogetherState) {
+    const levelChanged = state.level !== this.state.level || this.avatars.length !== (state.players?.length ?? 0)
+    this.state = state
+    if (levelChanged) {
+      this.redraw()
+      return
+    }
+    state.players?.forEach((player, index) => {
+      const avatar = this.avatars[index]
+      const sprite = this.playerSprites[index]
+      if (!avatar || !sprite) return
+      avatar.setPosition(player.x, 480 - (player.y ?? 0))
+      sprite.play(Math.abs(player.vx ?? 0) > 1 ? `together-${(index % 4) + 1}-run` : `together-${(index % 4) + 1}-idle`, true)
+    })
+  }
   redraw() {
     this.children.removeAll(true)
-    const config = this.state.level_config ?? { width: 2200, checkpoint: 700, finish: 1750, name: 'The Beginning', mechanic: 'two-buttons' }
+    const config = this.state.level_config ?? { width: 2200, checkpoint: 700, finish: 1750, name: 'The Beginning', mechanic: 'two-buttons', cooperation: 'Stay together' }
     const viewWidth = this.scale.width
     const scale = Math.min(1, viewWidth / 1100)
     this.cameras.main.setZoom(scale)
@@ -44,27 +64,34 @@ class TogetherScene extends Phaser.Scene {
     this.add.text(36, 28, `WORLD 1  ·  LEVEL ${this.state.level ?? 1}/${this.state.levels_total ?? 20}`, { fontFamily: 'Nunito, sans-serif', fontSize: '20px', color: '#5f5368', fontStyle: 'bold' })
     this.add.text(36, 58, config.name, { fontFamily: 'Nunito, sans-serif', fontSize: '34px', color: '#332d3c', fontStyle: 'bold' })
     this.add.text(36, 100, this.state.last_event ?? 'Stay close. Nobody makes it alone.', { fontFamily: 'Nunito, sans-serif', fontSize: '17px', color: '#6f6574' })
+    this.add.text(36, 132, config.cooperation ?? 'Coordinate your timing', { fontFamily: 'Nunito, sans-serif', fontSize: '15px', color: '#8f79d8', fontStyle: 'bold' })
+    for (const platform of config.platforms ?? []) this.add.rectangle(platform.x, 535 - platform.y, platform.width, platform.height, 0xb59bd9).setStrokeStyle(3, 0x8f79d8)
+    for (const hazard of config.hazards ?? []) {
+      this.add.rectangle(hazard.x, 495, hazard.width, 18, 0xe895b4).setStrokeStyle(2, 0xc55f86)
+      this.add.text(hazard.x + 8, 470, 'oops zone', { fontFamily: 'Nunito, sans-serif', fontSize: '12px', color: '#a64e74' })
+    }
     this.add.rectangle(config.checkpoint, 455, 12, 160, 0x9ed2bd).setAlpha(0.75)
     this.add.text(config.checkpoint - 58, 355, 'CHECKPOINT', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#4f967e' })
     this.add.rectangle(config.finish, 455, 28, 160, 0xf1c476).setAlpha(0.9)
     this.add.text(config.finish - 35, 355, 'FINISH', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#a26c24' })
     this.add.text(config.width - 460, 75, config.mechanic.replaceAll('-', ' ').toUpperCase(), { fontFamily: 'Nunito, sans-serif', fontSize: '16px', color: '#9a7b9b', fontStyle: 'bold' })
+    this.playerSprites = []
     this.avatars = (this.state.players ?? []).map((player, index) => {
-      const body = this.add.circle(0, 0, 22, palette[player.color] ?? 0x8f79d8).setStrokeStyle(4, 0xffffff)
-      const face = this.add.circle(-7, -3, 3, 0x332d3c)
-      const face2 = this.add.circle(7, -3, 3, 0x332d3c)
+      const sprite = this.add.sprite(0, -42, `player${(index % 4) + 1}`, 0).setDisplaySize(76, 100)
+      sprite.play(`together-${(index % 4) + 1}-idle`)
       const label = this.add.text(-45, 30, player.name, { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#4b4254' })
-      return this.add.container(player.x ?? 150 + index * 52, 480, [body, face, face2, label])
+      this.playerSprites.push(sprite)
+      return this.add.container(player.x ?? 150 + index * 52, 480 - (player.y ?? 0), [sprite, label])
     })
   }
   update(time: number) {
     if (this.spectator || !this.keys) return
     const axis = this.keys.LEFT.isDown || this.keys.A.isDown ? -1 : this.keys.RIGHT.isDown || this.keys.D.isDown ? 1 : 0
     const jump = this.keys.SPACE.isDown || this.keys.W.isDown || this.keys.UP.isDown
-    if (axis !== 0 || jump) {
+    const local = this.state.players?.[Number(this.state.seat_index ?? 0)]
+    if (axis !== 0 || jump || (local && !local.on_ground)) {
       if (time - this.lastInput > 66) { this.send({ action: 'input', axis, jump, dt: 0.066 }); this.lastInput = time }
     }
-    const local = this.state.players?.[Number(this.state.seat_index ?? 0)]
     if (local) this.cameras.main.centerOn(local.x, 330)
   }
 }
