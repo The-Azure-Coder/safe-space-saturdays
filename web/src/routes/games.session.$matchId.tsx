@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useParams } from '@tanstack/react-router'
 import { ArrowLeft, Eye, Sparkle, Trophy } from '@phosphor-icons/react'
@@ -11,6 +11,7 @@ import { TriviaGame } from '../components/trivia-game'
 import type { TriviaState } from '../components/trivia-game'
 import { ScribbleGame } from '../components/scribble-game'
 import { CheckersGame } from '../components/checkers-game'
+const TogetherGame = lazy(() => import('../components/together-game').then((module) => ({ default: module.TogetherGame })))
 import { GameRoomControls } from '../components/game-room-controls'
 import { GeneralLoader } from '../components/general-loader'
 import type { ScribbleState } from '../components/scribble-game'
@@ -45,7 +46,7 @@ function GameSessionScreen() {
     const connection = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/api/games/sessions/${matchId}/ws`)
     socket.current = connection
     connection.onmessage = (event) => {
-      const message = JSON.parse(event.data) as { type: string; match?: GameSession; spectator_count?: number; detail?: string; segment?: ScribbleState['live_stroke'] }
+      const message = JSON.parse(event.data) as { type: string; match?: GameSession; spectator_count?: number; detail?: string; segment?: ScribbleState['live_stroke']; state?: Record<string, any> }
       if (message.type === 'drawing_segment' && message.segment) {
         const segment = message.segment
         setMatch((current) => current ? { ...current, state: { ...current.state, live_stroke: segment } } : current)
@@ -59,6 +60,9 @@ function GameSessionScreen() {
           viewerSeat.current = Number(nextMatch.state.seat_index)
         }
         setMatch(nextMatch)
+      }
+      if (message.type === 'together' && message.state) {
+        setMatch((current) => current ? { ...current, state: { ...current.state, ...message.state } } : current)
       }
       if (message.type === 'spectator_count') setMatch((current) => current ? { ...current, spectator_count: message.spectator_count ?? 0 } : current)
       if (message.type === 'session_ended') window.location.href = '/games'
@@ -92,7 +96,7 @@ function GameSessionScreen() {
     return <main className="page-content game-play-page"><GeneralLoader label="Loading your game…" /></main>
   if (!match && gameSession.isError)
     return <main className="page-content game-play-page"><GeneralLoader label="Reconnecting to your game…" onRetry={() => void gameSession.refetch()} /></main>
-  const title = match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : match?.game === 'abc-fast-slow' ? 'ABC Fast or Slow' : match?.game === 'checkers' ? 'Checkers' : 'Trivia Battle'
+  const title = match?.game === 'together' ? 'Together' : match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : match?.game === 'abc-fast-slow' ? 'ABC Fast or Slow' : match?.game === 'checkers' ? 'Checkers' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
   const players = state?.players ?? []
   const seat = Number(state?.seat_index ?? 0)
@@ -114,6 +118,7 @@ function GameSessionScreen() {
       {match?.game === 'scribble' && <ScribbleGame state={(state ?? {}) as Partial<ScribbleState>} send={send} error={error} />}
       {match?.game === 'abc-fast-slow' && <AbcFastSlowGame state={state ?? {}} send={send} />}
       {match?.game === 'checkers' && <CheckersGame state={(state ?? {}) as any} send={send} />}
+      {match?.game === 'together' && <Suspense fallback={<GeneralLoader label="Loading Together…" />}><TogetherGame state={(state ?? {}) as any} send={send} spectator={isSpectator} /></Suspense>}
     </div>
   </main>
 }

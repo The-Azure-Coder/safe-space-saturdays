@@ -235,6 +235,7 @@ class GameRoom(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default="open", server_default="open")
     fill_with_bots: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     invite_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    room_code: Mapped[str | None] = mapped_column(String(10), unique=True, index=True, nullable=True)
     bot_difficulty: Mapped[str] = mapped_column(
         String(20), default="friendly", server_default="friendly"
     )

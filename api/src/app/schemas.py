@@ -341,6 +341,7 @@ class RoomResponse(BaseModel):
     fill_with_bots: bool = True
     bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
     invite_token: str | None = None
+    room_code: str | None = None
 
 
 class RoomInviteResponse(BaseModel):
@@ -352,6 +353,7 @@ class RoomInviteResponse(BaseModel):
     status: str
     match_id: str | None = None
     invite_token: str
+    room_code: str | None = None
 
 
 class RoomParticipantResponse(BaseModel):

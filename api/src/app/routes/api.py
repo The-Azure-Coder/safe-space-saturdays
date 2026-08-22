@@ -544,11 +544,14 @@ async def grant_completed_game_rewards(
     winner: int | None,
 ) -> dict[int, GameProgress]:
     """Reconcile rewards for every human when a match reaches a terminal state."""
+    match = await db.get(GameMatch, match_id)
     for user_id, seat in player_ids.items():
         await grant_game_participation_reward(db, user_id, match_id)
-        if winner is not None and seat == winner:
+        if match is not None and match.game_type == "together":
+            await grant_game_reward(db, user_id, match_id, "together-world", 50)
+            await grant_game_reward(db, user_id, match_id, "together-team", 10)
+        elif winner is not None and seat == winner:
             await grant_game_win_reward(db, user_id, match_id)
-    match = await db.get(GameMatch, match_id)
     if match is None:
         return {}
     updated: dict[int, GameProgress] = {}
@@ -570,7 +573,7 @@ async def grant_completed_game_rewards(
             )
             db.add(progress)
         if winner is not None:
-            record_game_progress_result(progress, seat == winner)
+            record_game_progress_result(progress, match is not None and match.game_type == "together" or seat == winner)
         updated[user_id] = progress
     return updated
 
@@ -658,6 +661,8 @@ def game_type_for_name(name: str) -> str | None:
         return "abc-fast-slow"
     if normalized in {"checkers", "draughts"}:
         return "checkers"
+    if normalized in {"together", "linked together"}:
+        return "together"
     return None
 
 
@@ -831,6 +836,8 @@ def game_capacity(game_name: str) -> int:
         return 2
     if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
         return 4
+    if normalized in {"together", "linked together"}:
+        return 4
     if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
         return 6
     if normalized == "bingo":
@@ -866,7 +873,7 @@ async def build_match_seats(
         raise HTTPException(
             status_code=409, detail="This room has too many players for the selected game"
         )
-    if not fill_with_bots and len(participants) < count:
+    if game_type != "together" and not fill_with_bots and len(participants) < count:
         raise HTTPException(
             status_code=409, detail=f"All {count} seats must be filled before starting"
         )
@@ -893,7 +900,8 @@ async def build_match_seats(
     player_ids: dict[int, int] = {}
     bot_players: list[int] = []
     player_names: dict[int, str] = {}
-    for seat_index in range(count):
+    seat_count = len(participants) if game_type == "together" else count
+    for seat_index in range(seat_count):
         if seat_index < len(participants):
             participant = participants[seat_index]
             member = users[participant.user_id]
@@ -2013,6 +2021,7 @@ async def room_out(
         bot_difficulty=room.bot_difficulty,
         fill_with_bots=room.fill_with_bots,
         invite_token=room.invite_token if participant is not None or spectator else None,
+        room_code=room.room_code if participant is not None or spectator else None,
     )
 
 
@@ -2044,6 +2053,16 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
             status_code=422,
             detail=f"{game.name} supports at most {game_capacity(game.name)} players",
         )
+    room_code = None
+    if game.name.casefold() in {"together", "linked together"}:
+        for _ in range(8):
+            candidate = f"{secrets.choice(('PURPLE', 'HAPPY', 'SPACE', 'SUNNY', 'CLOUD', 'MANGO'))}{secrets.randbelow(90) + 10}"
+            if await db.scalar(select(GameRoom.id).where(GameRoom.room_code == candidate)) is None:
+                room_code = candidate
+                break
+        if room_code is None:
+            raise HTTPException(status_code=503, detail="Could not create a room code")
+        payload = payload.model_copy(update={"fill_with_bots": False, "max_players": min(payload.max_players, 4)})
     room = GameRoom(
         game_id=payload.game_id,
         host_id=user.id,
@@ -2052,11 +2071,30 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
         fill_with_bots=payload.fill_with_bots,
         bot_difficulty=payload.bot_difficulty,
         invite_token=secrets.token_urlsafe(32),
+        room_code=room_code,
     )
     db.add(room)
     await db.flush()
     db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=0, ready=True))
     await db.commit()
+    return await room_out(room, user.id, db)
+
+
+@router.post("/games/rooms/join-by-code", response_model=RoomResponse)
+async def join_room_by_code(payload: dict[str, str], user: CurrentUser, db: DbSession) -> RoomResponse:
+    code = str(payload.get("room_code", "")).strip().upper()
+    if not code or len(code) > 10:
+        raise HTTPException(status_code=422, detail="Enter a valid room code")
+    room = await db.scalar(select(GameRoom).where(GameRoom.room_code == code).with_for_update())
+    if room is None or room.status != "open":
+        raise HTTPException(status_code=404, detail="That Together room is not available")
+    count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
+    existing = await db.scalar(select(RoomParticipant.id).where(RoomParticipant.room_id == room.id, RoomParticipant.user_id == user.id))
+    if existing is None:
+        if count >= room.max_players:
+            raise HTTPException(status_code=409, detail="Room is full")
+        db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=count))
+        await db.commit()
     return await room_out(room, user.id, db)
 
 
@@ -2083,6 +2121,7 @@ async def get_room_invite(invite_token: str, db: DbSession) -> RoomInviteRespons
         status=room.status,
         match_id=match_id,
         invite_token=room.invite_token,
+        room_code=room.room_code,
     )
 
 
@@ -2636,6 +2675,8 @@ async def create_game_session(
     seats, player_ids, bot_players, player_names = await build_match_seats(
         room, game_type, user.id, db, payload.fill_with_bots
     )
+    if game_type == "together" and len(player_ids) < 2:
+        raise HTTPException(status_code=409, detail="Together needs at least two players")
     progress = await db.scalar(select(GameProgress).where(
         GameProgress.user_id == user.id, GameProgress.game_type == game_type
     ))
@@ -2646,7 +2687,7 @@ async def create_game_session(
         room.id,
         user.id,
         game_type,
-        min(room.max_players, game_capacity(game_type)),
+        len(player_ids) if game_type == "together" else min(room.max_players, game_capacity(game_type)),
         player_ids=player_ids,
         bot_players=bot_players,
         player_names=player_names,
@@ -2742,6 +2783,10 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                 await universal_matches.action(match, user.id, message["action"])
             except IllegalMove as error:
                 await websocket.send_json({"type": "error", "detail": str(error)})
+                continue
+            if match.game_type == "together" and message["action"].get("action") == "input":
+                # Movement is an ephemeral compact delta stream. Checkpoints,
+                # level changes, and completion are persisted below.
                 continue
             # Drawing segments are deliberately ephemeral websocket events.
             # Persisting and rebroadcasting the entire growing canvas for every
