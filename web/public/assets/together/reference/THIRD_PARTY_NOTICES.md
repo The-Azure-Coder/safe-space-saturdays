@@ -6,13 +6,8 @@ The upstream repository documents its game under the Apache License, Version 2.0
 
 Imported material:
 
-- `images/ninja-hero.png`
-- `images/ninja-background.png`
-- `images/ninja-ground.png`
-- `images/ninja-decor.png`
-- `levels/level00.json`, `level01.json`, and `level02.json`
-- `audio/ninja-jump.wav` and `audio/ninja-door.wav`
+- `levels/level00.json`, `level01.json`, and `level02.json` as map-structure references.
 
-Together uses these as a temporary playable prototype reference. The Safe Space Saturdays server, lobby, authentication, XP validation, networking, and level progression remain application-owned code. Character art can be replaced later without changing the game contract.
+The playable visual assets now live under `../original/` and were generated specifically for Safe Space Saturdays. The Safe Space Saturdays server, lobby, authentication, XP validation, networking, and level progression remain application-owned code. Character art can be replaced later without changing the game contract.
 
 Phaser is a separate dependency in the upstream repository and is not redistributed from this directory.
