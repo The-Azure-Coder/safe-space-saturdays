@@ -7,7 +7,7 @@ type TogetherState = {
   levels_total?: number
   phase?: string
   players?: Array<{ name: string; color: string; x: number; y: number; vx?: number; on_ground?: boolean; connected?: boolean }>
-  level_config?: { width: number; checkpoint: number; finish: number; name: string; mechanic: string; cooperation?: string; platforms?: Array<{ x: number; y: number; width: number; height: number }>; hazards?: Array<{ x: number; width: number }> }
+  level_config?: { width: number; checkpoint: number; finish: number; name: string; mechanic: string; theme?: string; cooperation?: string; platforms?: Array<{ x: number; y: number; width: number; height: number }>; hazards?: Array<{ x: number; width: number }>; collectibles?: Array<{ x: number; y: number }>; plates?: Array<{ x: number; label: string }>; moving_platforms?: Array<{ x: number; y: number; width: number; range: number }> }
   finishers?: number[]
   last_event?: string
   levels_completed?: number
@@ -59,7 +59,8 @@ class TogetherScene extends Phaser.Scene {
     this.cameras.main.setZoom(scale)
     this.cameras.main.setBounds(0, 0, config.width, 620)
     this.add.rectangle(config.width / 2, 310, config.width, 620, 0xf5eee5)
-    this.add.image(config.width / 2, 310, 'together-backdrop').setDisplaySize(config.width, 620).setAlpha(0.92).setScrollFactor(0.2)
+    const themeTint: Record<string, number> = { meadow: 0xffffff, crystal: 0xe7f2ff, sunset: 0xffe5d8, moonlit: 0xdcdcff }
+    this.add.image(config.width / 2, 310, 'together-backdrop').setDisplaySize(config.width, 620).setTint(themeTint[config.theme ?? 'meadow'] ?? 0xffffff).setAlpha(0.92).setScrollFactor(0.2)
     for (let index = 0; index < 9; index += 1) {
       const hill = this.add.ellipse(180 + index * 260, 430 - (index % 3) * 22, 420, 190, index % 2 ? 0xded5ed : 0xd8e8df).setAlpha(0.72)
       hill.setScrollFactor(0.28)
@@ -72,17 +73,35 @@ class TogetherScene extends Phaser.Scene {
     hud.add(this.add.text(36, 100, this.state.last_event ?? 'Stay close. Nobody makes it alone.', { fontFamily: 'Nunito, sans-serif', fontSize: '17px', color: '#6f6574' }))
     hud.add(this.add.text(36, 132, config.cooperation ?? 'Coordinate your timing', { fontFamily: 'Nunito, sans-serif', fontSize: '15px', color: '#8f79d8', fontStyle: 'bold' }))
     for (const platform of config.platforms ?? []) {
-      const graphic = this.add.graphics().fillStyle(0xb59bd9).fillRoundedRect(platform.x - platform.width / 2, 535 - platform.y, platform.width, platform.height, 10).lineStyle(3, 0x8f79d8).strokeRoundedRect(platform.x - platform.width / 2, 535 - platform.y, platform.width, platform.height, 10)
+      const platformTop = 535 - platform.y
+      const graphic = this.add.graphics().fillStyle(0x4f315f).fillRoundedRect(platform.x - platform.width / 2, platformTop, platform.width, platform.height + 20, 10).lineStyle(3, 0x332040).strokeRoundedRect(platform.x - platform.width / 2, platformTop, platform.width, platform.height + 20, 10)
+      graphic.fillStyle(0x9bd47d).fillRoundedRect(platform.x - platform.width / 2, platformTop - 5, platform.width, 12, 6)
       graphic.setDepth(2)
+    }
+    for (const platform of config.moving_platforms ?? []) {
+      const platformTop = 535 - platform.y
+      const moving = this.add.graphics().fillStyle(0x5d3c70).fillRoundedRect(platform.x - platform.width / 2, platformTop, platform.width, 30, 10).lineStyle(3, 0xffc875).strokeRoundedRect(platform.x - platform.width / 2, platformTop, platform.width, 30, 10)
+      moving.fillStyle(0xffd98a).fillRoundedRect(platform.x - platform.width / 2 + 12, platformTop - 4, platform.width - 24, 8, 4)
+      moving.setDepth(3)
+      this.tweens.add({ targets: moving, x: platform.range, duration: 1700 + platform.range * 2, ease: 'Sine.inOut', yoyo: true, repeat: -1 })
+    }
+    for (const collectible of config.collectibles ?? []) {
+      const crystal = this.add.graphics().fillStyle(0xff80c8, 1).fillTriangle(collectible.x, 420 - collectible.y, collectible.x + 13, 435 - collectible.y, collectible.x, 450 - collectible.y).fillTriangle(collectible.x, 420 - collectible.y, collectible.x - 13, 435 - collectible.y, collectible.x, 450 - collectible.y).lineStyle(2, 0xffe3f4).strokePath()
+      crystal.setDepth(4)
+      this.tweens.add({ targets: crystal, y: -8, duration: 850 + (collectible.x % 4) * 90, ease: 'Sine.inOut', yoyo: true, repeat: -1 })
+    }
+    for (const plate of config.plates ?? []) {
+      this.add.ellipse(plate.x, 518, 82, 20, 0x8ee6dd, 0.72).setStrokeStyle(3, 0xd7fff7).setDepth(3)
+      this.add.text(plate.x - 5, 508, plate.label, { fontFamily: 'Nunito, sans-serif', fontSize: '16px', color: '#3e4768', fontStyle: 'bold' }).setDepth(4)
     }
     for (const hazard of config.hazards ?? []) {
       this.add.rectangle(hazard.x, 495, hazard.width, 18, 0xe895b4).setStrokeStyle(2, 0xc55f86)
       this.add.text(hazard.x + 8, 470, 'oops zone', { fontFamily: 'Nunito, sans-serif', fontSize: '12px', color: '#a64e74' })
     }
-    this.add.rectangle(config.checkpoint, 455, 12, 160, 0x9ed2bd).setAlpha(0.75).setDepth(1)
-    this.add.text(config.checkpoint - 58, 355, 'CHECKPOINT', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#4f967e' })
-    this.add.rectangle(config.finish, 455, 28, 160, 0xf1c476).setAlpha(0.9).setDepth(1)
-    this.add.text(config.finish - 35, 355, 'FINISH', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#a26c24' })
+    this.add.rectangle(config.checkpoint, 455, 14, 160, 0x8ee6dd).setAlpha(0.7).setDepth(1)
+    this.add.text(config.checkpoint - 58, 355, 'CHECKPOINT', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#d7fff7', fontStyle: 'bold' })
+    this.add.rectangle(config.finish, 455, 34, 160, 0xd574ec).setAlpha(0.85).setDepth(1)
+    this.add.text(config.finish - 35, 355, 'PORTAL', { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#fff1ff', fontStyle: 'bold' })
     this.add.text(config.width - 460, 75, config.mechanic.replaceAll('-', ' ').toUpperCase(), { fontFamily: 'Nunito, sans-serif', fontSize: '16px', color: '#9a7b9b', fontStyle: 'bold' })
     this.playerSprites = []
     this.avatars = (this.state.players ?? []).map((player, index) => {
