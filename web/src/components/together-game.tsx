@@ -28,14 +28,14 @@ class TogetherScene extends Phaser.Scene {
   create() {
     this.keys = this.input.keyboard!.addKeys('A,D,W,LEFT,RIGHT,UP,SPACE,E') as Record<string, Phaser.Input.Keyboard.Key>
     this.cameras.main.setBackgroundColor('#f8f5f0')
-    for (let index = 1; index <= 5; index += 1) {
+    for (let index = 1; index <= 4; index += 1) {
       this.anims.create({ key: `together-${index}-run`, frames: this.anims.generateFrameNumbers(`player${index}`, { start: 2, end: 6 }), frameRate: 10, repeat: -1 })
       this.anims.create({ key: `together-${index}-idle`, frames: [{ key: `player${index}`, frame: 0 }, { key: `player${index}`, frame: 1 }], frameRate: 3, repeat: -1 })
     }
     this.redraw()
   }
   preload() {
-    for (let index = 1; index <= 5; index += 1) this.load.spritesheet(`player${index}`, `/assets/optimized/together-player${index}.webp`, { frameWidth: 136, frameHeight: 362 })
+    for (let index = 1; index <= 4; index += 1) this.load.spritesheet(`player${index}`, `/assets/optimized/together-player${index}.webp`, { frameWidth: 136, frameHeight: 362 })
   }
   apply(state: TogetherState) {
     const levelChanged = state.level !== this.state.level || this.avatars.length !== (state.players?.length ?? 0)
