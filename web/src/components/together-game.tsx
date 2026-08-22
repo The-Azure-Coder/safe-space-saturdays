@@ -28,14 +28,15 @@ class TogetherScene extends Phaser.Scene {
   create() {
     this.keys = this.input.keyboard!.addKeys('A,D,W,LEFT,RIGHT,UP,SPACE,E') as Record<string, Phaser.Input.Keyboard.Key>
     this.cameras.main.setBackgroundColor('#f8f5f0')
-    for (let index = 1; index <= 4; index += 1) {
-      this.anims.create({ key: `together-${index}-run`, frames: this.anims.generateFrameNumbers(`player${index}`, { start: 2, end: 6 }), frameRate: 10, repeat: -1 })
-      this.anims.create({ key: `together-${index}-idle`, frames: [{ key: `player${index}`, frame: 0 }, { key: `player${index}`, frame: 1 }], frameRate: 3, repeat: -1 })
-    }
+    this.anims.create({ key: 'together-ninja-run', frames: this.anims.generateFrameNumbers('ninja-hero', { start: 1, end: 6 }), frameRate: 10, repeat: -1 })
+    this.anims.create({ key: 'together-ninja-idle', frames: [{ key: 'ninja-hero', frame: 0 }, { key: 'ninja-hero', frame: 1 }], frameRate: 3, repeat: -1 })
     this.redraw()
   }
   preload() {
-    for (let index = 1; index <= 4; index += 1) this.load.spritesheet(`player${index}`, `/assets/optimized/together-player${index}.webp`, { frameWidth: 136, frameHeight: 362 })
+    this.load.spritesheet('ninja-hero', '/assets/together/reference/images/ninja-hero.png', { frameWidth: 36, frameHeight: 42 })
+    this.load.image('ninja-background', '/assets/together/reference/images/ninja-background.png')
+    this.load.image('ninja-ground', '/assets/together/reference/images/ninja-ground.png')
+    this.load.spritesheet('ninja-decor', '/assets/together/reference/images/ninja-decor.png', { frameWidth: 42, frameHeight: 42 })
   }
   apply(state: TogetherState) {
     const levelChanged = state.level !== this.state.level || this.avatars.length !== (state.players?.length ?? 0)
@@ -49,7 +50,7 @@ class TogetherScene extends Phaser.Scene {
       const sprite = this.playerSprites[index]
       if (!avatar || !sprite) return
       avatar.setPosition(player.x, 480 - (player.y ?? 0))
-      sprite.play(Math.abs(player.vx ?? 0) > 1 ? `together-${(index % 4) + 1}-run` : `together-${(index % 4) + 1}-idle`, true)
+      sprite.play(Math.abs(player.vx ?? 0) > 1 ? 'together-ninja-run' : 'together-ninja-idle', true)
     })
   }
   redraw() {
@@ -60,12 +61,17 @@ class TogetherScene extends Phaser.Scene {
     this.cameras.main.setZoom(scale)
     this.cameras.main.setBounds(0, 0, config.width, 620)
     this.add.rectangle(config.width / 2, 310, config.width, 620, 0xf5eee5)
+    this.add.image(config.width / 2, 238, 'ninja-background').setDisplaySize(config.width, 500).setAlpha(0.28).setScrollFactor(0.2)
     for (let index = 0; index < 9; index += 1) {
       const hill = this.add.ellipse(180 + index * 260, 430 - (index % 3) * 22, 420, 190, index % 2 ? 0xded5ed : 0xd8e8df).setAlpha(0.72)
       hill.setScrollFactor(0.28)
     }
     const ground = this.add.rectangle(config.width / 2, 535, config.width, 170, 0xe6ddd1).setStrokeStyle(3, 0xd0c2b1)
     ground.setOrigin(0.5)
+    this.add.tileSprite(config.width / 2, 535, config.width, 84, 'ninja-ground').setAlpha(0.82).setDepth(1)
+    for (let index = 0; index < Math.ceil(config.width / 180); index += 1) {
+      this.add.sprite(90 + index * 180, 480, 'ninja-decor', index % 5).setAlpha(0.72).setDepth(1)
+    }
     const hud = this.add.container(0, 0).setScrollFactor(0)
     hud.add(this.add.text(36, 28, `WORLD 1  ·  LEVEL ${this.state.level ?? 1}/${this.state.levels_total ?? 20}`, { fontFamily: 'Nunito, sans-serif', fontSize: '20px', color: '#5f5368', fontStyle: 'bold' }))
     hud.add(this.add.text(36, 58, config.name, { fontFamily: 'Nunito, sans-serif', fontSize: '34px', color: '#332d3c', fontStyle: 'bold' }))
@@ -86,8 +92,8 @@ class TogetherScene extends Phaser.Scene {
     this.add.text(config.width - 460, 75, config.mechanic.replaceAll('-', ' ').toUpperCase(), { fontFamily: 'Nunito, sans-serif', fontSize: '16px', color: '#9a7b9b', fontStyle: 'bold' })
     this.playerSprites = []
     this.avatars = (this.state.players ?? []).map((player, index) => {
-      const sprite = this.add.sprite(0, -42, `player${(index % 4) + 1}`, 0).setDisplaySize(76, 100)
-      sprite.play(`together-${(index % 4) + 1}-idle`)
+      const sprite = this.add.sprite(0, -42, 'ninja-hero', 0).setScale(1.75).setTint(Phaser.Display.Color.HexStringToColor(player.color ?? '#8f79d8').color)
+      sprite.play('together-ninja-idle')
       const label = this.add.text(-45, 30, player.name, { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#4b4254' })
       this.playerSprites.push(sprite)
       return this.add.container(player.x ?? 150 + index * 52, 480 - (player.y ?? 0), [sprite, label])
