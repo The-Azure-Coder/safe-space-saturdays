@@ -105,49 +105,49 @@ const games: Array<GameDefinition> = [
     name: 'Ludo',
     players: '2–4 players',
     description: 'Roll, race, and make a little room for friendly competition.',
-    icon: '/assets/game-ludo.png',
+    icon: '/assets/optimized/game-ludo.webp',
     color: 'sage',
   },
   {
     name: 'Dominoes',
     players: '2–4 players',
     description: 'Match the ends, play your hand, and keep the table flowing.',
-    icon: '/assets/game-dominoes.png',
+    icon: '/assets/optimized/game-dominoes.webp',
     color: 'peach',
   },
   {
     name: 'Trivia Battle',
     players: '2+ players',
     description: 'Put your curious mind to work across bright, playful categories.',
-    icon: '/assets/game-trivia.png',
+    icon: '/assets/optimized/game-trivia.webp',
     color: 'lilac',
   },
   {
     name: 'Connect Four',
     players: '2 players',
     description: 'Think one move ahead and connect four before your rival does.',
-    icon: '/assets/game-connect-four.png',
+    icon: '/assets/optimized/game-connect-four.webp',
     color: 'blue',
   },
   {
     name: 'Scribble',
     players: '2–4 players',
     description: 'Draw something wonderfully imperfect and see who can guess it.',
-    icon: '/assets/game-scribble.png',
+    icon: '/assets/optimized/game-scribble.webp',
     color: 'coral',
   },
   {
     name: 'ABC Fast or Slow',
     players: '2–6 players',
     description: 'Race the clock, think creatively, and find one-of-a-kind answers.',
-    icon: '/assets/game-abc-fast-slow.png',
+    icon: '/assets/optimized/game-abc-fast-slow.webp',
     color: 'sage',
   },
   {
     name: 'Checkers',
     players: '2 players',
     description: 'Plan your jumps, crown your pieces, and make every move count.',
-    icon: '/assets/game-checkers.png',
+    icon: '/assets/optimized/game-checkers.webp',
     color: 'coral',
   },
 ]
@@ -161,7 +161,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
     >
       <img
         className="brand-mark__image"
-        src="/assets/safe-space-saturdays-logo.jpeg"
+        src="/assets/optimized/safe-space-saturdays-logo.webp"
         alt="Safe Space Saturdays — you are not alone"
       />
     </Link>
@@ -186,7 +186,7 @@ function PageHeader({ screen }: { screen: Screen }) {
     queryKey: ['me'],
     queryFn: api.me,
     retry: false,
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
   })
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -657,7 +657,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
             : 'This is a space to breathe, be seen, and belong. We’re here to listen, support, and walk alongside you.'}
         </p>
         <img
-          src="/assets/community-circle.png"
+          src="/assets/optimized/community-circle.webp"
           alt="A group of people gathered together in a supportive circle"
         />
       </section>
@@ -1011,7 +1011,7 @@ function WelcomeCarousel() {
       <div key={`art-${activeSlide}`} className="welcome-carousel__art">
         <img
           className="welcome-carousel__image"
-          src="/assets/community-circle.png"
+          src="/assets/optimized/community-circle.webp"
           alt="Friends supporting one another in a safe space"
         />
         <span className="welcome-carousel__sun" aria-hidden="true" />
@@ -1183,7 +1183,7 @@ function GameStrip() {
           </div>
         </div>
         <div className="game-feature__art" aria-hidden="true">
-          <img src={activeGame.icon as string} alt="" />
+          <img src={activeGame.icon as string} alt="" loading="lazy" decoding="async" />
           <span className="game-feature__spark game-feature__spark--one">✦</span>
           <span className="game-feature__spark game-feature__spark--two">✿</span>
         </div>
@@ -1750,13 +1750,13 @@ function GameTile({
 }) {
   const GameIcon = typeof game.icon === 'string' ? null : game.icon
   const generatedAssets: Record<string, string> = {
-    Ludo: '/assets/game-ludo.png',
-    Dominoes: '/assets/game-dominoes.png',
-    'Trivia Battle': '/assets/game-trivia.png',
-    'Connect Four': '/assets/game-connect-four.png',
-    Scribble: '/assets/game-scribble.png',
-    'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
-    Checkers: '/assets/game-checkers.png',
+    Ludo: '/assets/optimized/game-ludo.webp',
+    Dominoes: '/assets/optimized/game-dominoes.webp',
+    'Trivia Battle': '/assets/optimized/game-trivia.webp',
+    'Connect Four': '/assets/optimized/game-connect-four.webp',
+    Scribble: '/assets/optimized/game-scribble.webp',
+    'ABC Fast or Slow': '/assets/optimized/game-abc-fast-slow.webp',
+    Checkers: '/assets/optimized/game-checkers.webp',
   }
   const generatedIcon =
     typeof game.icon === 'string' && game.icon.startsWith('/')
@@ -1768,7 +1768,7 @@ function GameTile({
     >
       <span className="game-tile__icon" aria-hidden="true">
         {generatedIcon ? (
-          <img src={generatedIcon} alt="" />
+          <img src={generatedIcon} alt="" loading="lazy" decoding="async" />
         ) : GameIcon ? (
           <GameIcon size={compact ? 34 : 48} weight="duotone" />
         ) : null}
@@ -1871,7 +1871,7 @@ function CheckInScreen() {
           >
             <div className="checkin-cooldown-card__visual">
               <img
-                src="/assets/community-circle.png"
+                src="/assets/optimized/community-circle.webp"
                 alt="Friends reflecting together in a supportive circle"
               />
               <span className="checkin-complete-card__icon">
@@ -2489,7 +2489,7 @@ function CommunityScreen() {
   const postsQuery = useQuery({
     queryKey: ['posts', page, sort],
     queryFn: () => api.posts(page, 10, sort),
-    refetchInterval: 60_000,
+    refetchInterval: 90_000,
   })
   const create = useMutation({
     mutationFn: () => api.createPost(draft.trim(), imageFile),
@@ -2616,7 +2616,7 @@ function CommunityScreen() {
       <main className="page-content community-page">
         <section className="community-hero">
           <img
-            src="/assets/community-circle.png"
+            src="/assets/optimized/community-circle.webp"
             alt="A group of friends supporting each other"
           />
           <SectionHeading
@@ -2902,7 +2902,7 @@ function CommunityScreen() {
               <p className="announcement-card__intro">The latest little updates from your Safe Space.</p>
               <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Game night is here</strong><p>Friendly rooms, bot play, and game-night rules are ready whenever you are.</p><Link to="/games">Explore the games <ArrowRight size={15} /></Link></div></div>
               <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>ABC Fast or Slow is now available</strong><p>Spin the letter wheel, choose your pace, and race to find creative answers.</p><Link to="/games">Play ABC Fast or Slow <ArrowRight size={15} /></Link></div></div>
-              {(announcementsQuery.data ?? []).map((announcement) => <div className="announcement-item" key={announcement.id}><span className="announcement-item__badge announcement-item__badge--sage">New</span><div>{announcement.image_url && <img className="announcement-item__image" src={announcement.image_url} alt="" />}</div><div><strong>{announcement.title}</strong><p>{announcement.body}</p>{announcement.cta_label && announcement.cta_path && <a href={announcement.cta_path}>{announcement.cta_label} <ArrowRight size={15} /></a>}</div></div>)}
+              {(announcementsQuery.data ?? []).map((announcement) => <div className="announcement-item" key={announcement.id}><span className="announcement-item__badge announcement-item__badge--sage">New</span><div>{announcement.image_url && <img className="announcement-item__image" src={assetUrl(announcement.image_url)} alt="" loading="lazy" decoding="async" />}</div><div><strong>{announcement.title}</strong><p>{announcement.body}</p>{announcement.cta_label && announcement.cta_path && <a href={announcement.cta_path}>{announcement.cta_label} <ArrowRight size={15} /></a>}</div></div>)}
             </section>
             <section className="guidelines-card">
               <div className="card-title">
@@ -3153,12 +3153,12 @@ function GamesScreen() {
   const roomsQuery = useQuery({
     queryKey: ['rooms', roomsPage],
     queryFn: () => api.rooms(roomsPage, 5),
-    refetchInterval: 2500,
+    refetchInterval: 5000,
   })
   const winnersQuery = useQuery({
     queryKey: ['game-winners'],
     queryFn: () => api.winners(1, 5),
-    refetchInterval: 10000,
+    refetchInterval: 30_000,
   })
   const queryClient = useQueryClient()
   const join = useMutation({
@@ -3236,7 +3236,7 @@ function GamesScreen() {
             description="Play, connect, and unwind with the community. Jump in for fun, friendly competition, and good vibes!"
           />
           <img
-            src="/assets/community-circle.png"
+            src="/assets/optimized/community-circle.webp"
             alt="Friends playing games together"
           />
         </section>
@@ -3724,14 +3724,12 @@ function LeaderboardScreen() {
     queryKey: ['leaderboard', period, page],
     queryFn: () => api.leaderboard(period, page, 10),
     refetchInterval: 60_000,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    refetchOnMount: false,
   })
   const progress = useQuery({
     queryKey: ['leaderboard-me', period],
     queryFn: () => api.leaderboardMe(period),
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    refetchOnMount: false,
   })
   const entries = leaderboard.data ?? []
   const isRefreshing = leaderboard.isFetching || progress.isFetching

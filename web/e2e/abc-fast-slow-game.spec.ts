@@ -19,7 +19,7 @@ test('ABC Fast or Slow completes timed answers, review, scoring, and rematch flo
   await page.goto('/games')
   const gameCard = page.locator('.game-tile').filter({ hasText: 'ABC Fast or Slow' }).first()
   await expect(gameCard).toBeVisible({ timeout: 110_000 })
-  await expect(gameCard.locator('img')).toHaveAttribute('src', /game-abc-fast-slow\.png$/)
+  await expect(gameCard.locator('img')).toHaveAttribute('src', /optimized\/game-abc-fast-slow\.webp$/)
   await gameCard.getByRole('button', { name: 'Play' }).click()
   await expect(page).toHaveURL(/\/games\/session\/[a-f0-9-]+$/)
 

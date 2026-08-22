@@ -19,10 +19,24 @@ export const API_HEALTH_URL =
 
 export const googleLoginUrl = `${API_URL}/api/auth/google/start`
 
+const optimizedAssetPaths: Record<string, string> = {
+  '/assets/community-circle.png': '/assets/optimized/community-circle.webp',
+  '/assets/game-abc-fast-slow.png': '/assets/optimized/game-abc-fast-slow.webp',
+  '/assets/game-bingo.png': '/assets/optimized/game-bingo.webp',
+  '/assets/game-checkers.png': '/assets/optimized/game-checkers.webp',
+  '/assets/game-connect-four.png': '/assets/optimized/game-connect-four.webp',
+  '/assets/game-dominoes.png': '/assets/optimized/game-dominoes.webp',
+  '/assets/game-ludo.png': '/assets/optimized/game-ludo.webp',
+  '/assets/game-scribble.png': '/assets/optimized/game-scribble.webp',
+  '/assets/game-trivia.png': '/assets/optimized/game-trivia.webp',
+  '/assets/safe-space-saturdays-logo.jpeg': '/assets/optimized/safe-space-saturdays-logo.webp',
+}
+
 export function assetUrl(value: string): string {
-  return value.startsWith('http://') || value.startsWith('https://')
-    ? value
-    : `${API_URL}${value}`
+  const path = optimizedAssetPaths[value] ?? value
+  return path.startsWith('http://') || path.startsWith('https://')
+    ? path
+    : `${API_URL}${path}`
 }
 
 export class ApiError extends Error {

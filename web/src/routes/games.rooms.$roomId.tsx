@@ -20,7 +20,7 @@ function GameRoomLobby() {
     enabled: Number.isInteger(roomId) && roomId > 0,
     retry: shouldRetryApiRequest,
     retryDelay: apiRetryDelay,
-    refetchInterval: 1500,
+    refetchInterval: 3000,
   })
   const participants = useQuery({
     queryKey: ['room-participants', roomId],
@@ -28,7 +28,7 @@ function GameRoomLobby() {
     enabled: Number.isInteger(roomId) && roomId > 0,
     retry: shouldRetryApiRequest,
     retryDelay: apiRetryDelay,
-    refetchInterval: 1500,
+    refetchInterval: 3000,
   })
   const ready = useMutation({
     mutationFn: () => api.setRoomReady(roomId),
