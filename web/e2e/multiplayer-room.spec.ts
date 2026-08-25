@@ -106,10 +106,11 @@ test('Together starts through the normal room flow and validates cooperative com
   const guest = await registeredClient('together-guest')
   let roomId: number | null = null
   try {
-    const created = await host.post('/api/games/rooms', { data: { game_id: together!.id, name: `Together ${Date.now()}`, max_players: 4, fill_with_bots: false } })
+    const created = await host.post('/api/games/rooms', { data: { game_id: together!.id, name: `Together ${Date.now()}`, max_players: 5, fill_with_bots: false } })
     expect(created.status()).toBe(201)
-    const room = await created.json() as { id: number }
+    const room = await created.json() as { id: number; max_players: number }
     roomId = room.id
+    expect(room.max_players).toBe(5)
     const joined = await guest.post(`/api/games/rooms/${room.id}/join`)
     expect(joined.status()).toBe(200)
     expect((await guest.post(`/api/games/rooms/${room.id}/ready`)).status()).toBe(200)

@@ -1,0 +1,116 @@
+{
+  "pack": "safe-space-saturdays-together",
+  "provider": "PixelLab",
+  "generated_at": "2026-08-22",
+  "source_game": "Together",
+  "character": {
+    "id": "e0e4f1aa-4173-4724-87fb-3ae2e67f82a1",
+    "background_job_id": "249503d2-7bea-4458-a6d8-b4e5909904c3",
+    "status": "completed",
+    "view": "side",
+    "size": { "width": 92, "height": 92 },
+    "directions": ["south", "east", "north", "west"],
+    "files": {
+      "south": "robot/rotations/south.png",
+      "east": "robot/rotations/east.png",
+      "north": "robot/rotations/north.png",
+      "west": "robot/rotations/west.png"
+    },
+    "prompt": "friendly cooperative helper robot for a gentle pixel-art platformer, rounded lavender body, soft mint face screen, peach heart emblem, expressive simple eyes, small antenna, compact readable silhouette, transparent background"
+  },
+  "robot_variants": [
+    {
+      "seat": 0,
+      "color": "#9a7bd3",
+      "name": "purple",
+      "character_id": "087dd7f4-1dc7-424d-9f0b-0e49bde4636f",
+      "background_job_id": "7a59c961-4d75-4d44-bb77-4f874ff0f92c",
+      "directory": "robot/variants/purple"
+    },
+    {
+      "seat": 1,
+      "color": "#e98a92",
+      "name": "coral",
+      "character_id": "8001e1cd-67c6-43fd-97a2-832a4eba4d33",
+      "background_job_id": "1f1fb5dd-01b4-417c-8005-badc4547bbeb",
+      "directory": "robot/variants/coral"
+    },
+    {
+      "seat": 2,
+      "color": "#77aee8",
+      "name": "blue",
+      "character_id": "a97441a9-e219-49de-b73c-d51e90037e19",
+      "background_job_id": "6d9e05ad-02bd-4cd1-8b23-b2a7868bd11e",
+      "directory": "robot/variants/blue"
+    },
+    {
+      "seat": 3,
+      "color": "#7ec7a2",
+      "name": "green",
+      "character_id": "ab7d778e-6cc9-4423-8bd8-21d99c4dddfe",
+      "background_job_id": "9b7ad28d-2c74-469e-b0a4-8c0c6cc37b25",
+      "directory": "robot/variants/green"
+    },
+    {
+      "seat": 4,
+      "color": "#e0b65e",
+      "name": "yellow",
+      "character_id": "9ddf4625-cbb0-4c40-9671-590260a26899",
+      "background_job_id": "8400f8a8-3fba-4ba7-a747-21ccb777996b",
+      "directory": "robot/variants/yellow"
+    }
+  ],
+  "tilesets": {
+    "meadow": {
+      "id": "893e1d55-1c7f-4b7e-b41f-e7c708c1d6be",
+      "background_job_id": "31977d53-bbd4-4d90-8746-519c98f10fbb",
+      "status": "completed",
+      "tile_size": { "width": 32, "height": 32 },
+      "directory": "tiles/meadow",
+      "prompt": "warm plum stone platform with rounded edges and subtle carved friendship symbols, readable platformer collision silhouette; soft meadow grass, tiny mint sprouts and small peach flowers"
+    },
+    "crystal": {
+      "id": "516e881b-ab9d-4530-b2d8-1adf7248ec6d",
+      "background_job_id": "11bb9909-8979-41f9-9b6e-0f5f1b1fa192",
+      "status": "completed",
+      "tile_size": { "width": 32, "height": 32 },
+      "directory": "tiles/crystal",
+      "prompt": "deep indigo crystal platform with rounded safe edges and glowing lavender facets, readable platformer collision silhouette; icy blue crystal grass and tiny pink crystal flowers"
+    }
+  },
+  "animations": {
+    "walk": {
+      "template": "walking-4-frames",
+      "group_id": "2470e082-6f11-42bb-8190-648389956564",
+      "background_job_ids": [
+        "e8307368-ff74-4c83-b896-6a5b49f04b84",
+        "235cefd9-6841-4f1b-8841-0cbf23d6eb64"
+      ],
+      "directions_submitted": ["south", "east"],
+      "directions_completed": ["south", "east"],
+      "frames": 4,
+      "export_directory": "robot/animations/walking-4-frames",
+      "status": "completed"
+    },
+    "idle": {
+      "template": "breathing-idle",
+      "group_id": "8fd47b85-24b3-42f7-9f0c-03b71bbd3edd",
+      "background_job_ids": [
+        "257d74da-83b0-4194-b1bb-600008d840b8",
+        "d7f57513-e617-4a2c-98b1-91ac17e9aaf5",
+        "8f7bbd9a-a5b5-4074-9817-7dd3c7acb713"
+      ],
+      "directions_submitted": ["south", "east", "north"],
+      "directions_completed": ["south", "east", "north"],
+      "frames": 4,
+      "export_directory": "robot/animations/breathing-idle",
+      "status": "completed"
+    }
+  },
+  "roblox_import": {
+    "filtering": "Nearest-neighbour / pixelated",
+    "alpha": "Preserve transparent PNG alpha",
+    "avatar_mapping": "Use south/east/north/west for facing; flip east/west only if the Roblox camera model needs a mirrored side",
+    "platform_mapping": "Use Wang tile corner masks for platform edge selection; keep collision geometry separate from the decorative image"
+  }
+}

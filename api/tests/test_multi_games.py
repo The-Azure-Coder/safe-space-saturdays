@@ -66,9 +66,10 @@ def test_ludo_six_releases_a_token_and_grants_another_roll(
 
 def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=(1,))
-    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
+    chooser = int(state["letter_chooser"])
+    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
     state["picker_started_at"] = time.time() - 1
-    apply_action(state, 0, {"action": "stop_picker"})
+    apply_action(state, chooser, {"action": "stop_picker"})
     bot_submission = bot_action(state, 1)
     apply_action(state, 0, {"action": "submit", "answers": bot_submission["answers"]})
     apply_action(state, 1, bot_submission)
@@ -87,14 +88,23 @@ def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     assert state["round"] == 2
 
 
+def test_abc_fast_or_slow_supports_six_players() -> None:
+    state = new_state("abc-fast-slow", player_count=6, bot_players=())
+    assert state["player_count"] == 6
+    assert len(state["players"]) == 6
+    assert len(state["submitted"]) == 6
+
+
 def test_abc_human_players_validate_only_each_other_and_advance() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
+    chooser = int(state["letter_chooser"])
+    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
     state["picker_started_at"] = time.time() - 1
-    apply_action(state, 0, {"action": "stop_picker"})
+    apply_action(state, chooser, {"action": "stop_picker"})
     answers = {category: "apple" for category in CATEGORIES}
     apply_action(state, 0, {"action": "submit", "answers": answers})
     apply_action(state, 1, {"action": "submit", "answers": answers})
+    assert state["phase"] == "voting"
     with pytest.raises(IllegalMove, match="another player's"):
         apply_action(state, 0, {"action": "vote", "target": 0, "category": "Animal", "valid": True})
     for player, target in ((0, 1), (1, 0)):
@@ -104,6 +114,34 @@ def test_abc_human_players_validate_only_each_other_and_advance() -> None:
     apply_action(state, 1, {"action": "next_round"})
     assert state["phase"] == "letter_picker"
     assert state["round"] == 2
+
+
+def test_abc_only_rotating_letter_chooser_can_control_picker() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    chooser = int(state["letter_chooser"])
+    other = 1 - chooser
+    with pytest.raises(IllegalMove, match="letter chooser"):
+        apply_action(state, other, {"action": "start_picker", "speed": "slow"})
+    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
+    with pytest.raises(IllegalMove, match="letter chooser"):
+        apply_action(state, other, {"action": "stop_picker"})
+
+
+def test_abc_invalid_vote_denies_points() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    chooser = int(state["letter_chooser"])
+    other = 1 - chooser
+    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
+    state["picker_started_at"] = time.time() - 1
+    apply_action(state, chooser, {"action": "stop_picker"})
+    answers = {category: f"{state['letter'].lower()}answer" for category in CATEGORIES}
+    apply_action(state, 0, {"action": "submit", "answers": answers})
+    apply_action(state, 1, {"action": "submit", "answers": answers})
+    for player, target in ((0, 1), (1, 0)):
+        for category in CATEGORIES:
+            apply_action(state, player, {"action": "vote", "target": target, "category": category, "valid": False})
+    assert state["phase"] == "round_result"
+    assert state["scores"] == [0, 0]
 
 
 def test_abc_selects_a_random_dictator_and_rotates_the_letter_chooser() -> None:
@@ -132,14 +170,37 @@ def test_abc_selects_a_random_dictator_and_rotates_the_letter_chooser() -> None:
 
 def test_abc_timeout_locks_blank_answers() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
+    chooser = int(state["letter_chooser"])
+    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
     state["picker_started_at"] = time.time() - 1
-    apply_action(state, 0, {"action": "stop_picker"})
+    apply_action(state, chooser, {"action": "stop_picker"})
     assert state["letter"] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     state["deadline"] = 0
     apply_action(state, 0, {"action": "timeout"})
     assert state["submitted"][0] is True
     assert state["answers"][0] == {category: "" for category in CATEGORIES}
+
+
+def test_abc_picker_timeout_recovers_with_server_selected_letter() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    state["picker_deadline"] = 0
+    apply_action(state, 0, {"action": "picker_timeout"})
+    assert state["phase"] == "answering"
+    assert state["letter"] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    assert state["deadline"] is not None
+
+
+def test_abc_timeout_submits_answers_typed_before_deadline() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    chooser = int(state["letter_chooser"])
+    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
+    state["picker_started_at"] = time.time() - 1
+    apply_action(state, chooser, {"action": "stop_picker"})
+    typed = {category: f"{state['letter'].lower()} word" for category in CATEGORIES}
+    state["deadline"] = 0
+    apply_action(state, 0, {"action": "timeout", "answers": typed})
+    assert state["answers"][0] == typed
+    assert state["phase"] == "voting"
 
 
 def test_ludo_capture_sends_an_opponent_home_and_grants_extra_turn(
@@ -385,6 +446,7 @@ def test_scribble_word_choice_preview_warm_guess_and_timeout() -> None:
     state["guess_deadline"] = 9_999_999_999
     state = apply_action(state, 1, {"action": "guess", "text": "car"})
     assert state["guesses"][-1]["warm"] is True
+    state["guess_deadline"] = 0
     state = apply_action(state, 1, {"action": "timeout"})
     assert state["phase"] == "round_result"
 

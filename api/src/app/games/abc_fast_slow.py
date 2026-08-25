@@ -3,6 +3,7 @@
 The browser only sends answers and votes. The server owns the timer deadline,
 validation, duplicate detection, scoring, round progression, and winner.
 """
+
 from __future__ import annotations
 
 import random
@@ -15,31 +16,57 @@ CATEGORIES = ("Animal", "Place", "Food", "Thing")
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 BOT_WORDS = {
     "Animal": ("ant", "bear", "cat", "dog", "eagle", "fox", "goat", "horse", "otter", "zebra"),
-    "Place": ("berlin", "cairo", "dublin", "jamaica", "london", "miami", "paris", "rome", "sydney", "tokyo"),
+    "Place": (
+        "berlin",
+        "cairo",
+        "dublin",
+        "jamaica",
+        "london",
+        "miami",
+        "paris",
+        "rome",
+        "sydney",
+        "tokyo",
+    ),
     "Food": ("apple", "bread", "curry", "donut", "eggs", "fig", "grapes", "honey", "rice", "taco"),
-    "Thing": ("anchor", "book", "chair", "drum", "envelope", "fork", "guitar", "hat", "lamp", "phone"),
+    "Thing": (
+        "anchor",
+        "book",
+        "chair",
+        "drum",
+        "envelope",
+        "fork",
+        "guitar",
+        "hat",
+        "lamp",
+        "phone",
+    ),
 }
 ROUND_SECONDS = 45
+PICKER_SECONDS = 15
 PICK_INTERVALS = {"fast": 0.08, "slow": 0.28}
 
 
-def new_abc_state(rng: random.Random, player_count: int, bot_players: tuple[int, ...]) -> dict[str, Any]:
+def new_abc_state(
+    rng: random.Random, player_count: int, bot_players: tuple[int, ...]
+) -> dict[str, Any]:
     count = max(2, min(6, player_count))
-    players = [{"name": "You" if i == 0 else f"Player {i + 1}", "is_bot": i in bot_players} for i in range(count)]
+    players = [
+        {"name": "You" if i == 0 else f"Player {i + 1}", "is_bot": i in bot_players}
+        for i in range(count)
+    ]
     return _round(rng, players, [0] * count, 1)
 
 
 def _choose_dictator(rng: random.Random, player_count: int, previous: int | None = None) -> int:
     """Choose the round's dictator/letter chooser on the server.
 
-    ABC rounds are simultaneous, so this role is informational rather than a
-    turn gate. Avoiding an immediate repeat makes the role visibly rotate while
-    retaining a random choice for every round.
+    First round starts randomly. Later rounds rotate in seat order so every
+    player gets exactly one letter choice before any player repeats.
     """
-    chosen = rng.randrange(player_count)
-    if previous is not None and player_count > 1 and chosen == previous:
-        chosen = (chosen + 1) % player_count
-    return chosen
+    if previous is not None and player_count > 1:
+        return (previous + 1) % player_count
+    return rng.randrange(player_count)
 
 
 def _round(
@@ -51,14 +78,33 @@ def _round(
 ) -> dict[str, Any]:
     dictator = _choose_dictator(rng, len(players), previous_dictator)
     return {
-        "game": "abc-fast-slow", "players": players, "player_count": len(players), "current_player": 0,
-        "winner": None, "draw": False, "phase": "letter_picker", "round": round_number, "rounds": 3,
-        "dictator_player": dictator, "letter_chooser": dictator,
-        "letter": None, "categories": list(CATEGORIES), "answers": [{} for _ in players],
-        "scores": scores, "submitted": [False for _ in players], "votes": [{} for _ in players],
-        "voted": [False for _ in players], "deadline": None,
-        "picker_status": "idle", "picker_speed": None, "picker_started_at": None,
-        "last_event": f"Round {round_number}: {players[dictator]['name']} is the dictator. Choose a spin speed.",
+        "game": "abc-fast-slow",
+        "players": players,
+        "player_count": len(players),
+        "current_player": 0,
+        "winner": None,
+        "draw": False,
+        "phase": "letter_picker",
+        "round": round_number,
+        "rounds": 3,
+        "dictator_player": dictator,
+        "letter_chooser": dictator,
+        "letter": None,
+        "categories": list(CATEGORIES),
+        "answers": [{} for _ in players],
+        "scores": scores,
+        "submitted": [False for _ in players],
+        "votes": [{} for _ in players],
+        "voted": [False for _ in players],
+        "deadline": None,
+        "picker_deadline": time.time() + PICKER_SECONDS,
+        "picker_status": "idle",
+        "picker_speed": None,
+        "picker_started_at": None,
+        "last_event": (
+            f"Round {round_number}: {players[dictator]['name']} is the dictator. "
+            "Choose a spin speed."
+        ),
     }
 
 
@@ -83,7 +129,21 @@ def _stop_picker(state: dict[str, Any]) -> None:
     state["picker_status"] = "stopped"
     state["deadline"] = time.time() + ROUND_SECONDS
     state["phase"] = "answering"
-    state["last_event"] = f"Letter chosen: {state['letter']}. You have {ROUND_SECONDS} seconds to answer."
+    state["last_event"] = (
+        f"Letter chosen: {state['letter']}. You have {ROUND_SECONDS} seconds to answer."
+    )
+
+
+def _auto_choose_letter(state: dict[str, Any]) -> None:
+    """Recover a stalled picker so round never renders without a letter."""
+    if not isinstance(state.get("letter"), str) or state.get("letter") not in ALPHABET:
+        state["letter"] = random.choice(ALPHABET)
+    state["picker_status"] = "stopped"
+    state["deadline"] = time.time() + ROUND_SECONDS
+    state["phase"] = "answering"
+    state["last_event"] = (
+        f"The letter chooser timed out. Letter {state['letter']} was selected automatically."
+    )
 
 
 def _submit(state: dict[str, Any], player: int, action: dict[str, Any]) -> None:
@@ -97,9 +157,17 @@ def _submit(state: dict[str, Any], player: int, action: dict[str, Any]) -> None:
     }
     state["submitted"][player] = True
     if all(state["submitted"]):
-        state["phase"] = "voting"
-        state["deadline"] = None
-        state["last_event"] = "Answers are in. Vote valid or invalid for each answer."
+        _finish_answering(state)
+
+
+def _finish_answering(state: dict[str, Any]) -> None:
+    """Lock every unanswered sheet when shared answer time expires."""
+    for player, submitted in enumerate(state["submitted"]):
+        if not submitted:
+            _submit(state, player, {})
+    state["phase"] = "voting"
+    state["deadline"] = None
+    state["last_event"] = "Time is up. Vote valid or invalid for each answer."
 
 
 def _vote(state: dict[str, Any], player: int, action: dict[str, Any]) -> None:
@@ -132,23 +200,36 @@ def apply_abc_action(state: dict[str, Any], player: int, action: dict[str, Any])
             raise IllegalMove("Finish the game before playing again")
         return _round(random.Random(), state["players"], list(state["scores"]), 1)
     if state.get("phase") == "letter_picker":
+        if kind == "picker_timeout" and time.time() >= float(state.get("picker_deadline") or 0):
+            _auto_choose_letter(state)
+            return state
+        if player != state.get("letter_chooser"):
+            raise IllegalMove("Only the letter chooser can start the letter picker")
         if kind != "start_picker":
             raise IllegalMove("Choose fast or slow, then start the letter picker")
         _start_picker(state, action)
         return state
     if state.get("phase") == "letter_picker_running":
+        if kind == "picker_timeout" and time.time() >= float(state.get("picker_deadline") or 0):
+            _auto_choose_letter(state)
+            return state
+        if player != state.get("letter_chooser"):
+            raise IllegalMove("Only the letter chooser can stop the letter picker")
         if kind != "stop_picker":
             raise IllegalMove("Stop the letter picker to choose the letter")
         _stop_picker(state)
         return state
     if state.get("phase") == "answering":
+        expired = state.get("deadline") is not None and time.time() >= float(state["deadline"])
+        if expired:
+            if kind == "timeout" and not state["submitted"][player]:
+                _submit(state, player, action)
+            _finish_answering(state)
+            return state
         if kind not in {"submit", "timeout"}:
             raise IllegalMove("Submit your answers before voting")
-        expired = state.get("deadline") is not None and time.time() >= float(state["deadline"])
         if kind == "timeout" and not expired:
             raise IllegalMove("The round timer has not expired")
-        if expired:
-            kind = "timeout"
         _submit(state, player, {} if kind == "timeout" else action)
         return state
     if state.get("phase") == "voting":
@@ -203,6 +284,10 @@ def next_abc_round(state: dict[str, Any], rng: random.Random | None = None) -> d
 
 
 def abc_bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
+    if state.get("phase") == "letter_picker" and player == state.get("letter_chooser"):
+        return {"action": "start_picker", "speed": "slow"}
+    if state.get("phase") == "letter_picker_running" and player == state.get("letter_chooser"):
+        return {"action": "stop_picker"}
     if state.get("phase") == "answering":
         letter = state["letter"].lower()
         answers = {
@@ -215,9 +300,15 @@ def abc_bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
         target, category = next(
             (candidate_target, candidate_category)
             for candidate_target in range(state["player_count"])
+            if candidate_target != player
             for candidate_category in CATEGORIES
             if f"{candidate_target}:{candidate_category}" not in state["votes"][player]
         )
         value = state["answers"][target].get(category, "").lower()
-        return {"action": "vote", "target": target, "category": category, "valid": bool(value and value.startswith(state["letter"].lower()))}
+        return {
+            "action": "vote",
+            "target": target,
+            "category": category,
+            "valid": bool(value and value.startswith(state["letter"].lower())),
+        }
     raise IllegalMove("The bot has no ABC action right now")

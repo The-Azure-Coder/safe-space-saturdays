@@ -97,6 +97,7 @@ type GameDefinition = {
 function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
+  if (normalized === 'abc fast or slow' || normalized === 'abc fast/slow' || normalized === 'fast or slow') return 6
   return 4
 }
 
@@ -3236,8 +3237,11 @@ function GamesScreen() {
   const selectedGame = availableGames.find((game) => game.id === roomGameId)
   const maxRoomPlayers = gameRoomCapacity(selectedGame?.name)
   useEffect(() => {
-    if (roomPlayers > maxRoomPlayers) setRoomPlayers(maxRoomPlayers)
-  }, [maxRoomPlayers, roomPlayers])
+    setRoomPlayers((current) => {
+      const isAbc = selectedGame?.name.trim().toLowerCase() === 'abc fast or slow'
+      return isAbc ? maxRoomPlayers : Math.min(current, maxRoomPlayers)
+    })
+  }, [maxRoomPlayers, selectedGame?.name])
   const rooms = roomsQuery.data ?? []
   const firstGameId = availableGames[0]?.id ?? null
   return (
