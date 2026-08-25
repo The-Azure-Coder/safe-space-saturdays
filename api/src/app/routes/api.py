@@ -1,13 +1,16 @@
 import asyncio
-from html import escape
 import hashlib
 import io
+import logging
 import secrets
+import time
 from collections import Counter
 from collections.abc import Iterable
+from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
+from html import escape
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -51,11 +54,11 @@ from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
     Announcement,
     BugReport,
-    CommunityApplication,
-    CheckIn,
     Challenge,
     ChallengeCompletion,
+    CheckIn,
     Comment,
+    CommunityApplication,
     Game,
     GameMatch,
     GameMatchPlayer,
@@ -71,6 +74,11 @@ from app.models import (
     Session,
     User,
 )
+from app.notification_templates import (
+    DAILY_CHECKIN_MESSAGES,
+    daily_checkin_email,
+    weekly_performers_email,
+)
 from app.oauth import (
     GoogleOAuthError,
     build_google_authorize_url,
@@ -80,7 +88,6 @@ from app.oauth import (
     google_oauth_configured,
     verify_oauth_state,
 )
-from app.notification_templates import DAILY_CHECKIN_MESSAGES, daily_checkin_email, weekly_performers_email
 from app.schemas import (
     AdminDashboardResponse,
     AdminNotificationResponse,
@@ -95,18 +102,18 @@ from app.schemas import (
     BugReportCreateRequest,
     BugReportResponse,
     BugReportUpdateRequest,
-    CommunityApplicationCreateRequest,
-    CommunityApplicationResponse,
-    CommunityApplicationUpdateRequest,
-    ChangePasswordRequest,
     ChallengeCompleteRequest,
     ChallengeResponse,
     ChallengesResponse,
+    ChangePasswordRequest,
     CheckInRequest,
     CheckInResponse,
     CommentCreateRequest,
-    CommentUpdateRequest,
     CommentResponse,
+    CommentUpdateRequest,
+    CommunityApplicationCreateRequest,
+    CommunityApplicationResponse,
+    CommunityApplicationUpdateRequest,
     CommunityModerationRequest,
     DashboardResponse,
     GameActionRequest,
@@ -122,8 +129,8 @@ from app.schemas import (
     MatchResponse,
     MoveRequest,
     PostCreateRequest,
-    PostUpdateRequest,
     PostResponse,
+    PostUpdateRequest,
     ProfileUpdateRequest,
     QuoteResponse,
     QuoteSubmissionRequest,
@@ -147,6 +154,7 @@ from app.security import (
 )
 
 router = APIRouter(prefix="/api", tags=["application"])
+logger = logging.getLogger("safe_space_saturdays.games")
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin)]
@@ -406,6 +414,7 @@ def restore_connect_match(row: GameMatch, seats: list[GameMatchPlayer] | None = 
             }
             for seat in seat_rows
         ] or [{"name": "You", "is_bot": False}, {"name": "Milo Bot", "is_bot": True}],
+        version=row.version,
     )
     match_manager.matches[row.id] = match
     match_manager.room_matches[row.room_id] = row.id
@@ -452,6 +461,7 @@ def restore_universal_match(
         player_ids=player_ids,
         bot_player=resolved_bot_players[0] if resolved_bot_players else None,
         bot_players=resolved_bot_players,
+        version=row.version,
     )
     universal_matches.matches[row.id] = match
     return match
@@ -480,10 +490,58 @@ async def hydrate_match(match_id: str) -> tuple[LiveMatch | None, UniversalMatch
         return None, restore_universal_match(row, player_count, seats)
 
 
-async def relay_remote_events(websocket: WebSocket, match_id: str) -> None:
-    async for message in realtime_bus.subscribe(match_channel(match_id)):
+def apply_connect_snapshot(match: LiveMatch, snapshot: dict[str, Any]) -> None:
+    raw_last_move = snapshot.get("last_move")
+    last_move = (
+        (int(raw_last_move[0]), int(raw_last_move[1]))
+        if isinstance(raw_last_move, list) and len(raw_last_move) == 2
+        else None
+    )
+    raw_cells = snapshot.get("winning_cells", [])
+    winning_cells = tuple(
+        (int(cell[0]), int(cell[1]))
+        for cell in raw_cells
+        if isinstance(cell, list) and len(cell) == 2
+    ) if isinstance(raw_cells, list) else ()
+    board = snapshot.get("board")
+    if not isinstance(board, list):
+        raise ValueError("Connect Four update has no board")
+    match.state = ConnectFourState(
+        board=tuple(tuple(int(cell) for cell in row) for row in board),
+        current_player=1 if int(snapshot.get("current_player", 1)) == 1 else 2,
+        winner=snapshot.get("winner"),
+        draw=bool(snapshot.get("draw", False)),
+        move_count=int(snapshot.get("move_count", 0)),
+        last_move=last_move,
+        winning_cells=winning_cells,
+    )
+
+
+async def relay_remote_events(
+    websocket: WebSocket, match: LiveMatch, user_id: int, spectator: bool
+) -> None:
+    async for message in realtime_bus.subscribe(match_channel(match.id)):
         if message.get("origin") != get_settings().realtime_node_id:
-            await websocket.send_json(message["payload"])
+            payload = message.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("type") == "state" and isinstance(payload.get("state"), dict):
+                version = int(payload.get("version", 0))
+                async with match.lock:
+                    if version >= match.version:
+                        apply_connect_snapshot(match, payload["state"])
+                        match.version = version
+                await websocket.send_json(
+                    {
+                        "type": "state",
+                        "state": {
+                            **match.snapshot(None if spectator else user_id),
+                            "spectator": spectator,
+                        },
+                    }
+                )
+            else:
+                await websocket.send_json(payload)
 
 
 async def relay_remote_universal_events(
@@ -491,7 +549,18 @@ async def relay_remote_universal_events(
 ) -> None:
     async for message in realtime_bus.subscribe(match_channel(match.id)):
         if message.get("origin") != get_settings().realtime_node_id:
-            await websocket.send_json({"type": "state", "match": match.snapshot(user_id)})
+            payload = message.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("type") == "state" and isinstance(payload.get("state"), dict):
+                version = int(payload.get("version", 0))
+                async with match.lock:
+                    if version >= match.version:
+                        match.state = deepcopy(payload["state"])
+                        match.version = version
+                await websocket.send_json({"type": "state", "match": match.snapshot(user_id)})
+            else:
+                await websocket.send_json(payload)
 
 
 async def grant_game_reward(
@@ -837,7 +906,7 @@ def game_capacity(game_name: str) -> int:
     if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
         return 4
     if normalized in {"together", "linked together"}:
-        return 4
+        return 5
     if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
         return 6
     if normalized == "bingo":
@@ -2062,7 +2131,7 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
                 break
         if room_code is None:
             raise HTTPException(status_code=503, detail="Could not create a room code")
-        payload = payload.model_copy(update={"fill_with_bots": False, "max_players": min(payload.max_players, 4)})
+        payload = payload.model_copy(update={"fill_with_bots": False, "max_players": min(payload.max_players, 5)})
     room = GameRoom(
         game_id=payload.game_id,
         host_id=user.id,
@@ -2507,6 +2576,64 @@ async def get_match(match_id: str, user: CurrentUser, spectate: bool = False) ->
     return match_response(match, None if is_spectator else user.id, spectator=is_spectator)
 
 
+async def apply_connect_action(
+    match: LiveMatch,
+    user_id: int,
+    action: dict[str, Any],
+    db: AsyncSession,
+) -> None:
+    """Apply and persist one Connect Four action before broadcasting it."""
+    async with match.lock:
+        previous_state = match.state
+        previous_version = match.version
+        previous_starting_player = match.starting_player
+        previous_reward_granted = match.reward_granted
+        persisted = await db.scalar(
+            select(GameMatch).where(GameMatch.id == match.id).with_for_update()
+        )
+        if persisted is None:
+            raise ValueError("Persisted match not found")
+        if persisted.version > match.version:
+            apply_connect_snapshot(match, persisted.state)
+            match.version = persisted.version
+        try:
+            if action.get("action") == "play_again":
+                await settle_completed_match_progress(db, match, user_id)
+                await match_manager.play_again_locked(match, user_id, broadcast=False)
+            else:
+                await match_manager.move_locked(
+                    match, user_id, int(action["column"]), broadcast=False
+                )
+            await record_state(db, persisted, user_id, action, match.snapshot())
+            if action.get("action") == "play_again":
+                persisted.status = "active"
+            await grant_game_participation_reward(db, user_id, match.id)
+            if await settle_completed_match_progress(db, match, user_id):
+                persisted.state = match.snapshot()
+                persisted.status = "completed"
+            await db.commit()
+            match.version = persisted.version
+        except Exception:
+            await db.rollback()
+            match.state = previous_state
+            match.version = previous_version
+            match.starting_player = previous_starting_player
+            match.reward_granted = previous_reward_granted
+            raise
+    await match_manager.broadcast(match, {"type": "state", "state": match.snapshot()})
+    await realtime_bus.publish(
+        match_channel(match.id),
+        {
+            "origin": get_settings().realtime_node_id,
+            "payload": {
+                "type": "state",
+                "state": match.snapshot(),
+                "version": match.version,
+            },
+        },
+    )
+
+
 @router.post("/games/matches/{match_id}/moves", response_model=MatchResponse)
 async def play_move(
     match_id: str, payload: MoveRequest, user: CurrentUser, db: DbSession
@@ -2515,27 +2642,21 @@ async def play_move(
     if match is None:
         raise HTTPException(status_code=404, detail="Match not found")
     try:
-        await match_manager.move(match, user.id, payload.column)
+        await apply_connect_action(match, user.id, {"column": payload.column}, db)
     except IllegalMove as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    persisted = await db.get(GameMatch, match.id)
-    if persisted is not None:
-        await record_state(db, persisted, user.id, {"column": payload.column}, match.snapshot())
-    await grant_game_participation_reward(db, user.id, match.id)
-    if await settle_completed_match_progress(db, match, user.id):
-        if persisted is not None:
-            persisted.state = match.snapshot()
-            persisted.status = "completed"
-        await db.commit()
-    else:
-        await db.commit()
-    await realtime_bus.publish(
-        match_channel(match.id),
-        {
-            "origin": get_settings().realtime_node_id,
-            "payload": {"type": "state", "state": match.snapshot()},
-        },
-    )
+    except Exception as error:
+        error_id = uuid4().hex[:12]
+        logger.exception(
+            "connect_four_action_failed error_id=%s match_id=%s user_id=%s",
+            error_id,
+            match.id,
+            user.id,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Game error. Refresh and try again. Error reference: {error_id}",
+        ) from error
     return match_response(match, user.id)
 
 
@@ -2559,40 +2680,104 @@ async def websocket_user(websocket: WebSocket) -> User | None:
         return result.scalar_one_or_none()
 
 
+def websocket_origin_allowed(websocket: WebSocket) -> bool:
+    origin = websocket.headers.get("origin")
+    if not origin:
+        return True
+    settings = get_settings()
+    if origin in settings.api_cors_origins:
+        return True
+    forwarded_host = websocket.headers.get("x-forwarded-host")
+    forwarded_proto = websocket.headers.get("x-forwarded-proto", "https")
+    if forwarded_host and origin == f"{forwarded_proto}://{forwarded_host}":
+        return True
+    scheme = "https" if websocket.url.scheme == "wss" else "http"
+    return origin == f"{scheme}://{websocket.url.netloc}"
+
+
+async def receive_socket_object(
+    websocket: WebSocket, match_id: str, user_id: int
+) -> dict[str, Any] | None:
+    try:
+        message = await websocket.receive_json()
+    except WebSocketDisconnect:
+        raise
+    except Exception:
+        logger.warning(
+            "game_websocket_invalid_json match_id=%s user_id=%s",
+            match_id,
+            user_id,
+            exc_info=True,
+        )
+        await websocket.send_json({"type": "error", "detail": "Send a valid JSON object"})
+        return None
+    if not isinstance(message, dict):
+        await websocket.send_json({"type": "error", "detail": "Send a JSON object"})
+        return None
+    return message
+
+
 @router.websocket("/games/matches/{match_id}/ws")
 async def match_socket(websocket: WebSocket, match_id: str) -> None:
-    match = match_manager.get(match_id)
-    if match is None:
-        match, _ = await hydrate_match(match_id)
-    user = await websocket_user(websocket)
+    if not websocket_origin_allowed(websocket):
+        logger.warning("game_websocket_origin_rejected match_id=%s", match_id)
+        await websocket.close(code=1008, reason="Origin is not allowed")
+        return
+    try:
+        match = match_manager.get(match_id)
+        if match is None:
+            match, _ = await hydrate_match(match_id)
+        user = await websocket_user(websocket)
+    except Exception:
+        error_id = uuid4().hex[:12]
+        logger.exception(
+            "connect_four_websocket_handshake_failed error_id=%s match_id=%s",
+            error_id,
+            match_id,
+        )
+        await websocket.close(code=1011, reason=f"Connection error: {error_id}")
+        return
     if match is None or user is None:
-        await websocket.close(code=1008)
+        await websocket.close(code=1008, reason="Match or session is unavailable")
         return
     is_spectator = user.id not in match.player_ids
     await websocket.accept()
     match.sockets[websocket] = user.id
-    relay_task = asyncio.create_task(relay_remote_events(websocket, match.id))
+    relay_task = asyncio.create_task(
+        relay_remote_events(websocket, match, user.id, is_spectator)
+    )
     await websocket.send_json({"type": "state", "state": {**match.snapshot(None if is_spectator else user.id), "spectator": is_spectator}})
     await broadcast_spectator_count(match)
     try:
         while True:
-            message = await websocket.receive_json()
+            message = await receive_socket_object(websocket, match.id, user.id)
+            if message is None:
+                continue
             if is_spectator:
                 await websocket.send_json({"type": "error", "detail": "Spectators cannot play moves"})
                 continue
             if message.get("type") == "play_again":
                 try:
-                    await match_manager.play_again(match, user.id)
+                    async with session_factory() as db:
+                        await apply_connect_action(
+                            match, user.id, {"action": "play_again"}, db
+                        )
                 except IllegalMove as error:
                     await websocket.send_json({"type": "error", "detail": str(error)})
-                else:
-                    await websocket.send_json({"type": "state", "state": match.snapshot(user.id)})
-                    async with session_factory() as db:
-                        persisted = await db.get(GameMatch, match.id)
-                        if persisted is not None:
-                            await record_state(db, persisted, user.id, {"action": "play_again"}, match.snapshot())
-                            persisted.status = "active"
-                        await db.commit()
+                except Exception:
+                    error_id = uuid4().hex[:12]
+                    logger.exception(
+                        "connect_four_websocket_action_failed error_id=%s match_id=%s user_id=%s",
+                        error_id,
+                        match.id,
+                        user.id,
+                    )
+                    await websocket.send_json(
+                        {
+                            "type": "error",
+                            "detail": f"Game error. Refresh and try again. Error reference: {error_id}",
+                        }
+                    )
                 continue
             if message.get("type") != "move" or not isinstance(message.get("column"), int):
                 await websocket.send_json(
@@ -2600,32 +2785,33 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                 )
                 continue
             try:
-                await match_manager.move(match, user.id, message["column"])
+                async with session_factory() as db:
+                    await apply_connect_action(
+                        match, user.id, {"column": message["column"]}, db
+                    )
             except IllegalMove as error:
                 await websocket.send_json({"type": "error", "detail": str(error)})
                 continue
-            async with session_factory() as db:
-                persisted = await db.get(GameMatch, match.id)
-                if persisted is not None:
-                    await record_state(
-                        db, persisted, user.id, {"column": message["column"]}, match.snapshot()
-                    )
-                await grant_game_participation_reward(db, user.id, match.id)
-                if await settle_completed_match_progress(db, match, user.id):
-                    if persisted is not None:
-                        persisted.state = match.snapshot()
-                await db.commit()
-            await realtime_bus.publish(
-                match_channel(match.id),
-                {
-                    "origin": get_settings().realtime_node_id,
-                    "payload": {"type": "state", "state": match.snapshot()},
-                },
-            )
-            if match.state.winner is not None or match.state.draw:
-                await match_manager.broadcast(match, {"type": "state", "state": match.snapshot()})
+            except Exception:
+                error_id = uuid4().hex[:12]
+                logger.exception(
+                    "connect_four_websocket_action_failed error_id=%s match_id=%s user_id=%s",
+                    error_id,
+                    match.id,
+                    user.id,
+                )
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "detail": f"Game error. Refresh and try again. Error reference: {error_id}",
+                    }
+                )
     except WebSocketDisconnect:
         match.sockets.pop(websocket, None)
+    except Exception:
+        logger.exception(
+            "connect_four_websocket_failed match_id=%s user_id=%s", match.id, user.id
+        )
     finally:
         relay_task.cancel()
         match.sockets.pop(websocket, None)
@@ -2680,6 +2866,7 @@ async def create_game_session(
     room.status = "active"
     await create_persisted_match(db, match.id, room.id, game_type, user.id, match.state, seats)
     await db.commit()
+    ensure_universal_timer(match)
     return universal_response(match, user.id)
 
 
@@ -2693,7 +2880,152 @@ async def get_game_session(match_id: str, user: CurrentUser, spectate: bool = Fa
     is_spectator = user.id not in match.player_ids
     if is_spectator and not spectate:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
+    ensure_universal_timer(match)
     return universal_response(match, None if is_spectator else user.id, spectator=is_spectator)
+
+
+async def apply_universal_action(
+    match: UniversalMatch,
+    user_id: int,
+    action: dict[str, Any],
+    db: AsyncSession,
+) -> None:
+    """Apply one universal-game action with durable ordering and rollback."""
+    kind = action.get("action")
+    ephemeral = (
+        match.game_type == "together" and kind == "input"
+    ) or (
+        match.game_type == "scribble" and kind == "stroke_segment"
+    )
+    if ephemeral:
+        await universal_matches.action(match, user_id, action)
+        payload: dict[str, Any]
+        if match.game_type == "scribble":
+            payload = {"type": "drawing_segment", "segment": match.state["strokes"][-1]}
+        else:
+            payload = {
+                "type": "state",
+                "state": deepcopy(match.state),
+                "version": match.version,
+            }
+        await realtime_bus.publish(
+            match_channel(match.id),
+            {"origin": get_settings().realtime_node_id, "payload": payload},
+        )
+        return
+
+    async with match.lock:
+        previous_state = deepcopy(match.state)
+        previous_version = match.version
+        previous_reward_granted = match.reward_granted
+        persisted = await db.scalar(
+            select(GameMatch).where(GameMatch.id == match.id).with_for_update()
+        )
+        if persisted is None:
+            raise ValueError("Persisted match not found")
+        if persisted.version > match.version:
+            match.state = deepcopy(persisted.state)
+            match.version = persisted.version
+        try:
+            if kind == "play_again":
+                await settle_completed_match_progress(db, match, user_id)
+            await universal_matches.action_locked(
+                match, user_id, action, broadcast=False
+            )
+            await record_state(db, persisted, user_id, action, match.state)
+            if kind == "play_again":
+                persisted.status = "active"
+            elif match.state.get("winner") is not None or match.state.get("draw", False):
+                persisted.status = "completed"
+            await grant_game_participation_reward(db, user_id, match.id)
+            if await settle_completed_match_progress(db, match, user_id):
+                persisted.state = deepcopy(match.state)
+            await db.commit()
+            match.version = persisted.version
+        except Exception:
+            await db.rollback()
+            match.state = previous_state
+            match.version = previous_version
+            match.reward_granted = previous_reward_granted
+            raise
+    await universal_matches.broadcast(match)
+    await realtime_bus.publish(
+        match_channel(match.id),
+        {
+            "origin": get_settings().realtime_node_id,
+            "payload": {
+                "type": "state",
+                "state": deepcopy(match.state),
+                "version": match.version,
+            },
+        },
+    )
+
+
+def universal_deadline_action(
+    match: UniversalMatch,
+) -> tuple[int, dict[str, Any], float] | None:
+    state = match.state
+    if match.game_type == "abc-fast-slow":
+        if state.get("phase") in {"letter_picker", "letter_picker_running"}:
+            deadline = float(state.get("picker_deadline") or 0)
+            return (int(state.get("letter_chooser", 0)), {"action": "picker_timeout"}, deadline)
+        if state.get("phase") == "answering":
+            deadline = float(state.get("deadline") or 0)
+            return (0, {"action": "timeout"}, deadline)
+    if match.game_type == "scribble" and state.get("phase") == "guessing":
+        deadline = float(state.get("guess_deadline") or 0)
+        drawer = int(state.get("current_drawer", 0))
+        seat = next((value for value in match.player_ids.values() if value != drawer), -1)
+        return (seat, {"action": "timeout"}, deadline)
+    if match.game_type == "trivia" and state.get("phase") in {"question", "bot"}:
+        deadline = float(state.get("deadline") or 0)
+        return (int(state.get("current_player", 0)), {"answer": -1}, deadline)
+    return None
+
+
+async def universal_timer_worker(match: UniversalMatch) -> None:
+    while universal_matches.get(match.id) is match:
+        request = universal_deadline_action(match)
+        if request is None:
+            await asyncio.sleep(0.5)
+            continue
+        seat, action, deadline = request
+        if deadline <= 0:
+            await asyncio.sleep(0.25)
+            continue
+        remaining = deadline - time.time()
+        if remaining > 0:
+            await asyncio.sleep(min(remaining, 0.5))
+            continue
+        user_id = next(
+            (candidate for candidate, candidate_seat in match.player_ids.items() if candidate_seat == seat),
+            next(iter(match.player_ids), None),
+        )
+        if user_id is None:
+            await asyncio.sleep(0.5)
+            continue
+        try:
+            async with session_factory() as db:
+                await apply_universal_action(match, user_id, action, db)
+        except IllegalMove:
+            await asyncio.sleep(0.25)
+        except Exception:
+            error_id = uuid4().hex[:12]
+            logger.exception(
+                "game_timer_failed error_id=%s match_id=%s game=%s",
+                error_id,
+                match.id,
+                match.game_type,
+            )
+            await asyncio.sleep(1)
+
+
+def ensure_universal_timer(match: UniversalMatch) -> None:
+    if match.game_type not in {"abc-fast-slow", "scribble", "trivia"}:
+        return
+    if match.timer_task is None or match.timer_task.done():
+        match.timer_task = asyncio.create_task(universal_timer_worker(match))
 
 
 @router.post("/games/sessions/{match_id}/actions", response_model=GameSessionResponse)
@@ -2707,54 +3039,69 @@ async def game_session_action(
         raise HTTPException(status_code=404, detail="Game session not found")
     if user.id not in match.player_ids:
         raise HTTPException(status_code=403, detail="Spectators cannot play actions")
-    if payload.action.get("action") == "play_again":
-        # The completed state is visible before websocket persistence finishes.
-        # Settle it here first so a fast replay click cannot lose the win.
-        await settle_completed_match_progress(db, match, user.id)
     try:
-        await universal_matches.action(match, user.id, payload.action)
+        await apply_universal_action(match, user.id, payload.action, db)
     except IllegalMove as error:
+        logger.warning(
+            "game_session_action_rejected match_id=%s user_id=%s action=%s error=%s",
+            match_id,
+            user.id,
+            payload.action.get("action"),
+            error,
+        )
         raise HTTPException(status_code=409, detail=str(error)) from error
-    persisted = await db.get(GameMatch, match.id)
-    if persisted is not None:
-        await record_state(db, persisted, user.id, payload.action, match.state)
-        if payload.action.get("action") == "play_again":
-            persisted.status = "active"
-        elif match.state.get("winner") is not None or match.state.get("draw", False):
-            persisted.status = "completed"
-    await grant_game_participation_reward(db, user.id, match.id)
-    if await settle_completed_match_progress(db, match, user.id):
-        if persisted is not None:
-            persisted.state = dict(match.state)
-    await db.commit()
-    await realtime_bus.publish(
-        match_channel(match.id),
-        {
-            "origin": get_settings().realtime_node_id,
-            "payload": {"type": "refresh", "match_id": match.id},
-        },
-    )
+    except Exception as error:
+        error_id = uuid4().hex[:12]
+        logger.exception(
+            "game_session_action_failed error_id=%s match_id=%s user_id=%s action=%s",
+            error_id,
+            match_id,
+            user.id,
+            payload.action.get("action"),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Game error. Refresh and try again. Error reference: {error_id}",
+        ) from error
+    ensure_universal_timer(match)
     return universal_response(match, user.id)
 
 
 @router.websocket("/games/sessions/{match_id}/ws")
 async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
-    match = universal_matches.get(match_id)
-    if match is None:
-        _, match = await hydrate_match(match_id)
-    user = await websocket_user(websocket)
+    if not websocket_origin_allowed(websocket):
+        logger.warning("game_websocket_origin_rejected match_id=%s", match_id)
+        await websocket.close(code=1008, reason="Origin is not allowed")
+        return
+    try:
+        match = universal_matches.get(match_id)
+        if match is None:
+            _, match = await hydrate_match(match_id)
+        user = await websocket_user(websocket)
+    except Exception:
+        error_id = uuid4().hex[:12]
+        logger.exception(
+            "game_session_websocket_handshake_failed error_id=%s match_id=%s",
+            error_id,
+            match_id,
+        )
+        await websocket.close(code=1011, reason=f"Connection error: {error_id}")
+        return
     if match is None or user is None:
-        await websocket.close(code=1008)
+        await websocket.close(code=1008, reason="Match or session is unavailable")
         return
     is_spectator = user.id not in match.player_ids
     await websocket.accept()
     match.sockets[websocket] = user.id
+    ensure_universal_timer(match)
     relay_task = asyncio.create_task(relay_remote_universal_events(websocket, match, user.id))
     await websocket.send_json({"type": "state", "match": match.snapshot(None if is_spectator else user.id, spectator=is_spectator)})
     await broadcast_spectator_count(match)
     try:
         while True:
-            message = await websocket.receive_json()
+            message = await receive_socket_object(websocket, match.id, user.id)
+            if message is None:
+                continue
             if is_spectator:
                 await websocket.send_json({"type": "error", "detail": "Spectators cannot play actions"})
                 continue
@@ -2762,56 +3109,40 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                 await websocket.send_json({"type": "error", "detail": "Send an action object"})
                 continue
             try:
-                await universal_matches.action(match, user.id, message["action"])
+                async with session_factory() as db:
+                    await apply_universal_action(match, user.id, message["action"], db)
             except IllegalMove as error:
+                logger.warning(
+                    "game_session_websocket_action_rejected match_id=%s user_id=%s action=%s error=%s",
+                    match_id,
+                    user.id,
+                    message["action"].get("action"),
+                    error,
+                )
                 await websocket.send_json({"type": "error", "detail": str(error)})
                 continue
-            if match.game_type == "together" and message["action"].get("action") == "input":
-                # Movement is an ephemeral compact delta stream. Checkpoints,
-                # level changes, and completion are persisted below.
-                continue
-            # Drawing segments are deliberately ephemeral websocket events.
-            # Persisting and rebroadcasting the entire growing canvas for every
-            # pointer move overwhelms the connection and lets stale snapshots
-            # resurrect erased pixels. The completed state is persisted by the
-            # next meaningful action (finish, clear, or round transition).
-            if match.game_type == "scribble" and message["action"].get("action") == "stroke_segment":
-                await realtime_bus.publish(
-                    match_channel(match.id),
+            except Exception:
+                error_id = uuid4().hex[:12]
+                logger.exception(
+                    "game_session_websocket_action_failed error_id=%s match_id=%s user_id=%s action=%s",
+                    error_id,
+                    match_id,
+                    user.id,
+                    message["action"].get("action"),
+                )
+                await websocket.send_json(
                     {
-                        "origin": get_settings().realtime_node_id,
-                        "payload": {"type": "drawing_segment", "segment": match.state["strokes"][-1]},
-                    },
+                        "type": "error",
+                        "detail": f"Game error. Refresh and try again. Error reference: {error_id}",
+                    }
                 )
                 continue
-            # Broadcast updates the other players. Send the acting player's
-            # authoritative snapshot directly as well so their own token
-            # animation cannot be lost in websocket/realtime timing.
-            await websocket.send_json({"type": "state", "match": match.snapshot(user.id)})
-            async with session_factory() as db:
-                persisted = await db.get(GameMatch, match.id)
-                if persisted is not None:
-                    await record_state(db, persisted, user.id, message["action"], match.state)
-                    if message["action"].get("action") == "play_again":
-                        persisted.status = "active"
-                    elif match.state.get("winner") is not None or match.state.get("draw", False):
-                        persisted.status = "completed"
-                await grant_game_participation_reward(db, user.id, match.id)
-                if await settle_completed_match_progress(db, match, user.id):
-                    if persisted is not None:
-                        persisted.state = dict(match.state)
-                await db.commit()
-            if match.state.get("winner") is not None or match.state.get("draw", False):
-                await universal_matches.broadcast(match)
-            await realtime_bus.publish(
-                match_channel(match.id),
-                {
-                    "origin": get_settings().realtime_node_id,
-                    "payload": {"type": "refresh", "match_id": match.id},
-                },
-            )
     except WebSocketDisconnect:
         match.sockets.pop(websocket, None)
+    except Exception:
+        logger.exception(
+            "game_session_websocket_failed match_id=%s user_id=%s", match.id, user.id
+        )
     finally:
         relay_task.cancel()
         match.sockets.pop(websocket, None)
@@ -2871,19 +3202,30 @@ async def list_winners(
     return result
 
 
-def leaderboard_query(period: str, period_start: datetime | None = None):
+def leaderboard_query(
+    period: str,
+    period_start: datetime | None = None,
+    period_end: datetime | None = None,
+):
     """Return members and the XP earned in the requested ranking window."""
     member_filter = User.is_guest.is_(False)
     if period == "all":
         return select(User, User.xp.label("ranking_xp")).where(member_filter)
 
     start = period_start or leaderboard_period_start(period)
+    reward_window = [RewardLedger.created_at >= start]
+    checkin_window = [CheckIn.created_at >= start, CheckIn.completed.is_(True)]
+    challenge_window = [ChallengeCompletion.created_at >= start]
+    if period_end is not None:
+        reward_window.append(RewardLedger.created_at < period_end)
+        checkin_window.append(CheckIn.created_at < period_end)
+        challenge_window.append(ChallengeCompletion.created_at < period_end)
     reward_totals = (
         select(
             RewardLedger.user_id,
             func.coalesce(func.sum(RewardLedger.xp), 0).label("reward_xp"),
         )
-        .where(RewardLedger.created_at >= start)
+        .where(*reward_window)
         .group_by(RewardLedger.user_id)
         .subquery()
     )
@@ -2892,7 +3234,7 @@ def leaderboard_query(period: str, period_start: datetime | None = None):
             CheckIn.user_id,
             (func.count(CheckIn.id) * 25).label("checkin_xp"),
         )
-        .where(CheckIn.created_at >= start, CheckIn.completed.is_(True))
+        .where(*checkin_window)
         .group_by(CheckIn.user_id)
         .subquery()
     )
@@ -2901,7 +3243,7 @@ def leaderboard_query(period: str, period_start: datetime | None = None):
             ChallengeCompletion.user_id,
             func.coalesce(func.sum(ChallengeCompletion.xp_awarded), 0).label("challenge_xp"),
         )
-        .where(ChallengeCompletion.created_at >= start)
+        .where(*challenge_window)
         .group_by(ChallengeCompletion.user_id)
         .subquery()
     )
@@ -2917,6 +3259,14 @@ def leaderboard_query(period: str, period_start: datetime | None = None):
         .outerjoin(challenge_totals, challenge_totals.c.user_id == User.id)
         .where(member_filter, ranking_xp > 0)
     )
+
+
+def public_asset_url(value: str | None, public_url: str) -> str | None:
+    if not value:
+        return None
+    if value.startswith(("http://", "https://")):
+        return value
+    return f"{public_url.rstrip('/')}/{value.lstrip('/')}"
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
@@ -3218,18 +3568,39 @@ async def admin_users(
 
 @router.post("/admin/notifications/weekly-performers", response_model=AdminNotificationResponse)
 async def send_weekly_performer_notification(
-    admin: CurrentAdmin, db: DbSession
+    admin: CurrentAdmin,
+    db: DbSession,
+    start_date: date | None = None,
+    end_date: date | None = None,
 ) -> AdminNotificationResponse:
     if not can_manage_content(admin):
         raise HTTPException(status_code=403, detail="Staff access required")
-    period_start = leaderboard_period_start("week") - timedelta(days=7)
-    query = leaderboard_query("week", period_start=period_start)
+    if (start_date is None) != (end_date is None):
+        raise HTTPException(status_code=422, detail="Provide both start_date and end_date")
+    if start_date is None:
+        period_start = leaderboard_period_start("week") - timedelta(days=7)
+        period_end = period_start + timedelta(days=7)
+    else:
+        if start_date >= end_date:
+            raise HTTPException(status_code=422, detail="end_date must be after start_date")
+        period_start = datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
+        period_end = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=UTC)
+    query = leaderboard_query("week", period_start=period_start, period_end=period_end)
     rows = (
         await db.execute(
             query.order_by(query.selected_columns.ranking_xp.desc(), User.created_at.asc()).limit(3)
         )
     ).all()
-    winners = [(member.id, member.name, int(ranking_xp)) for member, ranking_xp in rows]
+    settings = get_settings()
+    winners = [
+        (
+            member.id,
+            member.name,
+            int(ranking_xp),
+            public_asset_url(member.avatar_url, settings.public_app_url),
+        )
+        for member, ranking_xp in rows
+    ]
     recipients = (
         await db.scalars(
             select(User).where(
@@ -3246,12 +3617,12 @@ async def send_weekly_performer_notification(
             failed=0,
             recipients=len(recipients),
             period_start=period_start.date(),
-            winners=[name for _, name, _ in winners],
+            winners=[name for _, name, _, _ in winners],
         )
-    settings = get_settings()
     html, text = weekly_performers_email(
         winners=winners,
         period_start=period_start.date(),
+        period_end=(period_end - timedelta(days=1)).date(),
         action_url=f"{settings.public_app_url.rstrip('/')}/leaderboard",
     )
     results = await asyncio.gather(
@@ -3273,7 +3644,7 @@ async def send_weekly_performer_notification(
         failed=len(results) - sent,
         recipients=len(recipients),
         period_start=period_start.date(),
-        winners=[name for _, name, _ in winners],
+        winners=[name for _, name, _, _ in winners],
     )
 
 

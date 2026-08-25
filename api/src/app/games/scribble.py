@@ -266,6 +266,8 @@ def apply_scribble_action(state: dict[str, Any], player: int, action: dict[str, 
     elif kind == "timeout":
         if state["phase"] != "guessing" or player == drawer:
             raise IllegalMove("The guessing round is not ready to end")
+        if time.time() < float(state.get("guess_deadline") or 0):
+            raise IllegalMove("The guessing timer has not expired")
         state["phase"] = "round_result"
         state["round_winner"] = None
         state["round_points"] = [0 for _ in state["players"]]

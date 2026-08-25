@@ -16,6 +16,9 @@ type TogetherState = {
 
 type Props = { state: TogetherState; send: (action: Record<string, unknown>) => void; spectator?: boolean }
 
+const ROBOT_VARIANTS = ['purple', 'coral', 'blue', 'green', 'yellow'] as const
+const ROBOT_DIRECTIONS = ['south', 'east', 'west', 'north'] as const
+
 class TogetherScene extends Phaser.Scene {
   state: TogetherState = {}
   send: Props['send'] = () => undefined
@@ -28,12 +31,12 @@ class TogetherScene extends Phaser.Scene {
   create() {
     this.keys = this.input.keyboard!.addKeys('A,D,W,LEFT,RIGHT,UP,SPACE,E') as Record<string, Phaser.Input.Keyboard.Key>
     this.cameras.main.setBackgroundColor('#f8f5f0')
-    this.anims.create({ key: 'together-robot-run', frames: this.anims.generateFrameNumbers('together-robot', { start: 2, end: 3 }), frameRate: 10, repeat: -1 })
-    this.anims.create({ key: 'together-robot-idle', frames: [{ key: 'together-robot', frame: 0 }, { key: 'together-robot', frame: 1 }], frameRate: 3, repeat: -1 })
     this.redraw()
   }
   preload() {
-    this.load.spritesheet('together-robot', '/assets/together/original/together-robot-sprite.webp', { frameWidth: 271, frameHeight: 724 })
+    ROBOT_VARIANTS.forEach((variant) => ROBOT_DIRECTIONS.forEach((direction) => {
+      this.load.image(`together-robot-${variant}-${direction}`, `/assets/together/pixellab/robot/variants/${variant}/${direction}.png`)
+    }))
     this.load.image('together-backdrop', '/assets/together/original/together-beginning-backdrop.webp')
   }
   apply(state: TogetherState) {
@@ -48,7 +51,8 @@ class TogetherScene extends Phaser.Scene {
       const sprite = this.playerSprites[index]
       if (!avatar || !sprite) return
       avatar.setPosition(player.x, 480 - (player.y ?? 0))
-      sprite.play(Math.abs(player.vx ?? 0) > 1 ? 'together-robot-run' : 'together-robot-idle', true)
+      const direction = player.vx !== undefined && player.vx < -1 ? 'west' : player.vx !== undefined && player.vx > 1 ? 'east' : 'south'
+      sprite.setTexture(`together-robot-${ROBOT_VARIANTS[index] ?? 'purple'}-${direction}`)
     })
   }
   redraw() {
@@ -105,9 +109,9 @@ class TogetherScene extends Phaser.Scene {
     this.add.text(config.width - 460, 75, config.mechanic.replaceAll('-', ' ').toUpperCase(), { fontFamily: 'Nunito, sans-serif', fontSize: '16px', color: '#9a7b9b', fontStyle: 'bold' })
     this.playerSprites = []
     this.avatars = (this.state.players ?? []).map((player, index) => {
-      const sprite = this.add.sprite(0, -42, 'together-robot', 0).setDisplaySize(86, 112).setTint(Phaser.Display.Color.HexStringToColor(player.color ?? '#8f79d8').color)
-      sprite.play('together-robot-idle')
-      const label = this.add.text(-45, 30, player.name, { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#4b4254' })
+      const variant = ROBOT_VARIANTS[index] ?? 'purple'
+      const sprite = this.add.sprite(0, 0, `together-robot-${variant}-south`).setOrigin(0.5, 1).setDisplaySize(76, 76)
+      const label = this.add.text(-45, 8, player.name, { fontFamily: 'Nunito, sans-serif', fontSize: '14px', color: '#4b4254' })
       this.playerSprites.push(sprite)
       return this.add.container(player.x ?? 150 + index * 52, 480 - (player.y ?? 0), [sprite, label])
     })

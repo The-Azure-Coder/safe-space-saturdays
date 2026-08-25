@@ -1,10 +1,13 @@
 import json
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
 from redis.asyncio import Redis
 
 from app.config import get_settings
+
+logger = logging.getLogger("safe_space_saturdays.games.realtime")
 
 
 class RealtimeBus:
@@ -21,6 +24,7 @@ class RealtimeBus:
             await self.client().publish(channel, json.dumps(message))
         except Exception:
             # A single-container/local run remains usable when Redis is unavailable.
+            logger.warning("realtime_publish_failed channel=%s", channel, exc_info=True)
             return
 
     async def close(self) -> None:
@@ -40,10 +44,16 @@ class RealtimeBus:
                 except (TypeError, json.JSONDecodeError):
                     continue
         except Exception:
+            logger.warning("realtime_subscribe_failed channel=%s", channel, exc_info=True)
             return
         finally:
-            await pubsub.unsubscribe(channel)
-            await pubsub.close()
+            try:
+                await pubsub.unsubscribe(channel)
+                await pubsub.close()
+            except Exception:
+                logger.warning(
+                    "realtime_subscription_close_failed channel=%s", channel, exc_info=True
+                )
 
 
 realtime_bus = RealtimeBus()

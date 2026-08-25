@@ -6,7 +6,9 @@ from typing import Any
 
 from app.games.connect_four import IllegalMove
 
-COLORS = ("purple", "pink", "blue", "green")
+COLORS = ("#9a7bd3", "#e98a92", "#77aee8", "#7ec7a2", "#e0b65e")
+PLAYER_WIDTH = 48.0
+PLAYER_HEIGHT = 72.0
 WORLD_THEMES = ("meadow", "crystal", "sunset", "moonlit")
 MECHANICS = (
     "two-buttons",
@@ -57,8 +59,13 @@ LEVELS = tuple(
         "moving_platforms": [
             {"x": 740 + (index % 3) * 90, "y": 210 + (index % 2) * 32, "width": 150, "range": 90}
         ] if index >= 2 else [],
-        "hazards": [{"x": 720 + (index % 2) * 90, "width": 120}, {"x": 1090 + (index % 3) * 60, "width": 100}],
-        "cooperation": "Stand on both buttons" if name == "two-buttons" else "Coordinate your timing",
+        "hazards": [
+            {"x": 720 + (index % 2) * 90, "width": 120},
+            {"x": 1090 + (index % 3) * 60, "width": 100},
+        ],
+        "cooperation": (
+            "Stand on both buttons" if name == "two-buttons" else "Coordinate your timing"
+        ),
     }
     for index, name in enumerate(MECHANICS)
 )
@@ -68,7 +75,9 @@ def level_config(level: int) -> dict[str, Any]:
     return dict(LEVELS[max(1, min(len(LEVELS), level)) - 1])
 
 
-def _platform_support(level: dict[str, Any], x: float, previous_y: float, next_y: float) -> float | None:
+def _platform_support(
+    level: dict[str, Any], x: float, previous_y: float, next_y: float
+) -> float | None:
     """Return the highest platform crossed while falling this simulation step."""
     supports = [0.0]
     for platform in level.get("platforms", []):
@@ -80,10 +89,50 @@ def _platform_support(level: dict[str, Any], x: float, previous_y: float, next_y
     return max(supports) if len(supports) > 1 else (0.0 if next_y <= 0 else None)
 
 
+def _player_support(
+    players: list[dict[str, Any]], current_index: int, x: float, previous_y: float, next_y: float
+) -> float | None:
+    """Return the highest player top crossed while falling this simulation step."""
+    supports: list[float] = []
+    half_width = PLAYER_WIDTH / 2
+    for index, other in enumerate(players):
+        if index == current_index:
+            continue
+        other_x = float(other.get("x", 0))
+        other_y = float(other.get("y", 0))
+        if abs(x - other_x) <= half_width * 2:
+            other_top = other_y + PLAYER_HEIGHT
+            if previous_y >= other_top >= next_y:
+                supports.append(other_top)
+    return max(supports) if supports else None
+
+
+def _resolve_player_horizontal(
+    players: list[dict[str, Any]], current_index: int, previous_x: float, next_x: float, y: float
+) -> float:
+    """Prevent block robots from passing through one another on the same tier."""
+    current_top = y + PLAYER_HEIGHT
+    resolved_x = next_x
+    for index, other in enumerate(players):
+        if index == current_index:
+            continue
+        other_x = float(other.get("x", 0))
+        other_y = float(other.get("y", 0))
+        if not (y < other_y + PLAYER_HEIGHT and current_top > other_y):
+            continue
+        if abs(resolved_x - other_x) > PLAYER_WIDTH:
+            continue
+        if next_x > previous_x:
+            resolved_x = min(resolved_x, other_x - PLAYER_WIDTH)
+        elif next_x < previous_x:
+            resolved_x = max(resolved_x, other_x + PLAYER_WIDTH)
+    return resolved_x
+
+
 def new_together_state(
     player_count: int, player_names: dict[int, str] | None = None
 ) -> dict[str, Any]:
-    count = max(2, min(4, player_count))
+    count = max(2, min(5, player_count))
     names = player_names or {}
     return {
         "game": "together",
@@ -140,8 +189,9 @@ def apply_together_action(
         axis = max(-1.0, min(1.0, float(payload.get("axis", 0))))
         dt = max(0.01, min(0.12, float(payload.get("dt", 1 / 15))))
         player["vx"] = round(axis * 280, 2)
+        previous_x = float(player.get("x", 0))
         player["x"] = round(
-            max(50, min(state["level_config"]["width"] - 50, player["x"] + player["vx"] * dt)), 2
+            max(50, min(state["level_config"]["width"] - 50, previous_x + player["vx"] * dt)), 2
         )
         player["coyote"] = max(0, float(player.get("coyote", 0)) - dt)
         player["jump_buffer"] = max(0, float(player.get("jump_buffer", 0)) - dt)
@@ -153,7 +203,24 @@ def apply_together_action(
         previous_y = float(player.get("y", 0))
         player["vy"] = round(float(player.get("vy", 0)) - 1750 * dt, 2)
         next_y = round(previous_y + player["vy"] * dt, 2)
+        player["x"] = round(
+            max(
+                50,
+                min(
+                    state["level_config"]["width"] - 50,
+                    _resolve_player_horizontal(
+                        state["players"], seat, previous_x, player["x"], previous_y
+                    ),
+                ),
+            ),
+            2,
+        )
         support = _platform_support(state["level_config"], player["x"], previous_y, next_y)
+        player_support = _player_support(state["players"], seat, player["x"], previous_y, next_y)
+        if player_support is not None:
+            support = max(support if support is not None else float("-inf"), player_support)
+        if support == float("-inf"):
+            support = None
         if support is not None:
             player["y"], player["vy"], player["on_ground"] = support, 0, True
         else:
@@ -171,7 +238,12 @@ def apply_together_action(
     elif action == "fall":
         state["falls"] += 1
         player["falls"] = int(player.get("falls", 0)) + 1
-        player["x"], player["y"], player["vy"], player["on_ground"] = player["checkpoint"], 0, 0, True
+        player["x"], player["y"], player["vy"], player["on_ground"] = (
+            player["checkpoint"],
+            0,
+            0,
+            True,
+        )
         state["last_event"] = f"{player['name']} went boop. Back to the checkpoint!"
     elif action == "reset_puzzle":
         state["restarts"] += 1

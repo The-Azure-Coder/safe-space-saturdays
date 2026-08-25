@@ -7,6 +7,7 @@ import { GeneralLoader } from '../components/general-loader'
 import { API_URL, api, apiRetryDelay, shouldRetryApiRequest } from '../lib/api'
 import type { Match } from '../lib/api'
 import { connectFourSeat } from '../lib/connect-four'
+import { openReconnectingGameSocket } from '../lib/game-websocket'
 import { GameRoomControls } from '../components/game-room-controls'
 
 export const Route = createFileRoute('/games/play/$matchId')({ component: ConnectFourScreen })
@@ -17,6 +18,7 @@ function ConnectFourScreen() {
   const { matchId } = useParams({ from: '/games/play/$matchId' })
   const [match, setMatch] = useState<Match | null>(null)
   const [error, setError] = useState('')
+  const [connectionNotice, setConnectionNotice] = useState('')
   const [pendingColumn, setPendingColumn] = useState<number | null>(null)
   const [hoveredColumn, setHoveredColumn] = useState<number | null>(null)
   const [ending, setEnding] = useState(false)
@@ -36,13 +38,18 @@ function ConnectFourScreen() {
 
   useEffect(() => {
     if (!matchQuery.data) return
-    const connection = new WebSocket(`${API_URL.replace(/^http/, 'ws')}/api/games/matches/${matchId}/ws`)
-    socket.current = connection
-    connection.onmessage = (event) => {
-      try {
-        const message = JSON.parse(String(event.data)) as { type: string; state?: Match; spectator_count?: number; detail?: string }
+    return openReconnectingGameSocket({
+      url: `${API_URL.replace(/^http/, 'ws')}/api/games/matches/${matchId}/ws`,
+      onSocket: (connection) => { socket.current = connection },
+      onStatus: (status, detail) => {
+        setConnectionNotice(status === 'connected' ? '' : detail ?? (status === 'connecting' ? 'Connecting to live game…' : 'Connection interrupted. Reconnecting…'))
+      },
+      onResync: async () => setMatch(await api.match(matchId)),
+      onMessage: (rawMessage) => {
+        const message = rawMessage as { type: string; state?: Match; spectator_count?: number; detail?: string }
         if (message.type === 'state' && message.state) {
-          setMatch((current) => ({ ...message.state!, player: message.state!.player ?? current?.player ?? 1, spectator: message.state!.spectator ?? current?.spectator ?? false, spectator_count: message.spectator_count ?? message.state!.spectator_count ?? current?.spectator_count ?? 0 }))
+          const nextState = message.state
+          setMatch((current) => ({ ...nextState, player: nextState.player ?? current?.player ?? 1, spectator: nextState.spectator, spectator_count: message.spectator_count ?? nextState.spectator_count }))
           setPendingColumn(null)
         }
         if (message.type === 'spectator_count') setMatch((current) => current ? { ...current, spectator_count: message.spectator_count ?? 0 } : current)
@@ -52,12 +59,8 @@ function ConnectFourScreen() {
           setError(message.detail ?? 'That move was not accepted')
           setPendingColumn(null)
         }
-      } catch {
-        setError('The game sent an unreadable update. Please refresh.')
-      }
-    }
-    connection.onerror = () => setError('Connection lost. Your board is safe — refresh to reconnect.')
-    return () => connection.close()
+      },
+    })
   }, [matchId, matchQuery.data])
 
   const board = match?.board ?? EMPTY_BOARD
@@ -119,6 +122,7 @@ function ConnectFourScreen() {
       <div className="game-play-badge"><Sparkle size={20} weight="fill" /><span>{match?.move_count ?? 0} of 42 spaces played</span>{(match?.spectator_count ?? 0) > 0 && <span className="spectator-count" aria-label={`${match?.spectator_count} people watching`}><Eye size={17} aria-hidden="true" /> {match?.spectator_count}</span>}</div>
     </section>
     {isSpectator && <p className="spectator-banner" role="status"><Eye size={18} aria-hidden="true" /> You are spectating this live game. The board is read-only.</p>}
+    {connectionNotice && <p className="spectator-banner" role="status">{connectionNotice}</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
 
     <section className="connect-four-shell" aria-label="Connect Four game">

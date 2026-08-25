@@ -25,19 +25,29 @@ def _shell(*, eyebrow: str, title: str, body: str, action_label: str, action_url
 
 
 def weekly_performers_email(
-    *, winners: Sequence[tuple[int, str, int]], period_start: date, action_url: str
+    *,
+    winners: Sequence[tuple[int, str, int, str | None]],
+    period_start: date,
+    period_end: date,
+    action_url: str,
 ) -> tuple[str, str]:
     podium_colors = ("#f1c48c", "#cbd5cf", "#df9b72")
     podium = "".join(
         f'<tr><td style="padding:10px 12px;border-bottom:1px solid #e6e0d6;">'
         f'<span style="display:inline-block;width:28px;height:28px;margin-right:10px;border-radius:50%;background:{podium_colors[index]};color:#19352b;text-align:center;line-height:28px;font-weight:bold;">{index + 1}</span>'
-        f'<strong>{escape(name)}</strong><span style="float:right;color:#7a8c69;font-weight:bold;">{xp:,} XP</span>'
+        + (
+            f'<img src="{escape(avatar_url, quote=True)}" alt="" width="42" height="42" '
+            'style="display:inline-block;vertical-align:middle;margin-right:10px;border-radius:50%;object-fit:cover;">'
+            if avatar_url
+            else ""
+        )
+        + f'<strong>{escape(name)}</strong><span style="float:right;color:#7a8c69;font-weight:bold;">{xp:,} XP</span>'
         "</td></tr>"
-        for index, (_, name, xp) in enumerate(winners)
+        for index, (_, name, xp, avatar_url) in enumerate(winners)
     )
     body = (
         f'<p style="margin:0 0 20px;color:#59645d;font-size:16px;line-height:1.6;">'
-        f'Here are this week\'s community standouts, starting {period_start.strftime("%B %-d")}.</p>'
+        f'Here are the community standouts from {period_start.strftime("%B %-d")} through {period_end.strftime("%B %-d")}.</p>'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #ddd6c9;border-radius:14px;overflow:hidden;background:#f8f6ef;">{podium}</table>'
     )
     html = _shell(
@@ -47,9 +57,9 @@ def weekly_performers_email(
         action_label="See the leaderboard",
         action_url=action_url,
     )
-    text_rows = "\n".join(f"{index}. {name} — {xp:,} XP" for index, (_, name, xp) in enumerate(winners, 1))
+    text_rows = "\n".join(f"{index}. {name} — {xp:,} XP" for index, (_, name, xp, _) in enumerate(winners, 1))
     text = (
-        f"This week's Safe Space Saturdays leaders (week starting {period_start.isoformat()}):\n\n"
+        f"Safe Space Saturdays leaders ({period_start.isoformat()} through {period_end.isoformat()}):\n\n"
         f"{text_rows}\n\nSee the leaderboard: {action_url}"
     )
     return html, text
