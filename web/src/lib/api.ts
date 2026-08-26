@@ -499,6 +499,8 @@ export const api = {
   room: (id: number, spectator = false) => apiFetch<Room>(`/api/games/rooms/${id}${spectator ? '?spectate=true' : ''}`),
   roomParticipants: (id: number) =>
     apiFetch<Array<RoomParticipant>>(`/api/games/rooms/${id}/participants`),
+  kickRoomParticipant: (roomId: number, userId: number) =>
+    apiFetch<void>(`/api/games/rooms/${roomId}/participants/${userId}`, { method: 'DELETE' }),
   roomInvite: (token: string) =>
     apiFetch<RoomInvite>(
       `/api/games/rooms/invite/${encodeURIComponent(token)}`,

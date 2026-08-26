@@ -132,7 +132,7 @@ def _resolve_player_horizontal(
 def new_together_state(
     player_count: int, player_names: dict[int, str] | None = None
 ) -> dict[str, Any]:
-    count = max(2, min(5, player_count))
+    count = max(1, min(5, player_count))
     names = player_names or {}
     return {
         "game": "together",

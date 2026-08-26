@@ -14,6 +14,7 @@ function GameRoomLobby() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [copied, setCopied] = useState(false)
+  const [kickingUserId, setKickingUserId] = useState<number | null>(null)
   const room = useQuery({
     queryKey: ['room', roomId],
     queryFn: () => api.room(roomId),
@@ -60,6 +61,15 @@ function GameRoomLobby() {
   const endRoom = useMutation({
     mutationFn: () => api.endRoom(roomId),
     onSuccess: () => navigate({ to: '/games' }),
+  })
+  const kick = useMutation({
+    mutationFn: (userId: number) => api.kickRoomParticipant(roomId, userId),
+    onSuccess: () => {
+      setKickingUserId(null)
+      void queryClient.invalidateQueries({ queryKey: ['room', roomId] })
+      void queryClient.invalidateQueries({ queryKey: ['room-participants', roomId] })
+    },
+    onError: () => setKickingUserId(null),
   })
 
   useEffect(() => {
@@ -110,6 +120,7 @@ function GameRoomLobby() {
             <span className="avatar avatar--sage">{member.avatar_url ? <img src={assetUrl(member.avatar_url)} alt="" /> : member.name.slice(0, 1).toUpperCase()}</span>
             <div><strong>{member.name}</strong><small>{member.is_host ? 'Host · ready to start' : isReady ? 'Ready to play' : 'Getting ready'}</small></div>
             <span className={isReady ? 'lobby-ready lobby-ready--yes' : 'lobby-ready'}><CheckCircle size={18} weight={isReady ? 'fill' : 'regular'} /> {isReady ? 'Ready' : 'Not ready'}</span>
+            {currentRoom.is_host && !member.is_host && <button className="button button--small button--danger" type="button" disabled={kick.isPending} onClick={() => { if (window.confirm(`Remove ${member.name} from this room?`)) { setKickingUserId(member.user_id); kick.mutate(member.user_id) } }}>{kickingUserId === member.user_id ? 'Removing…' : 'Remove'}</button>}
           </article>
         })}
         {Array.from({ length: Math.max(0, currentRoom.max_players - members.length) }, (_, index) => <article className="game-lobby-member game-lobby-member--empty" key={`empty-${index}`}><span className="game-lobby-empty-avatar"><UsersThree size={19} /></span><div><strong>Open seat</strong><small>{currentRoom.fill_with_bots ? 'A friendly bot can fill this seat' : 'Waiting for a player'}</small></div></article>)}
@@ -117,7 +128,7 @@ function GameRoomLobby() {
       {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : 'The lobby could not update.'}</p>}
       <div className="game-lobby-actions">
         {!currentRoom.is_host && <button className={currentRoom.ready ? 'button button--secondary' : 'button button--primary'} type="button" disabled={ready.isPending} onClick={() => ready.mutate()}>{ready.isPending ? 'Updating…' : currentRoom.ready ? 'Ready ✓' : 'Ready up'}</button>}
-        {currentRoom.is_host && <button className="button button--primary" type="button" disabled={start.isPending || (currentRoom.game === 'Together' && currentRoom.players < 2)} onClick={() => start.mutate()}>{start.isPending ? 'Starting…' : currentRoom.game === 'Together' && currentRoom.players < 2 ? 'Waiting for a teammate' : currentRoom.fill_with_bots ? 'Start game with bots' : 'Start game'}</button>}
+        {currentRoom.is_host && <button className="button button--primary" type="button" disabled={start.isPending} onClick={() => start.mutate()}>{start.isPending ? 'Starting…' : currentRoom.fill_with_bots ? 'Start game with bots' : 'Start game'}</button>}
       </div>
     </section>
   </main>

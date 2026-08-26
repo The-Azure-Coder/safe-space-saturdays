@@ -2350,6 +2350,42 @@ async def list_room_participants(
     ]
 
 
+@router.delete("/games/rooms/{room_id}/participants/{participant_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def kick_room_participant(
+    room_id: int, participant_id: int, user: CurrentUser, db: DbSession
+) -> Response:
+    """Let the host remove a guest from an open lobby before the match starts."""
+    room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.host_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the host can remove players")
+    if room.status != "open":
+        raise HTTPException(status_code=409, detail="Players can only be removed before the game starts")
+    participant = await db.scalar(
+        select(RoomParticipant).where(
+            RoomParticipant.room_id == room_id,
+            RoomParticipant.user_id == participant_id,
+        ).with_for_update()
+    )
+    if participant is None:
+        raise HTTPException(status_code=404, detail="Player is not in this room")
+    if participant.user_id == room.host_id:
+        raise HTTPException(status_code=400, detail="The host cannot remove themselves")
+    await db.delete(participant)
+    remaining = (
+        await db.scalars(
+            select(RoomParticipant)
+            .where(RoomParticipant.room_id == room_id)
+            .order_by(RoomParticipant.joined_at, RoomParticipant.id)
+        )
+    ).all()
+    for seat_index, member in enumerate(remaining):
+        member.seat_index = seat_index
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.delete("/games/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def end_game_room(room_id: int, user: CurrentUser, db: DbSession) -> Response:
     room = await db.get(GameRoom, room_id, with_for_update=True)
@@ -2896,8 +2932,6 @@ async def create_game_session(
     seats, player_ids, bot_players, player_names = await build_match_seats(
         room, game_type, user.id, db, payload.fill_with_bots
     )
-    if game_type == "together" and len(player_ids) < 2:
-        raise HTTPException(status_code=409, detail="Together needs at least two players")
     progress = await db.scalar(select(GameProgress).where(
         GameProgress.user_id == user.id, GameProgress.game_type == game_type
     ))
@@ -2920,6 +2954,8 @@ async def create_game_session(
     await create_persisted_match(db, match.id, room.id, game_type, user.id, match.state, seats)
     await db.commit()
     ensure_universal_timer(match)
+    if universal_bot_needed(match):
+        match.bot_task = asyncio.create_task(run_universal_bots(match, user.id))
     return universal_response(match, user.id)
 
 
@@ -3170,15 +3206,16 @@ async def game_session_action(
         _, match = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Game session not found")
-    if user.id not in match.player_ids:
+    user_id = user.id
+    if user_id not in match.player_ids:
         raise HTTPException(status_code=403, detail="Spectators cannot play actions")
     try:
-        await apply_universal_action(match, user.id, payload.action, db)
+        await apply_universal_action(match, user_id, payload.action, db)
     except IllegalMove as error:
         logger.warning(
             "game_session_action_rejected match_id=%s user_id=%s action=%s error=%s",
             match_id,
-            user.id,
+            user_id,
             payload.action.get("action"),
             error,
         )
@@ -3189,7 +3226,7 @@ async def game_session_action(
             "game_session_action_failed error_id=%s match_id=%s user_id=%s action=%s",
             error_id,
             match_id,
-            user.id,
+            user_id,
             payload.action.get("action"),
         )
         raise HTTPException(
@@ -3197,7 +3234,7 @@ async def game_session_action(
             detail=f"Game error. Refresh and try again. Error reference: {error_id}",
         ) from error
     ensure_universal_timer(match)
-    return universal_response(match, user.id)
+    return universal_response(match, user_id)
 
 
 @router.websocket("/games/sessions/{match_id}/ws")

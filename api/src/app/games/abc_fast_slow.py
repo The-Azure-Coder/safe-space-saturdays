@@ -167,7 +167,19 @@ def _finish_answering(state: dict[str, Any]) -> None:
             _submit(state, player, {})
     state["phase"] = "voting"
     state["deadline"] = None
-    state["last_event"] = "Time is up. Vote valid or invalid for each answer."
+    state["last_event"] = _voting_status(state)
+
+
+def _voting_status(state: dict[str, Any]) -> str:
+    voted = state.get("voted", [])
+    waiting = [
+        str(player.get("name", f"Player {index + 1}"))
+        for index, player in enumerate(state.get("players", []))
+        if index >= len(voted) or not voted[index]
+    ]
+    if not waiting:
+        return "All players finished voting."
+    return f"Still voting: {', '.join(waiting)}. Vote valid or invalid for each answer."
 
 
 def _vote(state: dict[str, Any], player: int, action: dict[str, Any]) -> None:
@@ -189,6 +201,8 @@ def _vote(state: dict[str, Any], player: int, action: dict[str, Any]) -> None:
         state["voted"][player] = True
     if all(state["voted"]):
         _score_round(state)
+    else:
+        state["last_event"] = _voting_status(state)
 
 
 def apply_abc_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> dict[str, Any]:

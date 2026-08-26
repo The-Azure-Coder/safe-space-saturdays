@@ -136,7 +136,7 @@ export function ScribbleGame({ state, send, error = '' }: ScribbleGameProps) {
   }, [state.phase, state.guess_deadline, state.action_count])
 
   useEffect(() => {
-    if (state.phase !== 'guessing' || secondsLeft !== 0 || timeoutSentRef.current === state.action_count) return
+    if (isDrawer || state.phase !== 'guessing' || secondsLeft !== 0 || timeoutSentRef.current === state.action_count) return
     timeoutSentRef.current = state.action_count ?? 0
     send({ action: 'timeout' })
   }, [secondsLeft, state.phase, state.action_count, send])
