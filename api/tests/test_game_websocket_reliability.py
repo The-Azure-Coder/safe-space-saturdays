@@ -4,7 +4,8 @@ from typing import Any
 import pytest
 from starlette.websockets import WebSocket
 
-from app.games.manager import LiveMatch
+from app.games.connect_four import initial_state
+from app.games.manager import LiveMatch, MatchManager
 from app.games.multi import new_state
 from app.games.universal import UniversalMatch, universal_matches
 from app.routes import api
@@ -85,6 +86,33 @@ async def test_universal_relay_applies_newer_remote_state(
     assert match.version == 3
     assert match.state["letter"] == "M"
     assert socket.messages[-1]["match"]["state"]["seat_index"] == 0
+
+
+@pytest.mark.asyncio
+async def test_connect_four_broadcasts_human_move_before_bot_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = MatchManager()
+    match = LiveMatch(
+        id="smooth-connect",
+        room_id=1,
+        state=initial_state(),
+        player_ids={7: 1},
+        bot_player=2,
+    )
+    socket = RecordingSocket()
+    match.sockets[socket] = 7  # type: ignore[assignment]
+
+    async def no_delay(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("app.games.manager.asyncio.sleep", no_delay)
+    await manager.move(match, 7, 0)
+
+    assert len(socket.messages) == 2
+    assert socket.messages[0]["state"]["move_count"] == 1
+    assert socket.messages[0]["state"]["current_player"] == 2
+    assert socket.messages[1]["bot"] is True
 
 
 def test_deadline_actions_cover_timed_universal_games() -> None:

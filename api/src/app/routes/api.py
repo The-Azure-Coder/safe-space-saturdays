@@ -2599,10 +2599,10 @@ async def apply_connect_action(
         try:
             if action.get("action") == "play_again":
                 await settle_completed_match_progress(db, match, user_id)
-                await match_manager.play_again_locked(match, user_id, broadcast=False)
+                await match_manager.play_again_locked(match, user_id, broadcast=True)
             else:
                 await match_manager.move_locked(
-                    match, user_id, int(action["column"]), broadcast=False
+                    match, user_id, int(action["column"]), broadcast=True
                 )
             await record_state(db, persisted, user_id, action, match.snapshot())
             if action.get("action") == "play_again":
@@ -2930,7 +2930,7 @@ async def apply_universal_action(
             if kind == "play_again":
                 await settle_completed_match_progress(db, match, user_id)
             await universal_matches.action_locked(
-                match, user_id, action, broadcast=False
+                match, user_id, action, broadcast=True
             )
             await record_state(db, persisted, user_id, action, match.state)
             if kind == "play_again":
