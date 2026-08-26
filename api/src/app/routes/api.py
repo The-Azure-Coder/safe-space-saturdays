@@ -2599,10 +2599,10 @@ async def apply_connect_action(
         try:
             if action.get("action") == "play_again":
                 await settle_completed_match_progress(db, match, user_id)
-                await match_manager.play_again_locked(match, user_id, broadcast=True)
+                await match_manager.play_again_locked(match, user_id, broadcast=True, run_bot=False)
             else:
                 await match_manager.move_locked(
-                    match, user_id, int(action["column"]), broadcast=True
+                    match, user_id, int(action["column"]), broadcast=True, run_bot=False
                 )
             await record_state(db, persisted, user_id, action, match.snapshot())
             if action.get("action") == "play_again":
@@ -2620,7 +2620,6 @@ async def apply_connect_action(
             match.starting_player = previous_starting_player
             match.reward_granted = previous_reward_granted
             raise
-    await match_manager.broadcast(match, {"type": "state", "state": match.snapshot()})
     await realtime_bus.publish(
         match_channel(match.id),
         {
@@ -2632,6 +2631,60 @@ async def apply_connect_action(
             },
         },
     )
+    if (
+        match.bot_player == match.state.current_player
+        and not match.state.winner
+        and not match.state.draw
+    ):
+        if match.bot_task is None or match.bot_task.done():
+            match.bot_task = asyncio.create_task(run_connect_bot(match, user_id))
+
+
+async def run_connect_bot(match: LiveMatch, initiator_id: int) -> None:
+    """Take the bot turn off the request path so the human move stays responsive."""
+    current_task = asyncio.current_task()
+    try:
+        await asyncio.sleep(0.55)
+        async with session_factory() as db:
+            async with match.lock:
+                persisted = await db.scalar(
+                    select(GameMatch).where(GameMatch.id == match.id).with_for_update()
+                )
+                if persisted is None:
+                    return
+                if persisted.version > match.version:
+                    apply_connect_snapshot(match, persisted.state)
+                    match.version = persisted.version
+                if (
+                    match.bot_player != match.state.current_player
+                    or match.state.winner
+                    or match.state.draw
+                ):
+                    return
+                await match_manager.bot_move_locked(match, broadcast=False)
+                await record_state(
+                    db, persisted, initiator_id, {"action": "bot_move"}, match.snapshot()
+                )
+                if await settle_completed_match_progress(db, match, initiator_id):
+                    persisted.status = "completed"
+                await db.commit()
+                match.version = persisted.version
+                snapshot = match.snapshot()
+            await match_manager.broadcast(match, {"type": "state", "state": snapshot, "bot": True})
+            await realtime_bus.publish(
+                match_channel(match.id),
+                {
+                    "origin": get_settings().realtime_node_id,
+                    "payload": {"type": "state", "state": snapshot, "version": match.version},
+                },
+            )
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("connect_four_bot_turn_failed match_id=%s", match.id)
+    finally:
+        if match.bot_task is current_task:
+            match.bot_task = None
 
 
 @router.post("/games/matches/{match_id}/moves", response_model=MatchResponse)
@@ -2930,7 +2983,7 @@ async def apply_universal_action(
             if kind == "play_again":
                 await settle_completed_match_progress(db, match, user_id)
             await universal_matches.action_locked(
-                match, user_id, action, broadcast=True
+                match, user_id, action, broadcast=True, run_bots=False
             )
             await record_state(db, persisted, user_id, action, match.state)
             if kind == "play_again":
@@ -2948,7 +3001,6 @@ async def apply_universal_action(
             match.version = previous_version
             match.reward_granted = previous_reward_granted
             raise
-    await universal_matches.broadcast(match)
     await realtime_bus.publish(
         match_channel(match.id),
         {
@@ -2960,6 +3012,87 @@ async def apply_universal_action(
             },
         },
     )
+    if universal_bot_needed(match) and (match.bot_task is None or match.bot_task.done()):
+        match.bot_task = asyncio.create_task(run_universal_bots(match, user_id))
+
+
+def universal_bot_needed(match: UniversalMatch) -> bool:
+    bots = match.bot_players or ((match.bot_player,) if match.bot_player is not None else ())
+    if not bots or match.state.get("winner") is not None or match.state.get("draw", False):
+        return False
+    if match.game_type == "abc-fast-slow":
+        phase = match.state.get("phase")
+        if phase in {"letter_picker", "letter_picker_running"}:
+            return int(match.state.get("letter_chooser", -1)) in bots
+        if phase == "answering":
+            return any(not value for value in match.state.get("submitted", []))
+        if phase == "voting":
+            return any(not value for value in match.state.get("voted", []))
+        return False
+    current = int(match.state.get("current_player", -1))
+    return current in bots and (
+        match.game_type != "scribble"
+        or match.state.get("phase") == "choosing"
+        or match.state.get("bot_draw_pending", False)
+    )
+
+
+async def run_universal_bots(match: UniversalMatch, initiator_id: int) -> None:
+    """Process bot actions asynchronously, persisting each authoritative state."""
+    current_task = asyncio.current_task()
+    first = True
+    try:
+        while universal_bot_needed(match):
+            if match.game_type == "ludo":
+                delay = 2.05 if first else (0.95 if match.state.get("phase") == "roll" else 1.15)
+            elif match.game_type == "abc-fast-slow":
+                delay = 0.35
+            else:
+                delay = 0.7
+            await asyncio.sleep(delay)
+            first = False
+            async with session_factory() as db:
+                async with match.lock:
+                    persisted = await db.scalar(
+                        select(GameMatch).where(GameMatch.id == match.id).with_for_update()
+                    )
+                    if persisted is None:
+                        return
+                    if persisted.version > match.version:
+                        match.state = deepcopy(persisted.state)
+                        match.version = persisted.version
+                    if not universal_bot_needed(match):
+                        return
+                    bot_action = await universal_matches.bot_action_locked(match, broadcast=False)
+                    if bot_action is None:
+                        return
+                    await record_state(
+                        db,
+                        persisted,
+                        initiator_id,
+                        {"action": "bot", **bot_action},
+                        match.state,
+                    )
+                    if await settle_completed_match_progress(db, match, initiator_id):
+                        persisted.status = "completed"
+                    await db.commit()
+                    match.version = persisted.version
+                    snapshot = deepcopy(match.state)
+                await universal_matches.broadcast(match)
+                await realtime_bus.publish(
+                    match_channel(match.id),
+                    {
+                        "origin": get_settings().realtime_node_id,
+                        "payload": {"type": "state", "state": snapshot, "version": match.version},
+                    },
+                )
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("universal_bot_turn_failed match_id=%s game=%s", match.id, match.game_type)
+    finally:
+        if match.bot_task is current_task:
+            match.bot_task = None
 
 
 def universal_deadline_action(
