@@ -22,6 +22,16 @@ def test_together_scales_for_two_through_five_players() -> None:
         assert len(state["switches"]) == count
 
 
+def test_together_supports_a_single_player_session() -> None:
+    state = new_together_state(1)
+
+    assert state["player_count"] == 1
+    assert len(state["players"]) == 1
+    state["finishers"] = [0]
+    apply_together_action(state, 0, {"action": "finish"})
+    assert state["levels_completed"] == 1
+
+
 def test_block_robots_can_stand_on_each_other() -> None:
     state = new_together_state(2)
     lower, upper = state["players"]
