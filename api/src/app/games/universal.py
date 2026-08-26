@@ -30,6 +30,7 @@ class UniversalMatch:
     reward_granted: bool = False
     version: int = 0
     timer_task: asyncio.Task[None] | None = None
+    bot_task: asyncio.Task[None] | None = None
 
     def spectator_count(self) -> int:
         return sum(user_id not in self.player_ids for user_id in self.sockets.values())
@@ -195,6 +196,7 @@ class UniversalMatchManager:
         payload: dict[str, Any],
         *,
         broadcast: bool = True,
+        run_bots: bool = True,
     ) -> UniversalMatch:
         player = match.player_ids.get(user_id)
         if player is None:
@@ -211,6 +213,8 @@ class UniversalMatchManager:
                 await self.broadcast_drawing_segment(match, match.state["strokes"][-1])
         elif broadcast:
             await self.broadcast(match)
+        if not run_bots:
+            return match
         bot_player = match.bot_player
         bot_players = match.bot_players or ((bot_player,) if bot_player is not None else ())
         if match.game_type == "abc-fast-slow":
@@ -308,6 +312,41 @@ class UniversalMatchManager:
             else:
                 raise IllegalMove("The bot turns could not be completed")
         return match
+
+    async def bot_action_locked(
+        self, match: UniversalMatch, *, broadcast: bool = True
+    ) -> dict[str, Any] | None:
+        """Apply one bot action without waiting while the match lock is held."""
+        bot_players = match.bot_players or (
+            (match.bot_player,) if match.bot_player is not None else ()
+        )
+        if match.game_type == "abc-fast-slow":
+            phase = match.state.get("phase")
+            if phase in {"letter_picker", "letter_picker_running"}:
+                seat = int(match.state.get("letter_chooser", -1))
+                if seat not in bot_players:
+                    return None
+            elif phase == "answering":
+                seat = next((s for s in bot_players if not match.state["submitted"][s]), None)
+            elif phase == "voting":
+                seat = next((s for s in bot_players if not match.state["voted"][s]), None)
+            else:
+                return None
+        else:
+            seat = int(match.state.get("current_player", -1))
+            if seat not in bot_players or match.state.get("winner") is not None:
+                return None
+            if (
+                match.game_type == "scribble"
+                and match.state.get("phase") not in {"choosing"}
+                and not match.state.get("bot_draw_pending", False)
+            ):
+                return None
+        action = bot_action(match.state, int(seat))
+        match.state = apply_action(match.state, int(seat), action)
+        if broadcast:
+            await self.broadcast(match)
+        return action
 
     async def broadcast_together(self, match: UniversalMatch) -> None:
         event = {"type": "together", "match_id": match.id, **together_public_event(match.state)}

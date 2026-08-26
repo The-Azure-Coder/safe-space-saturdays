@@ -14,6 +14,22 @@ export const Route = createFileRoute('/games/play/$matchId')({ component: Connec
 
 const EMPTY_BOARD = Array.from({ length: 6 }, () => Array<number>(7).fill(0))
 
+function optimisticConnectMove(current: Match, column: number): Match {
+  const board = current.board.map((row) => [...row])
+  const row = [...board].reverse().findIndex((cells) => cells[column] === 0)
+  if (row < 0) return current
+  const boardRow = board.length - 1 - row
+  board[boardRow][column] = current.player ?? current.current_player
+  return {
+    ...current,
+    board,
+    last_move: [boardRow, column],
+    winning_cells: [],
+    move_count: current.move_count + 1,
+    current_player: current.current_player === 1 ? 2 : 1,
+  }
+}
+
 function ConnectFourScreen() {
   const { matchId } = useParams({ from: '/games/play/$matchId' })
   const [match, setMatch] = useState<Match | null>(null)
@@ -58,6 +74,7 @@ function ConnectFourScreen() {
         if (message.type === 'error') {
           setError(message.detail ?? 'That move was not accepted')
           setPendingColumn(null)
+          void matchQuery.refetch()
         }
       },
     })
@@ -93,6 +110,7 @@ function ConnectFourScreen() {
     if (!canPlay || board[0][column] !== 0) return
     setError('')
     setPendingColumn(column)
+    setMatch((current) => current ? optimisticConnectMove(current, column) : current)
     if (socket.current?.readyState === WebSocket.OPEN) {
       socket.current.send(JSON.stringify({ type: 'move', column }))
       return

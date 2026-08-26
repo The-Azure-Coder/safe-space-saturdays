@@ -35,6 +35,7 @@ class LiveMatch:
     sockets: dict[WebSocket, int] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     settlement_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    bot_task: asyncio.Task[None] | None = None
     version: int = 0
 
     def spectator_count(self) -> int:
@@ -126,7 +127,13 @@ class MatchManager:
             return await self.move_locked(match, user_id, column, broadcast=broadcast)
 
     async def move_locked(
-        self, match: LiveMatch, user_id: int, column: int, *, broadcast: bool = True
+        self,
+        match: LiveMatch,
+        user_id: int,
+        column: int,
+        *,
+        broadcast: bool = True,
+        run_bot: bool = True,
     ) -> dict[str, Any]:
         stored_player = match.player_ids.get(user_id)
         if stored_player is None:
@@ -140,7 +147,7 @@ class MatchManager:
             and not match.state.winner
             and not match.state.draw
         )
-        if bot_turn:
+        if bot_turn and run_bot:
             await asyncio.sleep(0.55)
             bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
             match.state = apply_move(match.state, 2, bot_column)
@@ -150,6 +157,21 @@ class MatchManager:
                 )
         return match.snapshot(user_id)
 
+    async def bot_move_locked(
+        self, match: LiveMatch, *, broadcast: bool = True
+    ) -> dict[str, Any]:
+        if (
+            match.bot_player != match.state.current_player
+            or match.state.winner
+            or match.state.draw
+        ):
+            return match.snapshot()
+        bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
+        match.state = apply_move(match.state, 2, bot_column)
+        if broadcast:
+            await self.broadcast(match, {"type": "state", "state": match.snapshot(), "bot": True})
+        return match.snapshot()
+
     async def play_again(
         self, match: LiveMatch, user_id: int, *, broadcast: bool = True
     ) -> dict[str, Any]:
@@ -157,7 +179,12 @@ class MatchManager:
             return await self.play_again_locked(match, user_id, broadcast=broadcast)
 
     async def play_again_locked(
-        self, match: LiveMatch, user_id: int, *, broadcast: bool = True
+        self,
+        match: LiveMatch,
+        user_id: int,
+        *,
+        broadcast: bool = True,
+        run_bot: bool = True,
     ) -> dict[str, Any]:
         if user_id not in match.player_ids:
             raise IllegalMove("You are not a player in this match")
@@ -167,7 +194,7 @@ class MatchManager:
         match.state = initial_state()
         match.state = replace(match.state, current_player=match.starting_player)
         match.reward_granted = False
-        if match.bot_player == match.state.current_player:
+        if match.bot_player == match.state.current_player and run_bot:
             await asyncio.sleep(0.55)
             bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
             match.state = apply_move(match.state, 2, bot_column)
