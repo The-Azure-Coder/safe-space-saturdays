@@ -287,6 +287,23 @@ export type GameSession = {
   game: string
   state: Record<string, any>
 }
+export type CsecExamSubmission = {
+  match_id: string
+  player_name: string
+  status: string
+  phase: string
+  started_at: number | null
+  submitted_at: number | null
+  time_spent_seconds: number | null
+  paper_one: Array<{ question: string; options: string[] }>
+  paper_two: Array<{ id: string; prompt: string; marks: number }>
+  answers_one: Array<Array<number | null>>
+  answers_two: Array<Array<string>>
+  paper_one_scores: number[]
+  paper_two_scores: number[]
+  grades: Array<Array<{ points: number; feedback?: string } | null>>
+  created_at: string
+}
 export type Winner = {
   position: number
   name: string
@@ -560,6 +577,12 @@ export const api = {
       `/api/admin/bug-reports?page=${page}&limit=${limit}${status ? `&report_status=${encodeURIComponent(status)}` : ''}`,
     ),
   adminDashboard: () => apiFetch<AdminDashboard>('/api/admin/dashboard'),
+  adminCsecExams: () => apiFetch<Array<CsecExamSubmission>>('/api/admin/csec-exams'),
+  gradeCsecExam: (matchId: string, body: { target_player: number; question_id: string; points: number; feedback: string }) =>
+    apiFetch<CsecExamSubmission>(`/api/admin/csec-exams/${matchId}/grade`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   updateBugReport: (
     id: number,
     body: { status: string; admin_note?: string },

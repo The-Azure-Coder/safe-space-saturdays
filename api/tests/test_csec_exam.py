@@ -6,6 +6,7 @@ from app.games.csec_exam import PAPER_ONE, PAPER_TWO, apply_csec_exam_action, ne
 
 def test_paper_one_scores_and_opens_paper_two() -> None:
     state = new_csec_exam_state(2)
+    assert state["started_at"] is not None
     for index, question in enumerate(PAPER_ONE):
         apply_csec_exam_action(
             state,
@@ -14,6 +15,9 @@ def test_paper_one_scores_and_opens_paper_two() -> None:
         )
     assert state["phase"] == "paper_two"
     assert state["paper_one_scores"] == [30, 0]
+    apply_csec_exam_action(state, 0, {"action": "submit_exam"})
+    assert state["submitted_at"] is not None
+    assert state["time_spent_seconds"] >= 0
 
 
 def test_paper_two_answers_are_saved_and_teacher_can_grade() -> None:

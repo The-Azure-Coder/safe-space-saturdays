@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from app.games.connect_four import IllegalMove
@@ -308,6 +309,9 @@ def new_csec_exam_state(player_count: int = 2) -> dict[str, Any]:
         ],
         "winner": None,
         "draw": False,
+        "started_at": time.time(),
+        "submitted_at": None,
+        "time_spent_seconds": None,
     }
 
 
@@ -344,6 +348,8 @@ def apply_csec_exam_action(
             raise IllegalMove("Answer every Paper 1 question first")
         state["phase"] = "complete"
         state["winner"] = None
+        state["submitted_at"] = time.time()
+        state["time_spent_seconds"] = max(0, round(state["submitted_at"] - state.get("started_at", state["submitted_at"])))
         return state
     if action == "grade_two":
         if state["players"][player].get("name", "").strip().casefold() != "tyrese":

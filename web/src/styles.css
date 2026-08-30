@@ -2151,6 +2151,15 @@ html[data-theme='purple'] .app-nav__link--active { border-color: rgb(200 169 237
 .csec-exam__grade input { min-height: 40px; padding: 0 10px; }
 .csec-exam__complete { display: grid; gap: 16px; }
 .csec-exam__complete h3, .csec-exam__complete p { margin: 0; }
+.csec-admin-submission { display: grid; gap: 20px; }
+.csec-admin-submission__answers { display: grid; gap: 10px; }
+.csec-admin-submission__answers h4 { margin: 0; }
+.csec-admin-submission__answers > div { display: grid; gap: 5px; padding: 12px; border-radius: 11px; background: var(--sage-pale); line-height: 1.45; }
+.csec-admin-submission__answers > div span { color: var(--sage-dark); font-weight: 750; }
+.csec-admin-grade { border: 1px solid var(--line); background: var(--paper) !important; }
+.csec-admin-grade p { margin: 0; white-space: pre-wrap; }
+.csec-admin-grade label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.csec-admin-grade input, .csec-admin-grade textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); padding: 9px; }
 
 .public-header { display: flex; align-items: center; justify-content: space-between; width: min(92%, 1490px); margin: 16px auto 0; padding: 10px 18px; border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--paper) 90%, transparent); box-shadow: var(--shadow); }
 .public-header__actions { display: flex; align-items: center; gap: 10px; }

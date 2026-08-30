@@ -135,6 +135,31 @@ class AdminDashboardResponse(BaseModel):
     pending_community_applications: int
 
 
+class CsecExamGradeRequest(BaseModel):
+    target_player: int = Field(ge=0)
+    question_id: str = Field(min_length=1, max_length=20)
+    points: int = Field(ge=0)
+    feedback: str = Field(default="", max_length=1000)
+
+
+class CsecExamSubmissionResponse(BaseModel):
+    match_id: str
+    player_name: str
+    status: str
+    phase: str
+    started_at: float | None
+    submitted_at: float | None
+    time_spent_seconds: int | None
+    paper_one: list[dict[str, object]]
+    paper_two: list[dict[str, object]]
+    answers_one: list[list[int | None]]
+    answers_two: list[list[str]]
+    paper_one_scores: list[int]
+    paper_two_scores: list[int]
+    grades: list[list[dict[str, object] | None]]
+    created_at: datetime
+
+
 class AdminUserUpdateRequest(BaseModel):
     role: Literal["member", "moderator", "manager", "admin", "super_admin"] | None = None
     is_approved: bool | None = None

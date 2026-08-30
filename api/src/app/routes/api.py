@@ -36,6 +36,7 @@ from app.config import get_settings
 from app.db import get_session, session_factory
 from app.email_service import send_transactional_email
 from app.games.connect_four import ConnectFourState, IllegalMove
+from app.games.csec_exam import apply_csec_exam_action
 from app.games.manager import LiveMatch, match_manager
 from app.games.multi import (
     GAME_TYPES,
@@ -87,6 +88,8 @@ from app.schemas import (
     AdminNotificationResponse,
     AdminNotificationResult,
     AdminPasswordResetRequest,
+    CsecExamGradeRequest,
+    CsecExamSubmissionResponse,
     AdminQuoteCreateRequest,
     AdminQuoteUpdateRequest,
     AdminUserUpdateRequest,
@@ -2600,7 +2603,7 @@ async def game_session_action(
         await record_state(db, persisted, user.id, payload.action, match.state)
         if payload.action.get("action") == "play_again":
             persisted.status = "active"
-        elif match.state.get("winner") is not None or match.state.get("draw", False):
+        elif match.state.get("winner") is not None or match.state.get("draw", False) or match.state.get("phase") == "complete":
             persisted.status = "completed"
     await grant_game_participation_reward(db, user.id, match.id)
     if match.state.get("winner") is not None or match.state.get("draw", False):
@@ -2670,7 +2673,7 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
                     await record_state(db, persisted, user.id, message["action"], match.state)
                     if message["action"].get("action") == "play_again":
                         persisted.status = "active"
-                    elif match.state.get("winner") is not None or match.state.get("draw", False):
+                    elif match.state.get("winner") is not None or match.state.get("draw", False) or match.state.get("phase") == "complete":
                         persisted.status = "completed"
                 await grant_game_participation_reward(db, user.id, match.id)
                 if match.state.get("winner") is not None or match.state.get("draw", False):
@@ -3053,6 +3056,79 @@ async def admin_dashboard(
         total_quotes=total_quotes or 0,
         pending_community_applications=pending_community_applications or 0,
     )
+
+
+def csec_submission_response(row: GameMatch) -> CsecExamSubmissionResponse:
+    state = row.state if isinstance(row.state, dict) else {}
+    players = state.get("players", [])
+    player_name = (
+        players[0].get("name", "Student")
+        if players and isinstance(players[0], dict)
+        else "Student"
+    )
+    return CsecExamSubmissionResponse(
+        match_id=row.id,
+        player_name=player_name,
+        status=row.status,
+        phase=str(state.get("phase", "paper_one")),
+        started_at=state.get("started_at"),
+        submitted_at=state.get("submitted_at"),
+        time_spent_seconds=state.get("time_spent_seconds"),
+        paper_one=state.get("paper_one", []),
+        paper_two=state.get("paper_two", []),
+        answers_one=state.get("answers_one", []),
+        answers_two=state.get("answers_two", []),
+        paper_one_scores=state.get("paper_one_scores", []),
+        paper_two_scores=state.get("paper_two_scores", []),
+        grades=state.get("grades", []),
+        created_at=row.created_at,
+    )
+
+
+@router.get("/admin/csec-exams", response_model=list[CsecExamSubmissionResponse])
+async def admin_csec_exams(admin: CurrentAdmin, db: DbSession) -> list[CsecExamSubmissionResponse]:
+    if admin.name.strip().casefold() != "tyrese":
+        raise HTTPException(status_code=403, detail="Only Tyrese can review CSEC exams")
+    rows = (
+        await db.scalars(
+            select(GameMatch)
+            .where(GameMatch.game_type == "csec-it-mock-exam")
+            .order_by(GameMatch.created_at.desc())
+            .limit(100)
+        )
+    ).all()
+    return [csec_submission_response(row) for row in rows]
+
+
+@router.patch("/admin/csec-exams/{match_id}/grade", response_model=CsecExamSubmissionResponse)
+async def admin_grade_csec_exam(
+    match_id: str,
+    payload: CsecExamGradeRequest,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> CsecExamSubmissionResponse:
+    if admin.name.strip().casefold() != "tyrese":
+        raise HTTPException(status_code=403, detail="Only Tyrese can grade CSEC exams")
+    row = await db.get(GameMatch, match_id)
+    if row is None or row.game_type != "csec-it-mock-exam":
+        raise HTTPException(status_code=404, detail="CSEC exam submission not found")
+    try:
+        row.state = apply_csec_exam_action(
+            row.state if isinstance(row.state, dict) else {},
+            0,
+            {
+                "action": "grade_two",
+                "target_player": payload.target_player,
+                "question_id": payload.question_id,
+                "points": payload.points,
+                "feedback": payload.feedback,
+            },
+        )
+    except IllegalMove as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    await db.commit()
+    await db.refresh(row)
+    return csec_submission_response(row)
 
 
 @router.patch("/admin/bug-reports/{report_id}", response_model=BugReportResponse)

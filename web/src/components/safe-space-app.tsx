@@ -1237,7 +1237,7 @@ function formatCooldown(milliseconds: number) {
 
 function AdminScreen() {
   const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
-  const [tab, setTab] = useState<'reports' | 'users' | 'quotes' | 'applications'>('reports')
+  const [tab, setTab] = useState<'reports' | 'users' | 'quotes' | 'applications' | 'exams'>('reports')
   const [reportStatus, setReportStatus] = useState('')
   const [applicationStatus, setApplicationStatus] = useState('pending')
   const [search, setSearch] = useState('')
@@ -1268,6 +1268,11 @@ function AdminScreen() {
     queryKey: ['admin-community-applications', applicationStatus],
     queryFn: () => api.adminCommunityApplications(1, 50, applicationStatus),
     enabled: Boolean(profile.data && staffRoles.has(profile.data.role)),
+  })
+  const exams = useQuery({
+    queryKey: ['admin-csec-exams'],
+    queryFn: api.adminCsecExams,
+    enabled: Boolean(profile.data && profile.data.name.trim().toLowerCase() === 'tyrese'),
   })
   const reportUpdate = useMutation({
     mutationFn: ({
@@ -1310,6 +1315,10 @@ function AdminScreen() {
   const applicationResend = useMutation({
     mutationFn: api.resendCommunityApplication,
     onSuccess: () => applications.refetch(),
+  })
+  const gradeExam = useMutation({
+    mutationFn: ({ matchId, targetPlayer, questionId, points, feedback }: { matchId: string; targetPlayer: number; questionId: string; points: number; feedback: string }) => api.gradeCsecExam(matchId, { target_player: targetPlayer, question_id: questionId, points, feedback }),
+    onSuccess: () => exams.refetch(),
   })
   const weeklyNotification = useMutation({
     mutationFn: api.sendWeeklyPerformerNotification,
@@ -1387,6 +1396,7 @@ function AdminScreen() {
           ) : null}
         </section>
         <div className="admin-tabs" role="tablist" aria-label="Admin sections">
+          {profile.data.name.trim().toLowerCase() === 'tyrese' && <button className={tab === 'exams' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'exams'} onClick={() => setTab('exams')} type="button"><GameController size={18} /> CSEC exams</button>}
           <button
             className={tab === 'applications' ? 'admin-tab admin-tab--active' : 'admin-tab'}
             role="tab"
@@ -1430,6 +1440,15 @@ function AdminScreen() {
             <Quotes size={18} /> Quotes
           </button>
         </div>
+        {tab === 'exams' && profile.data.name.trim().toLowerCase() === 'tyrese' && <section className="admin-panel">
+          <div className="admin-panel__toolbar"><div><h2>CSEC exam submissions</h2><p>Review submitted answers, time spent, and grade Paper 2.</p></div>{exams.isFetching && <GeneralLoader label="Updating…" />}</div>
+          {exams.isLoading && <ContentSkeleton rows={3} />}
+          {exams.data?.length ? <div className="admin-list">{exams.data.map((exam) => <article className="admin-list-item csec-admin-submission" key={exam.match_id}>
+            <div className="admin-list-item__top"><div><span className="status-badge">{exam.phase === 'complete' ? 'Submitted' : 'In progress'}</span><h3>{exam.player_name}</h3><small>{exam.submitted_at ? new Date(exam.submitted_at * 1000).toLocaleString() : 'Not submitted'} · {exam.time_spent_seconds == null ? 'Time not recorded' : `${Math.floor(exam.time_spent_seconds / 60)}m ${exam.time_spent_seconds % 60}s spent`}</small></div><strong>Paper 1: {exam.paper_one_scores[0] ?? 0}/{exam.paper_one.length} · Paper 2: {exam.paper_two_scores[0] ?? 0}</strong></div>
+            <div className="csec-admin-submission__answers"><h4>Paper 1 answers</h4>{exam.paper_one.map((question, index) => <div key={index}><strong>{index + 1}.</strong> {question.question}<span>{exam.answers_one[0]?.[index] == null ? 'No answer' : question.options[exam.answers_one[0][index] as number]}</span></div>)}</div>
+            <div className="csec-admin-submission__answers"><h4>Paper 2 responses</h4>{exam.paper_two.map((question, index) => { const saved = exam.grades[0]?.[index]; const answer = exam.answers_two[0]?.[index] ?? ''; return <div className="csec-admin-grade" key={question.id}><strong>{question.id} · {question.prompt}</strong><p>{answer || 'No response submitted.'}</p><label>Points (0–{question.marks})<input type="number" min="0" max={question.marks} defaultValue={saved?.points ?? 0} id={`grade-${exam.match_id}-${question.id}`} /></label><label>Feedback<textarea defaultValue={saved?.feedback ?? ''} id={`feedback-${exam.match_id}-${question.id}`} rows={2} /></label><button className="button button--secondary button--small" type="button" disabled={gradeExam.isPending} onClick={() => { const points = Number((document.getElementById(`grade-${exam.match_id}-${question.id}`) as HTMLInputElement)?.value ?? 0); const feedback = (document.getElementById(`feedback-${exam.match_id}-${question.id}`) as HTMLTextAreaElement)?.value ?? ''; gradeExam.mutate({ matchId: exam.match_id, targetPlayer: 0, questionId: question.id, points, feedback }) }}>Save grade</button></div> })}</div>
+          </article>)}</div> : (!exams.isLoading && <div className="admin-empty"><GameController size={28} /><p>No CSEC exam submissions yet.</p></div>)}
+        </section>}
         {tab === 'applications' && (
           <section className="admin-panel">
             <div className="admin-panel__toolbar">
