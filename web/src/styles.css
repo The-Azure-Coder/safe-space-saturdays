@@ -2164,6 +2164,8 @@ html[data-theme='purple'] .app-nav__link--active { border-color: rgb(200 169 237
 .csec-admin-submission__answers h4 { margin: 0; }
 .csec-admin-submission__answers > div { display: grid; gap: 5px; padding: 12px; border-radius: 11px; background: var(--sage-pale); line-height: 1.45; }
 .csec-admin-submission__answers > div span { color: var(--sage-dark); font-weight: 750; }
+.csec-admin-submission__answers > div.is-incorrect { border-color: #d9917f; background: #fff0eb; }
+.csec-admin-submission__answers > div.is-incorrect span { color: #a74732; }
 .csec-admin-grade { border: 1px solid var(--line); background: var(--paper) !important; }
 .csec-admin-grade p { margin: 0; white-space: pre-wrap; }
 .csec-admin-grade label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; font-weight: 700; }

@@ -585,6 +585,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  sendCsecExamResults: (matchId: string) =>
+    apiFetch<CsecExamSubmission>(`/api/admin/csec-exams/${matchId}/send-results`, { method: 'POST' }),
   updateBugReport: (
     id: number,
     body: { status: string; admin_note?: string },

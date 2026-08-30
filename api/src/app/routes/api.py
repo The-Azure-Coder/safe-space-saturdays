@@ -3100,16 +3100,16 @@ def csec_exam_percentage(state: dict[str, object]) -> float:
     return round(((paper_one_score + paper_two_score) / total) * 100, 1) if total else 0.0
 
 
-async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession, grader_email: str) -> None:
+async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession, grader_email: str, force: bool = False) -> bool:
     state = row.state if isinstance(row.state, dict) else {}
-    if state.get("phase") != "complete" or state.get("results_email_sent_at") is not None:
-        return
+    if state.get("phase") != "complete" or (state.get("results_email_sent_at") is not None and not force):
+        return False
     grades = (state.get("grades") or [[]])[0]
     if not grades or any(grade is None for grade in grades):
-        return
+        return False
     student = await db.get(User, row.player_user_id)
     if student is None:
-        return
+        return False
     paper_one_breakdown = state.get("paper_one_breakdown") or []
     paper_two = state.get("paper_two") or []
     answers_two = (state.get("answers_two") or [[]])[0]
@@ -3146,6 +3146,7 @@ async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession, grader_em
     if sent:
         state["results_email_sent_at"] = datetime.now(UTC).timestamp()
         row.state = state
+    return sent
 
 
 @router.get("/admin/csec-exams", response_model=list[CsecExamSubmissionResponse])
@@ -3191,6 +3192,25 @@ async def admin_grade_csec_exam(
     except IllegalMove as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     await send_csec_results_if_ready(row, db, admin.email)
+    await db.commit()
+    await db.refresh(row)
+    return csec_submission_response(row)
+
+
+@router.post("/admin/csec-exams/{match_id}/send-results", response_model=CsecExamSubmissionResponse)
+async def admin_send_csec_exam_results(
+    match_id: str,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> CsecExamSubmissionResponse:
+    if admin.name.strip().casefold() != "tyrese":
+        raise HTTPException(status_code=403, detail="Only Tyrese can send CSEC exam results")
+    row = await db.get(GameMatch, match_id)
+    if row is None or row.game_type != "csec-it-mock-exam":
+        raise HTTPException(status_code=404, detail="CSEC exam submission not found")
+    sent = await send_csec_results_if_ready(row, db, admin.email, force=True)
+    if not sent:
+        raise HTTPException(status_code=409, detail="Complete all Paper 2 grades before sending results")
     await db.commit()
     await db.refresh(row)
     return csec_submission_response(row)
