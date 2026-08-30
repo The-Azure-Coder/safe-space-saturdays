@@ -2,6 +2,7 @@ import pytest
 
 from app.games.connect_four import IllegalMove
 import app.games.csec_exam as csec_exam
+from app.routes.api import can_access_csec_exam
 from app.games.csec_exam import PAPER_ONE, PAPER_TWO, apply_csec_exam_action, new_csec_exam_state
 
 
@@ -80,3 +81,12 @@ def test_exam_auto_submits_when_two_hour_deadline_expires(monkeypatch: pytest.Mo
     assert state["submitted_at"] == 101.0
     assert state["time_spent_seconds"] == csec_exam.EXAM_DURATION_SECONDS
     assert len(state["paper_one_breakdown"]) == len(PAPER_ONE)
+
+
+def test_invited_users_can_access_private_exam() -> None:
+    class UserStub:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+    assert can_access_csec_exam(UserStub("Tushaii"))
+    assert not can_access_csec_exam(UserStub("Someone Else"))

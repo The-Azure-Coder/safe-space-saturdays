@@ -206,8 +206,8 @@ def can_manage_roles(user: User) -> bool:
 
 
 def can_access_csec_exam(user: User) -> bool:
-    """Keep the private mock exam visible only to its two intended users."""
-    return user.name.strip().casefold() in {"kashi miller", "tyrese"}
+    """Keep the private mock exam visible only to its invited users."""
+    return user.name.strip().casefold() in {"kashi miller", "tyrese", "tushai", "tushaii"}
 
 
 def can_manage_content(user: User) -> bool:
