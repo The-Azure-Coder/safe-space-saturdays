@@ -151,6 +151,8 @@ class CsecExamSubmissionResponse(BaseModel):
     deadline_at: float | None
     submitted_at: float | None
     time_spent_seconds: int | None
+    percentage: float
+    results_email_sent_at: float | None
     paper_one: list[dict[str, object]]
     paper_two: list[dict[str, object]]
     answers_one: list[list[int | None]]

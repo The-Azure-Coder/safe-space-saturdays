@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import csv
 from html import escape
 import hashlib
 import io
@@ -36,7 +38,7 @@ from app.config import get_settings
 from app.db import get_session, session_factory
 from app.email_service import send_transactional_email
 from app.games.connect_four import ConnectFourState, IllegalMove
-from app.games.csec_exam import apply_csec_exam_action
+from app.games.csec_exam import PAPER_ONE, PAPER_TWO, apply_csec_exam_action
 from app.games.manager import LiveMatch, match_manager
 from app.games.multi import (
     GAME_TYPES,
@@ -82,7 +84,7 @@ from app.oauth import (
     google_oauth_configured,
     verify_oauth_state,
 )
-from app.notification_templates import DAILY_CHECKIN_MESSAGES, daily_checkin_email, weekly_performers_email
+from app.notification_templates import DAILY_CHECKIN_MESSAGES, csec_exam_results_email, daily_checkin_email, weekly_performers_email
 from app.schemas import (
     AdminDashboardResponse,
     AdminNotificationResponse,
@@ -3075,6 +3077,8 @@ def csec_submission_response(row: GameMatch) -> CsecExamSubmissionResponse:
         deadline_at=state.get("deadline_at"),
         submitted_at=state.get("submitted_at"),
         time_spent_seconds=state.get("time_spent_seconds"),
+        percentage=csec_exam_percentage(state),
+        results_email_sent_at=state.get("results_email_sent_at"),
         paper_one=state.get("paper_one", []),
         paper_two=state.get("paper_two", []),
         answers_one=state.get("answers_one", []),
@@ -3085,6 +3089,62 @@ def csec_submission_response(row: GameMatch) -> CsecExamSubmissionResponse:
         grades=state.get("grades", []),
         created_at=row.created_at,
     )
+
+
+def csec_exam_percentage(state: dict[str, object]) -> float:
+    paper_one_score = int((state.get("paper_one_scores") or [0])[0])
+    paper_two_score = int((state.get("paper_two_scores") or [0])[0])
+    paper_one_total = len(state.get("paper_one") or [])
+    paper_two_total = sum(int(item.get("marks", 0)) for item in (state.get("paper_two") or []) if isinstance(item, dict))
+    total = paper_one_total + paper_two_total
+    return round(((paper_one_score + paper_two_score) / total) * 100, 1) if total else 0.0
+
+
+async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession) -> None:
+    state = row.state if isinstance(row.state, dict) else {}
+    if state.get("phase") != "complete" or state.get("results_email_sent_at") is not None:
+        return
+    grades = (state.get("grades") or [[]])[0]
+    if not grades or any(grade is None for grade in grades):
+        return
+    student = await db.get(User, row.player_user_id)
+    if student is None:
+        return
+    paper_one_breakdown = state.get("paper_one_breakdown") or []
+    paper_two = state.get("paper_two") or []
+    answers_two = (state.get("answers_two") or [[]])[0]
+    breakdown: list[dict[str, str]] = []
+    for index, item in enumerate(paper_one_breakdown):
+        if isinstance(item, dict):
+            breakdown.append({"section": "Paper 1", "question": str(index + 1), "result": f'{item.get("points", 0)}/1 · {item.get("selected", "No answer")}', "feedback": "Correct" if item.get("points") else f'Correct answer: {item.get("correct", "")}'})
+    for index, item in enumerate(paper_two):
+        if not isinstance(item, dict):
+            continue
+        grade = grades[index] if index < len(grades) and isinstance(grades[index], dict) else {}
+        breakdown.append({"section": "Paper 2", "question": str(item.get("id", index + 1)), "result": f'{grade.get("points", 0)}/{item.get("marks", 0)} · {answers_two[index] if index < len(answers_two) else "No response"}', "feedback": str(grade.get("feedback", "No feedback provided."))})
+    csv_buffer = io.StringIO()
+    writer = csv.writer(csv_buffer)
+    writer.writerow(["Section", "Question", "Result", "Feedback"])
+    writer.writerows([[item["section"], item["question"], item["result"], item["feedback"]] for item in breakdown])
+    html, text = csec_exam_results_email(
+        player_name=student.name,
+        percentage=csec_exam_percentage(state),
+        paper_one_score=int((state.get("paper_one_scores") or [0])[0]),
+        paper_one_total=len(state.get("paper_one") or []),
+        paper_two_score=int((state.get("paper_two_scores") or [0])[0]),
+        paper_two_total=sum(int(item.get("marks", 0)) for item in paper_two if isinstance(item, dict)),
+        breakdown=breakdown,
+    )
+    sent = await send_transactional_email(
+        recipient=student.email,
+        subject="Your CSEC IT Mock Exam results",
+        html=html,
+        text=text,
+        attachments=[{"name": "csec-exam-breakdown.csv", "content": base64.b64encode(csv_buffer.getvalue().encode()).decode()}],
+    )
+    if sent:
+        state["results_email_sent_at"] = datetime.now(UTC).timestamp()
+        row.state = state
 
 
 @router.get("/admin/csec-exams", response_model=list[CsecExamSubmissionResponse])
@@ -3124,10 +3184,12 @@ async def admin_grade_csec_exam(
                 "question_id": payload.question_id,
                 "points": payload.points,
                 "feedback": payload.feedback,
+                "admin": True,
             },
         )
     except IllegalMove as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    await send_csec_results_if_ready(row, db)
     await db.commit()
     await db.refresh(row)
     return csec_submission_response(row)

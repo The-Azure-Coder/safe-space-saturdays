@@ -82,3 +82,25 @@ def daily_checkin_email(*, day_name: str, action_url: str) -> tuple[str, str]:
     )
     text = f"{message}\n\nThere is no pressure to write a lot. A mood and a few words are enough.\n\nTake your check-in: {action_url}"
     return html, text
+
+
+def csec_exam_results_email(
+    *, player_name: str, percentage: float, paper_one_score: int, paper_one_total: int,
+    paper_two_score: int, paper_two_total: int, breakdown: Sequence[dict[str, str]],
+) -> tuple[str, str]:
+    rows = "".join(
+        f'<tr><td style="padding:9px;border-bottom:1px solid #e6e0d6;">{escape(item["section"])} · {escape(item["question"])}</td>'
+        f'<td style="padding:9px;border-bottom:1px solid #e6e0d6;">{escape(item["result"])}</td>'
+        f'<td style="padding:9px;border-bottom:1px solid #e6e0d6;">{escape(item["feedback"])}</td></tr>'
+        for item in breakdown
+    )
+    body = (
+        f'<p style="margin:0 0 18px;color:#59645d;font-size:16px;line-height:1.6;">Hi {escape(player_name)}, your CSEC IT Mock Exam has been graded.</p>'
+        f'<div style="padding:18px;border-radius:14px;background:#edf1e7;text-align:center;"><strong style="font-size:34px;color:#19352b;">{percentage:.1f}%</strong><br><span style="color:#59645d;">Final percentage</span></div>'
+        f'<p style="color:#59645d;line-height:1.6;">Paper 1: {paper_one_score}/{paper_one_total}<br>Paper 2: {paper_two_score}/{paper_two_total}</p>'
+        f'<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #ddd6c9;border-radius:12px;overflow:hidden;font-size:13px;"><tr style="background:#f8f6ef;"><th align="left" style="padding:9px;">Question</th><th align="left" style="padding:9px;">Result</th><th align="left" style="padding:9px;">Feedback</th></tr>{rows}</table>'
+    )
+    html = _shell(eyebrow="CSEC exam results", title="Your exam breakdown is ready.", body=body, action_label="Open Safe Space Saturdays", action_url="/")
+    text_rows = "\n".join(f'{item["section"]} · {item["question"]}: {item["result"]} — {item["feedback"]}' for item in breakdown)
+    text = f"Hi {player_name}, your CSEC IT Mock Exam has been graded.\n\nFinal percentage: {percentage:.1f}%\nPaper 1: {paper_one_score}/{paper_one_total}\nPaper 2: {paper_two_score}/{paper_two_total}\n\n{text_rows}\n\nA downloadable CSV breakdown is attached."
+    return html, text

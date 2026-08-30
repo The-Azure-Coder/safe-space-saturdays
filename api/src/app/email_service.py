@@ -1,11 +1,12 @@
 import asyncio
 import json
+from collections.abc import Sequence
 from urllib.request import Request, urlopen
 
 from app.config import get_settings
 
 
-async def send_transactional_email(*, recipient: str, subject: str, html: str, text: str) -> bool:
+async def send_transactional_email(*, recipient: str, subject: str, html: str, text: str, attachments: Sequence[dict[str, str]] | None = None) -> bool:
     """Send through Brevo without exposing provider credentials to the client.
 
     Returning False keeps local development and approval workflows usable when
@@ -21,6 +22,8 @@ async def send_transactional_email(*, recipient: str, subject: str, html: str, t
         "htmlContent": html,
         "textContent": text,
     }
+    if attachments:
+        payload["attachment"] = list(attachments)
     request = Request(
         "https://api.brevo.com/v3/smtp/email",
         data=json.dumps(payload).encode("utf-8"),
