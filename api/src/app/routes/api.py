@@ -724,9 +724,7 @@ def user_response(user: User) -> UserResponse:
     values = {
         **{
             field: (
-                (getattr(user, field, 0) or 0)
-                if field == "highest_streak"
-                else getattr(user, field, None)
+                getattr(user, field)
                 if field != "email_notifications_enabled"
                 else (getattr(user, field, None) is not False)
             )
@@ -879,7 +877,6 @@ async def refresh_checkin_streak(user: User, db: AsyncSession) -> None:
     )
     dates = [created_at.astimezone(UTC).date() for created_at in checkin_dates if created_at]
     user.streak = current_checkin_streak(dates, date.today())
-    user.highest_streak = max(user.highest_streak, user.streak)
 
 
 async def set_session(

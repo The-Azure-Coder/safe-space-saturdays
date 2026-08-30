@@ -120,7 +120,6 @@ export type User = {
   role: string
   xp: number
   streak: number
-  highest_streak: number
   level: number
   is_approved: boolean
   email_notifications_enabled: boolean

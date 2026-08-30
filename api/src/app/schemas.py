@@ -16,7 +16,6 @@ class UserResponse(BaseModel):
     email_notifications_enabled: bool = True
     xp: int
     streak: int
-    highest_streak: int = 0
     level: int
 
 

@@ -43,7 +43,6 @@ class User(TimestampMixin, Base):
     )
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    highest_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 

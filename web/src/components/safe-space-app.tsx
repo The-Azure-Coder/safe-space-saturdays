@@ -3756,7 +3756,7 @@ function LeaderboardScreen() {
             <span>Rank</span>
             <span>Member</span>
             <span>{period === 'all' ? 'Total XP' : 'XP Earned'}</span>
-            <span>Best Streak</span>
+            <span>Current Streak</span>
           </div>
           {isRefreshing ? (
             <div className="leaderboard-loading" role="status" aria-live="polite">
@@ -3795,7 +3795,7 @@ function LeaderboardScreen() {
                   {entry.user.xp.toLocaleString()} <small>XP</small>
                 </span>
                 <span>
-                  {entry.user.highest_streak} <small>days</small>
+                  {entry.user.streak} <small>days</small>
                 </span>
               </div>
             ))
