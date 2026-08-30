@@ -14,29 +14,15 @@ export const API_URL =
 // and keeps retrying upstream while the API service wakes.
 export const API_HEALTH_URL =
   typeof window !== 'undefined' && import.meta.env.PROD
-    ? `${window.location.origin}/health/ready`
+    ? `${window.location.origin}/api/system/ready`
     : `${API_URL}/health/ready`
 
 export const googleLoginUrl = `${API_URL}/api/auth/google/start`
 
-const optimizedAssetPaths: Record<string, string> = {
-  '/assets/community-circle.png': '/assets/optimized/community-circle.webp',
-  '/assets/game-abc-fast-slow.png': '/assets/optimized/game-abc-fast-slow.webp',
-  '/assets/game-bingo.png': '/assets/optimized/game-bingo.webp',
-  '/assets/game-checkers.png': '/assets/optimized/game-checkers.webp',
-  '/assets/game-connect-four.png': '/assets/optimized/game-connect-four.webp',
-  '/assets/game-dominoes.png': '/assets/optimized/game-dominoes.webp',
-  '/assets/game-ludo.png': '/assets/optimized/game-ludo.webp',
-  '/assets/game-scribble.png': '/assets/optimized/game-scribble.webp',
-  '/assets/game-trivia.png': '/assets/optimized/game-trivia.webp',
-  '/assets/safe-space-saturdays-logo.jpeg': '/assets/optimized/safe-space-saturdays-logo.webp',
-}
-
 export function assetUrl(value: string): string {
-  const path = optimizedAssetPaths[value] ?? value
-  return path.startsWith('http://') || path.startsWith('https://')
-    ? path
-    : `${API_URL}${path}`
+  return value.startsWith('http://') || value.startsWith('https://')
+    ? value
+    : `${API_URL}${value}`
 }
 
 export class ApiError extends Error {
@@ -263,9 +249,6 @@ export type Room = {
   fill_with_bots: boolean
   bot_difficulty: 'friendly' | 'thoughtful'
   invite_token?: string | null
-  room_code?: string | null
-  abc_categories?: Array<string> | null
-  abc_majority_invalid?: boolean
 }
 export type RoomParticipant = {
   user_id: number
@@ -278,7 +261,7 @@ export type RoomParticipant = {
 export type LeaderboardPeriod = 'day' | 'week' | 'month' | 'all'
 export type RoomInvite = Pick<
   Room,
-  'id' | 'name' | 'game' | 'players' | 'max_players' | 'status' | 'match_id'
+  'id' | 'name' | 'game' | 'players' | 'max_players' | 'status'
 > & { invite_token: string }
 export type Match = {
   match_id: string
@@ -295,16 +278,12 @@ export type Match = {
   players: Array<{ name: string; is_bot: boolean }>
   game_level: number
   game_streak: number
-  spectator: boolean
-  spectator_count: number
 }
 export type GameSession = {
   match_id: string
   room_id: number
   game: string
   state: Record<string, any>
-  spectator: boolean
-  spectator_count: number
 }
 export type Winner = {
   position: number
@@ -442,11 +421,6 @@ export const api = {
       body: JSON.stringify({ text }),
     })
   },
-  editPost: (id: number, text: string) =>
-    apiFetch<Post>(`/api/community/posts/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ text }),
-    }),
   shareQuote: (id: number) =>
     apiFetch<Post>(`/api/community/posts/from-quote/${id}`, { method: 'POST' }),
   react: (id: number, kind: 'like' | 'dislike') =>
@@ -498,11 +472,9 @@ export const api = {
     }),
   joinRoom: (id: number) =>
     apiFetch<Room>(`/api/games/rooms/${id}/join`, { method: 'POST' }),
-  room: (id: number, spectator = false) => apiFetch<Room>(`/api/games/rooms/${id}${spectator ? '?spectate=true' : ''}`),
+  room: (id: number) => apiFetch<Room>(`/api/games/rooms/${id}`),
   roomParticipants: (id: number) =>
     apiFetch<Array<RoomParticipant>>(`/api/games/rooms/${id}/participants`),
-  kickRoomParticipant: (roomId: number, userId: number) =>
-    apiFetch<void>(`/api/games/rooms/${roomId}/participants/${userId}`, { method: 'DELETE' }),
   roomInvite: (token: string) =>
     apiFetch<RoomInvite>(
       `/api/games/rooms/invite/${encodeURIComponent(token)}`,
@@ -520,14 +492,6 @@ export const api = {
         body: JSON.stringify({ name }),
       },
     ),
-  spectateGuestRoom: (token: string, name: string) =>
-    apiFetch<{ room: Room; user: User }>(
-      `/api/games/rooms/invite/${encodeURIComponent(token)}/spectate`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ name }),
-      },
-    ),
   createMatch: (body: {
     room_id: number
     with_bot: boolean
@@ -537,7 +501,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  match: (id: string) => apiFetch<Match>(`/api/games/matches/${id}?spectate=true`),
+  match: (id: string) => apiFetch<Match>(`/api/games/matches/${id}`),
   move: (id: string, column: number) =>
     apiFetch<Match>(`/api/games/matches/${id}/moves`, {
       method: 'POST',
@@ -555,11 +519,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ game_id }),
     }),
-  updateAbcRoomSettings: (id: number, body: { max_players: number; categories: Array<string>; majority_invalid: boolean }) =>
-    apiFetch<Room>(`/api/games/rooms/${id}/abc-settings`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    }),
   endRoom: (id: number) =>
     apiFetch<void>(`/api/games/rooms/${id}`, { method: 'DELETE' }),
   cleanupBotRooms: () =>
@@ -567,7 +526,7 @@ export const api = {
       method: 'POST',
     }),
   gameSession: (id: string) =>
-    apiFetch<GameSession>(`/api/games/sessions/${id}?spectate=true`),
+    apiFetch<GameSession>(`/api/games/sessions/${id}`),
   gameAction: (id: string, action: Record<string, any>) =>
     apiFetch<GameSession>(`/api/games/sessions/${id}/actions`, {
       method: 'POST',

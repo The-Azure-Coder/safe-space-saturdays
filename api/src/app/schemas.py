@@ -278,23 +278,12 @@ class PostCreateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
 
 
-class PostUpdateRequest(PostCreateRequest):
-    pass
-
-
 class ReactionRequest(BaseModel):
     kind: Literal["like", "dislike", "love"]
 
 
 class CommentCreateRequest(BaseModel):
     text: str = Field(min_length=1, max_length=1000)
-
-    @model_validator(mode="after")
-    def text_is_not_blank(self) -> "CommentCreateRequest":
-        self.text = self.text.strip()
-        if not self.text:
-            raise ValueError("Comment text cannot be blank")
-        return self
 
 
 class CommentUpdateRequest(CommentCreateRequest):
@@ -341,9 +330,6 @@ class RoomResponse(BaseModel):
     fill_with_bots: bool = True
     bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
     invite_token: str | None = None
-    room_code: str | None = None
-    abc_categories: list[str] | None = None
-    abc_majority_invalid: bool = True
 
 
 class RoomInviteResponse(BaseModel):
@@ -353,9 +339,7 @@ class RoomInviteResponse(BaseModel):
     players: int
     max_players: int
     status: str
-    match_id: str | None = None
     invite_token: str
-    room_code: str | None = None
 
 
 class RoomParticipantResponse(BaseModel):
@@ -370,15 +354,9 @@ class RoomParticipantResponse(BaseModel):
 class RoomCreateRequest(BaseModel):
     game_id: int
     name: str = Field(min_length=2, max_length=100)
-    max_players: int = Field(default=4, ge=2)
+    max_players: int = Field(default=4, ge=2, le=8)
     fill_with_bots: bool = True
     bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
-
-
-class AbcRoomSettingsRequest(BaseModel):
-    max_players: int = Field(ge=2)
-    categories: list[str] = Field(min_length=1, max_length=20)
-    majority_invalid: bool = True
 
 
 class RoomGameChangeRequest(BaseModel):
@@ -417,8 +395,6 @@ class MatchResponse(BaseModel):
     winning_cells: list[tuple[int, int]] = Field(default_factory=list)
     player: Literal[1, 2] | None = None
     players: list[dict[str, object]] = Field(default_factory=list)
-    spectator: bool = False
-    spectator_count: int = 0
 
 
 class MoveRequest(BaseModel):
@@ -440,8 +416,6 @@ class GameSessionResponse(BaseModel):
     room_id: int
     game: str
     state: dict[str, object]
-    spectator: bool = False
-    spectator_count: int = 0
 
 
 class LeaderboardEntry(BaseModel):

@@ -1,16 +1,13 @@
 import asyncio
+from html import escape
 import hashlib
 import io
-import logging
 import secrets
-import time
 from collections import Counter
 from collections.abc import Iterable
-from copy import deepcopy
 from datetime import UTC, date, datetime, timedelta
-from html import escape
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -54,11 +51,11 @@ from app.games.universal import UniversalMatch, universal_matches
 from app.models import (
     Announcement,
     BugReport,
+    CommunityApplication,
+    CheckIn,
     Challenge,
     ChallengeCompletion,
-    CheckIn,
     Comment,
-    CommunityApplication,
     Game,
     GameMatch,
     GameMatchPlayer,
@@ -74,11 +71,6 @@ from app.models import (
     Session,
     User,
 )
-from app.notification_templates import (
-    DAILY_CHECKIN_MESSAGES,
-    daily_checkin_email,
-    weekly_performers_email,
-)
 from app.oauth import (
     GoogleOAuthError,
     build_google_authorize_url,
@@ -88,6 +80,7 @@ from app.oauth import (
     google_oauth_configured,
     verify_oauth_state,
 )
+from app.notification_templates import DAILY_CHECKIN_MESSAGES, daily_checkin_email, weekly_performers_email
 from app.schemas import (
     AdminDashboardResponse,
     AdminNotificationResponse,
@@ -102,19 +95,18 @@ from app.schemas import (
     BugReportCreateRequest,
     BugReportResponse,
     BugReportUpdateRequest,
-    ChallengeCompleteRequest,
-    ChallengeResponse,
-    ChallengesResponse,
-    ChangePasswordRequest,
-    CheckInRequest,
-    AbcRoomSettingsRequest,
-    CheckInResponse,
-    CommentCreateRequest,
-    CommentResponse,
-    CommentUpdateRequest,
     CommunityApplicationCreateRequest,
     CommunityApplicationResponse,
     CommunityApplicationUpdateRequest,
+    ChangePasswordRequest,
+    ChallengeCompleteRequest,
+    ChallengeResponse,
+    ChallengesResponse,
+    CheckInRequest,
+    CheckInResponse,
+    CommentCreateRequest,
+    CommentUpdateRequest,
+    CommentResponse,
     CommunityModerationRequest,
     DashboardResponse,
     GameActionRequest,
@@ -131,7 +123,6 @@ from app.schemas import (
     MoveRequest,
     PostCreateRequest,
     PostResponse,
-    PostUpdateRequest,
     ProfileUpdateRequest,
     QuoteResponse,
     QuoteSubmissionRequest,
@@ -155,7 +146,6 @@ from app.security import (
 )
 
 router = APIRouter(prefix="/api", tags=["application"])
-logger = logging.getLogger("safe_space_saturdays.games")
 DbSession = Annotated[AsyncSession, Depends(get_session)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin)]
@@ -205,11 +195,6 @@ GOOGLE_MOBILE_COOKIE = "safe_space_google_mobile"
 
 def can_manage_roles(user: User) -> bool:
     return user.role in {"admin", "super_admin"}
-
-
-def can_access_csec_exam(user: User) -> bool:
-    """Keep the teacher-created exam private to its two named testers."""
-    return user.name.strip().casefold() in {"kashi miller", "tyrese"}
 
 
 def can_manage_content(user: User) -> bool:
@@ -344,37 +329,12 @@ async def notify_admins_of_application(
     )
 
 
-def match_response(
-    match: LiveMatch, user_id: int | None = None, spectator: bool = False
-) -> MatchResponse:
-    response = MatchResponse.model_validate(match.snapshot(user_id))
-    response.spectator = spectator
-    response.spectator_count = match.spectator_count()
-    return response
+def match_response(match: LiveMatch, user_id: int | None = None) -> MatchResponse:
+    return MatchResponse.model_validate(match.snapshot(user_id))
 
 
-def universal_response(
-    match: UniversalMatch, user_id: int | None = None, spectator: bool = False,
-    exam_admin: bool = False,
-) -> GameSessionResponse:
-    response = GameSessionResponse.model_validate(
-        match.snapshot(user_id, spectator=spectator, exam_admin=exam_admin)
-    )
-    response.spectator = spectator
-    response.spectator_count = match.spectator_count()
-    return response
-
-
-async def broadcast_spectator_count(match: LiveMatch | UniversalMatch) -> None:
-    count = match.spectator_count()
-    disconnected: list[WebSocket] = []
-    for socket in list(match.sockets):
-        try:
-            await socket.send_json({"type": "spectator_count", "spectator_count": count})
-        except Exception:
-            disconnected.append(socket)
-    for socket in disconnected:
-        match.sockets.pop(socket, None)
+def universal_response(match: UniversalMatch, user_id: int | None = None) -> GameSessionResponse:
+    return GameSessionResponse.model_validate(match.snapshot(user_id))
 
 
 def match_channel(match_id: str) -> str:
@@ -423,7 +383,6 @@ def restore_connect_match(row: GameMatch, seats: list[GameMatchPlayer] | None = 
             }
             for seat in seat_rows
         ] or [{"name": "You", "is_bot": False}, {"name": "Milo Bot", "is_bot": True}],
-        version=row.version,
     )
     match_manager.matches[row.id] = match
     match_manager.room_matches[row.room_id] = row.id
@@ -470,7 +429,6 @@ def restore_universal_match(
         player_ids=player_ids,
         bot_player=resolved_bot_players[0] if resolved_bot_players else None,
         bot_players=resolved_bot_players,
-        version=row.version,
     )
     universal_matches.matches[row.id] = match
     return match
@@ -499,58 +457,10 @@ async def hydrate_match(match_id: str) -> tuple[LiveMatch | None, UniversalMatch
         return None, restore_universal_match(row, player_count, seats)
 
 
-def apply_connect_snapshot(match: LiveMatch, snapshot: dict[str, Any]) -> None:
-    raw_last_move = snapshot.get("last_move")
-    last_move = (
-        (int(raw_last_move[0]), int(raw_last_move[1]))
-        if isinstance(raw_last_move, list) and len(raw_last_move) == 2
-        else None
-    )
-    raw_cells = snapshot.get("winning_cells", [])
-    winning_cells = tuple(
-        (int(cell[0]), int(cell[1]))
-        for cell in raw_cells
-        if isinstance(cell, list) and len(cell) == 2
-    ) if isinstance(raw_cells, list) else ()
-    board = snapshot.get("board")
-    if not isinstance(board, list):
-        raise ValueError("Connect Four update has no board")
-    match.state = ConnectFourState(
-        board=tuple(tuple(int(cell) for cell in row) for row in board),
-        current_player=1 if int(snapshot.get("current_player", 1)) == 1 else 2,
-        winner=snapshot.get("winner"),
-        draw=bool(snapshot.get("draw", False)),
-        move_count=int(snapshot.get("move_count", 0)),
-        last_move=last_move,
-        winning_cells=winning_cells,
-    )
-
-
-async def relay_remote_events(
-    websocket: WebSocket, match: LiveMatch, user_id: int, spectator: bool
-) -> None:
-    async for message in realtime_bus.subscribe(match_channel(match.id)):
+async def relay_remote_events(websocket: WebSocket, match_id: str) -> None:
+    async for message in realtime_bus.subscribe(match_channel(match_id)):
         if message.get("origin") != get_settings().realtime_node_id:
-            payload = message.get("payload")
-            if not isinstance(payload, dict):
-                continue
-            if payload.get("type") == "state" and isinstance(payload.get("state"), dict):
-                version = int(payload.get("version", 0))
-                async with match.lock:
-                    if version >= match.version:
-                        apply_connect_snapshot(match, payload["state"])
-                        match.version = version
-                await websocket.send_json(
-                    {
-                        "type": "state",
-                        "state": {
-                            **match.snapshot(None if spectator else user_id),
-                            "spectator": spectator,
-                        },
-                    }
-                )
-            else:
-                await websocket.send_json(payload)
+            await websocket.send_json(message["payload"])
 
 
 async def relay_remote_universal_events(
@@ -558,18 +468,7 @@ async def relay_remote_universal_events(
 ) -> None:
     async for message in realtime_bus.subscribe(match_channel(match.id)):
         if message.get("origin") != get_settings().realtime_node_id:
-            payload = message.get("payload")
-            if not isinstance(payload, dict):
-                continue
-            if payload.get("type") == "state" and isinstance(payload.get("state"), dict):
-                version = int(payload.get("version", 0))
-                async with match.lock:
-                    if version >= match.version:
-                        match.state = deepcopy(payload["state"])
-                        match.version = version
-                await websocket.send_json({"type": "state", "match": match.snapshot(user_id)})
-            else:
-                await websocket.send_json(payload)
+            await websocket.send_json({"type": "state", "match": match.snapshot(user_id)})
 
 
 async def grant_game_reward(
@@ -604,101 +503,34 @@ async def grant_game_win_reward(db: AsyncSession, user_id: int, match_id: str) -
     return await grant_game_reward(db, user_id, match_id, "win", 10)
 
 
-def record_game_progress_result(progress: GameProgress, won: bool) -> None:
-    if won:
-        progress.wins += 1
-        progress.current_streak += 1
-        progress.best_streak = max(progress.best_streak, progress.current_streak)
-        # Every win is a visible level-up; level 1 is the starting level.
-        progress.level = progress.wins + 1
-    else:
-        progress.current_streak = 0
-
-
 async def grant_completed_game_rewards(
     db: AsyncSession,
     player_ids: dict[int, int],
     match_id: str,
     winner: int | None,
-) -> dict[int, GameProgress]:
+) -> None:
     """Reconcile rewards for every human when a match reaches a terminal state."""
-    match = await db.get(GameMatch, match_id)
     for user_id, seat in player_ids.items():
         await grant_game_participation_reward(db, user_id, match_id)
-        if match is not None and match.game_type == "together":
-            await grant_game_reward(db, user_id, match_id, "together-world", 50)
-            await grant_game_reward(db, user_id, match_id, "together-team", 10)
-        elif winner is not None and seat == winner:
+        if winner is not None and seat == winner:
             await grant_game_win_reward(db, user_id, match_id)
+    match = await db.get(GameMatch, match_id)
     if match is None:
-        return {}
-    updated: dict[int, GameProgress] = {}
+        return
     for user_id, seat in player_ids.items():
         progress = await db.scalar(select(GameProgress).where(
             GameProgress.user_id == user_id, GameProgress.game_type == match.game_type
         ))
         if progress is None:
-            # ORM defaults are applied during INSERT, but progression is
-            # incremented before the first flush. Initialize the in-memory row
-            # so a player's first win cannot attempt arithmetic on None.
-            progress = GameProgress(
-                user_id=user_id,
-                game_type=match.game_type,
-                wins=0,
-                current_streak=0,
-                best_streak=0,
-                level=1,
-            )
+            progress = GameProgress(user_id=user_id, game_type=match.game_type)
             db.add(progress)
-        if winner is not None:
-            record_game_progress_result(progress, match is not None and match.game_type == "together" or seat == winner)
-        updated[user_id] = progress
-    return updated
-
-
-def apply_progress_to_live_match(
-    match: LiveMatch | UniversalMatch,
-    user_id: int,
-    progress_by_user: dict[int, GameProgress],
-) -> None:
-    progress = progress_by_user.get(user_id)
-    if progress is None:
-        return
-    if isinstance(match, LiveMatch):
-        match.game_level = progress.level
-        match.game_streak = progress.current_streak
-        if progress.level >= 2:
-            match.bot_difficulty = "thoughtful"
-        return
-    match.state["game_level"] = progress.level
-    match.state["game_streak"] = progress.current_streak
-    if progress.level >= 2:
-        match.state["bot_difficulty"] = "thoughtful"
-
-
-async def settle_completed_match_progress(
-    db: AsyncSession,
-    match: LiveMatch | UniversalMatch,
-    user_id: int,
-) -> bool:
-    async with match.settlement_lock:
-        winner = match.state.winner if isinstance(match, LiveMatch) else match.state.get("winner")
-        draw = match.state.draw if isinstance(match, LiveMatch) else match.state.get("draw", False)
-        if (winner is None and not draw) or match.reward_granted:
-            return False
-
-        # Claim settlement before the first database await. A simultaneous Play
-        # again request waits on this lock, then resets from the updated state.
-        match.reward_granted = True
-        try:
-            progress = await grant_completed_game_rewards(
-                db, match.player_ids, match.id, winner
-            )
-        except Exception:
-            match.reward_granted = False
-            raise
-        apply_progress_to_live_match(match, user_id, progress)
-        return True
+        if winner is not None and seat == winner:
+            progress.wins += 1
+            progress.current_streak += 1
+            progress.best_streak = max(progress.best_streak, progress.current_streak)
+            progress.level = max(1, progress.wins // 3 + 1)
+        elif winner is not None:
+            progress.current_streak = 0
 
 
 async def grant_community_post_reward(db: AsyncSession, user_id: int, post_id: int) -> bool:
@@ -739,10 +571,6 @@ def game_type_for_name(name: str) -> str | None:
         return "abc-fast-slow"
     if normalized in {"checkers", "draughts"}:
         return "checkers"
-    if normalized in {"together", "linked together"}:
-        return "together"
-    if normalized in {"csec it mock exam", "csec it exam"}:
-        return "csec-it-mock-exam"
     return None
 
 
@@ -916,12 +744,8 @@ def game_capacity(game_name: str) -> int:
         return 2
     if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
         return 4
-    if normalized in {"together", "linked together"}:
-        return 5
     if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
-        return 0  # ABC capacity is chosen by the room host.
-    if normalized in {"csec it mock exam", "csec it exam"}:
-        return 2
+        return 6
     if normalized == "bingo":
         return 8
     return 4
@@ -950,13 +774,12 @@ async def build_match_seats(
         raise HTTPException(status_code=403, detail="Join the room before starting a match")
     if not all(room_participant_is_ready(room, participant) for participant in participants):
         raise HTTPException(status_code=409, detail="Every human player must be ready")
-    capacity = game_capacity(game_type)
-    count = room.max_players if game_type == "abc-fast-slow" or capacity == 0 else min(room.max_players, capacity)
+    count = min(room.max_players, game_capacity(game_type))
     if len(participants) > count:
         raise HTTPException(
             status_code=409, detail="This room has too many players for the selected game"
         )
-    if game_type not in {"together", "abc-fast-slow"} and not fill_with_bots and len(participants) < count:
+    if not fill_with_bots and len(participants) < count:
         raise HTTPException(
             status_code=409, detail=f"All {count} seats must be filled before starting"
         )
@@ -983,8 +806,7 @@ async def build_match_seats(
     player_ids: dict[int, int] = {}
     bot_players: list[int] = []
     player_names: dict[int, str] = {}
-    seat_count = len(participants) if game_type in {"together", "abc-fast-slow"} and not fill_with_bots else count
-    for seat_index in range(seat_count):
+    for seat_index in range(count):
         if seat_index < len(participants):
             participant = participants[seat_index]
             member = users[participant.user_id]
@@ -1875,24 +1697,6 @@ async def create_post(payload: PostCreateRequest, user: CurrentUser, db: DbSessi
     return await post_out(post, user.id, db)
 
 
-@router.patch("/community/posts/{post_id}", response_model=PostResponse)
-async def edit_community_post(
-    post_id: int,
-    payload: PostUpdateRequest,
-    user: CurrentUser,
-    db: DbSession,
-) -> PostResponse:
-    post = await db.get(Post, post_id)
-    if post is None or post.is_hidden:
-        raise HTTPException(status_code=404, detail="Post not found")
-    if post.user_id != user.id:
-        raise HTTPException(status_code=403, detail="You can only edit your own posts")
-    post.text = payload.text.strip()
-    await db.commit()
-    await db.refresh(post)
-    return await post_out(post, user.id, db)
-
-
 @router.post("/community/posts/from-quote/{quote_id}", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
 async def share_quote_to_community(quote_id: int, user: CurrentUser, db: DbSession) -> PostResponse:
     ensure_can_post(user)
@@ -2056,25 +1860,21 @@ async def list_games(
 ) -> list[GameResponse]:
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    games = [
+    return [
         GameResponse.model_validate(game)
         for game in (
             await db.scalars(
             select(Game)
             .where(Game.name != "Bingo")
-            .where((Game.name != "CSEC IT Mock Exam") | can_access_csec_exam(user))
             .order_by(Game.is_featured.desc(), Game.id)
                 .offset((page - 1) * limit)
                 .limit(limit)
             )
         ).all()
     ]
-    return games
 
 
-async def room_out(
-    room: GameRoom, user_id: int, db: AsyncSession, spectator: bool = False
-) -> RoomResponse:
+async def room_out(room: GameRoom, user_id: int, db: AsyncSession) -> RoomResponse:
     game = await db.get(Game, room.game_id)
     participants = (
         await db.scalar(
@@ -2105,10 +1905,7 @@ async def room_out(
         ready=room_participant_is_ready(room, participant) if participant else False,
         bot_difficulty=room.bot_difficulty,
         fill_with_bots=room.fill_with_bots,
-        invite_token=room.invite_token if participant is not None or spectator else None,
-        room_code=room.room_code if participant is not None or spectator else None,
-        abc_categories=room.abc_categories,
-        abc_majority_invalid=room.abc_majority_invalid,
+        invite_token=room.invite_token if participant is not None else None,
     )
 
 
@@ -2127,13 +1924,7 @@ async def list_rooms(
             .limit(limit)
         )
     ).all()
-    visible_rooms: list[RoomResponse] = []
-    for room in rooms:
-        game = await db.get(Game, room.game_id)
-        if game is not None and game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
-            continue
-        visible_rooms.append(await room_out(room, user.id, db))
-    return visible_rooms
+    return [await room_out(room, user.id, db) for room in rooms]
 
 
 @router.post("/games/rooms", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
@@ -2141,24 +1932,11 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
     game = await db.get(Game, payload.game_id)
     if game is None:
         raise HTTPException(status_code=404, detail="Game not found")
-    if game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
-        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
-    capacity = game_capacity(game.name)
-    if capacity and payload.max_players > capacity:
+    if payload.max_players > game_capacity(game.name):
         raise HTTPException(
             status_code=422,
             detail=f"{game.name} supports at most {game_capacity(game.name)} players",
         )
-    room_code = None
-    if game.name.casefold() in {"together", "linked together"}:
-        for _ in range(8):
-            candidate = f"{secrets.choice(('PURPLE', 'HAPPY', 'SPACE', 'SUNNY', 'CLOUD', 'MANGO'))}{secrets.randbelow(90) + 10}"
-            if await db.scalar(select(GameRoom.id).where(GameRoom.room_code == candidate)) is None:
-                room_code = candidate
-                break
-        if room_code is None:
-            raise HTTPException(status_code=503, detail="Could not create a room code")
-        payload = payload.model_copy(update={"fill_with_bots": False, "max_players": min(payload.max_players, 5)})
     room = GameRoom(
         game_id=payload.game_id,
         host_id=user.id,
@@ -2166,41 +1944,11 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
         max_players=payload.max_players,
         fill_with_bots=payload.fill_with_bots,
         bot_difficulty=payload.bot_difficulty,
-        abc_categories=None,
-        abc_majority_invalid=True,
         invite_token=secrets.token_urlsafe(32),
-        room_code=room_code,
     )
     db.add(room)
     await db.flush()
     db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=0, ready=True))
-    await db.commit()
-    return await room_out(room, user.id, db)
-
-
-@router.patch("/games/rooms/{room_id}/abc-settings", response_model=RoomResponse)
-async def update_abc_room_settings(
-    room_id: int, payload: AbcRoomSettingsRequest, user: CurrentUser, db: DbSession
-) -> RoomResponse:
-    room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found")
-    if room.host_id != user.id:
-        raise HTTPException(status_code=403, detail="Only the room host can change ABC settings")
-    if room.status != "open":
-        raise HTTPException(status_code=409, detail="ABC settings can only change before the game starts")
-    game = await db.get(Game, room.game_id)
-    if game is None or game_type_for_name(game.name) != "abc-fast-slow":
-        raise HTTPException(status_code=409, detail="This room is not an ABC Fast or Slow room")
-    categories = list(dict.fromkeys(category.strip()[:40] for category in payload.categories if category.strip()))
-    if not categories:
-        raise HTTPException(status_code=422, detail="Add at least one category")
-    participant_count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
-    if payload.max_players < participant_count:
-        raise HTTPException(status_code=409, detail="Capacity cannot be below the number of players already in the room")
-    room.max_players = payload.max_players
-    room.abc_categories = categories
-    room.abc_majority_invalid = payload.majority_invalid
     await db.commit()
     return await room_out(room, user.id, db)
 
@@ -2214,11 +1962,6 @@ async def get_room_invite(invite_token: str, db: DbSession) -> RoomInviteRespons
     players = await db.scalar(
         select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)
     ) or 0
-    match_id = await db.scalar(
-        select(GameMatch.id)
-        .where(GameMatch.room_id == room.id, GameMatch.status == "active")
-        .limit(1)
-    )
     return RoomInviteResponse(
         id=room.id,
         name=room.name,
@@ -2226,9 +1969,7 @@ async def get_room_invite(invite_token: str, db: DbSession) -> RoomInviteRespons
         players=players,
         max_players=room.max_players,
         status=room.status,
-        match_id=match_id,
         invite_token=room.invite_token,
-        room_code=room.room_code,
     )
 
 
@@ -2295,45 +2036,11 @@ async def join_room_as_guest(
     return GuestRoomJoinResponse(room=guest_room, user=guest_user)
 
 
-@router.post("/games/rooms/invite/{invite_token}/spectate", response_model=GuestRoomJoinResponse)
-async def spectate_room_as_guest(
-    invite_token: str,
-    payload: GuestRoomJoinRequest,
-    response: Response,
-    db: DbSession,
-) -> GuestRoomJoinResponse:
-    room = await db.scalar(select(GameRoom).where(GameRoom.invite_token == invite_token))
-    if room is None or room.status != "active":
-        raise HTTPException(status_code=404, detail="This game is not currently in progress")
-    guest_name = payload.name.strip()
-    existing_guest = await db.scalar(
-        select(User).where(User.is_guest.is_(True), func.lower(User.name) == guest_name.casefold())
-    )
-    guest = existing_guest
-    if guest is None:
-        guest = User(
-            name=guest_name,
-            email=new_guest_email(),
-            password_hash=hash_password(secrets.token_urlsafe(32)),
-            role="guest",
-            is_guest=True,
-            is_approved=True,
-        )
-        db.add(guest)
-        await db.flush()
-    guest_room = await room_out(room, guest.id, db, spectator=True)
-    await set_session(response, db, guest, remember_me=False)
-    return GuestRoomJoinResponse(room=guest_room, user=user_response(guest))
-
-
 @router.post("/games/rooms/{room_id}/join", response_model=RoomResponse)
 async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
     room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room not available")
-    game = await db.get(Game, room.game_id)
-    if game is not None and game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
-        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
     count = (
         await db.scalar(
             select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room_id)
@@ -2358,28 +2065,23 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
 
 
 @router.get("/games/rooms/{room_id}", response_model=RoomResponse)
-async def get_room(
-    room_id: int, user: CurrentUser, db: DbSession, spectate: bool = False
-) -> RoomResponse:
+async def get_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomResponse:
     room = await db.get(GameRoom, room_id)
     if room is None or room.status not in {"open", "active"}:
         raise HTTPException(status_code=404, detail="Room not available")
-    game = await db.get(Game, room.game_id)
-    if game is not None and game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
-        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
     participant = await db.scalar(
         select(RoomParticipant.id).where(
             RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
         )
     )
-    if participant is None and not (spectate and room.status == "active"):
+    if participant is None:
         raise HTTPException(status_code=403, detail="You are not a participant in this room")
-    return await room_out(room, user.id, db, spectator=participant is None)
+    return await room_out(room, user.id, db)
 
 
 @router.get("/games/rooms/{room_id}/participants", response_model=list[RoomParticipantResponse])
 async def list_room_participants(
-    room_id: int, user: CurrentUser, db: DbSession, spectate: bool = False
+    room_id: int, user: CurrentUser, db: DbSession
 ) -> list[RoomParticipantResponse]:
     room = await db.get(GameRoom, room_id)
     if room is None:
@@ -2389,7 +2091,7 @@ async def list_room_participants(
             RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
         )
     )
-    if membership is None and not (spectate and room.status == "active"):
+    if membership is None:
         raise HTTPException(status_code=403, detail="You are not a participant in this room")
     participants = (
         await db.execute(
@@ -2410,42 +2112,6 @@ async def list_room_participants(
         )
         for participant, member in participants
     ]
-
-
-@router.delete("/games/rooms/{room_id}/participants/{participant_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def kick_room_participant(
-    room_id: int, participant_id: int, user: CurrentUser, db: DbSession
-) -> Response:
-    """Let the host remove a guest from an open lobby before the match starts."""
-    room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
-    if room is None:
-        raise HTTPException(status_code=404, detail="Room not found")
-    if room.host_id != user.id:
-        raise HTTPException(status_code=403, detail="Only the host can remove players")
-    if room.status != "open":
-        raise HTTPException(status_code=409, detail="Players can only be removed before the game starts")
-    participant = await db.scalar(
-        select(RoomParticipant).where(
-            RoomParticipant.room_id == room_id,
-            RoomParticipant.user_id == participant_id,
-        ).with_for_update()
-    )
-    if participant is None:
-        raise HTTPException(status_code=404, detail="Player is not in this room")
-    if participant.user_id == room.host_id:
-        raise HTTPException(status_code=400, detail="The host cannot remove themselves")
-    await db.delete(participant)
-    remaining = (
-        await db.scalars(
-            select(RoomParticipant)
-            .where(RoomParticipant.room_id == room_id)
-            .order_by(RoomParticipant.joined_at, RoomParticipant.id)
-        )
-    ).all()
-    for seat_index, member in enumerate(remaining):
-        member.seat_index = seat_index
-    await db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/games/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -2581,7 +2247,7 @@ async def change_room_game(
     participants = (
         await db.scalars(select(RoomParticipant).where(RoomParticipant.room_id == room.id))
     ).all()
-    if capacity and (room.max_players > capacity or len(participants) > capacity):
+    if room.max_players > capacity or len(participants) > capacity:
         raise HTTPException(
             status_code=409,
             detail=f"{game.name} supports at most {capacity} players; remove players or choose another game",
@@ -2662,127 +2328,15 @@ async def create_match(
 
 
 @router.get("/games/matches/{match_id}", response_model=MatchResponse)
-async def get_match(match_id: str, user: CurrentUser, spectate: bool = False) -> MatchResponse:
+async def get_match(match_id: str, user: CurrentUser) -> MatchResponse:
     match = match_manager.get(match_id)
     if match is None:
         match, _ = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Match not found")
-    is_spectator = user.id not in match.player_ids
-    if is_spectator and not spectate:
+    if user.id not in match.player_ids:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
-    return match_response(match, None if is_spectator else user.id, spectator=is_spectator)
-
-
-async def apply_connect_action(
-    match: LiveMatch,
-    user_id: int,
-    action: dict[str, Any],
-    db: AsyncSession,
-) -> None:
-    """Apply and persist one Connect Four action before broadcasting it."""
-    async with match.lock:
-        previous_state = match.state
-        previous_version = match.version
-        previous_starting_player = match.starting_player
-        previous_reward_granted = match.reward_granted
-        persisted = await db.scalar(
-            select(GameMatch).where(GameMatch.id == match.id).with_for_update()
-        )
-        if persisted is None:
-            raise ValueError("Persisted match not found")
-        if persisted.version > match.version:
-            apply_connect_snapshot(match, persisted.state)
-            match.version = persisted.version
-        try:
-            if action.get("action") == "play_again":
-                await settle_completed_match_progress(db, match, user_id)
-                await match_manager.play_again_locked(match, user_id, broadcast=True, run_bot=False)
-            else:
-                await match_manager.move_locked(
-                    match, user_id, int(action["column"]), broadcast=True, run_bot=False
-                )
-            await record_state(db, persisted, user_id, action, match.snapshot())
-            if action.get("action") == "play_again":
-                persisted.status = "active"
-            await grant_game_participation_reward(db, user_id, match.id)
-            if await settle_completed_match_progress(db, match, user_id):
-                persisted.state = match.snapshot()
-                persisted.status = "completed"
-            await db.commit()
-            match.version = persisted.version
-        except Exception:
-            await db.rollback()
-            match.state = previous_state
-            match.version = previous_version
-            match.starting_player = previous_starting_player
-            match.reward_granted = previous_reward_granted
-            raise
-    await realtime_bus.publish(
-        match_channel(match.id),
-        {
-            "origin": get_settings().realtime_node_id,
-            "payload": {
-                "type": "state",
-                "state": match.snapshot(),
-                "version": match.version,
-            },
-        },
-    )
-    if (
-        match.bot_player == match.state.current_player
-        and not match.state.winner
-        and not match.state.draw
-    ):
-        if match.bot_task is None or match.bot_task.done():
-            match.bot_task = asyncio.create_task(run_connect_bot(match, user_id))
-
-
-async def run_connect_bot(match: LiveMatch, initiator_id: int) -> None:
-    """Take the bot turn off the request path so the human move stays responsive."""
-    current_task = asyncio.current_task()
-    try:
-        await asyncio.sleep(0.55)
-        async with session_factory() as db:
-            async with match.lock:
-                persisted = await db.scalar(
-                    select(GameMatch).where(GameMatch.id == match.id).with_for_update()
-                )
-                if persisted is None:
-                    return
-                if persisted.version > match.version:
-                    apply_connect_snapshot(match, persisted.state)
-                    match.version = persisted.version
-                if (
-                    match.bot_player != match.state.current_player
-                    or match.state.winner
-                    or match.state.draw
-                ):
-                    return
-                await match_manager.bot_move_locked(match, broadcast=False)
-                await record_state(
-                    db, persisted, initiator_id, {"action": "bot_move"}, match.snapshot()
-                )
-                if await settle_completed_match_progress(db, match, initiator_id):
-                    persisted.status = "completed"
-                await db.commit()
-                match.version = persisted.version
-                snapshot = match.snapshot()
-            await match_manager.broadcast(match, {"type": "state", "state": snapshot, "bot": True})
-            await realtime_bus.publish(
-                match_channel(match.id),
-                {
-                    "origin": get_settings().realtime_node_id,
-                    "payload": {"type": "state", "state": snapshot, "version": match.version},
-                },
-            )
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        logger.exception("connect_four_bot_turn_failed match_id=%s", match.id)
-    finally:
-        if match.bot_task is current_task:
-            match.bot_task = None
+    return match_response(match, user.id)
 
 
 @router.post("/games/matches/{match_id}/moves", response_model=MatchResponse)
@@ -2793,21 +2347,28 @@ async def play_move(
     if match is None:
         raise HTTPException(status_code=404, detail="Match not found")
     try:
-        await apply_connect_action(match, user.id, {"column": payload.column}, db)
+        await match_manager.move(match, user.id, payload.column)
     except IllegalMove as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    except Exception as error:
-        error_id = uuid4().hex[:12]
-        logger.exception(
-            "connect_four_action_failed error_id=%s match_id=%s user_id=%s",
-            error_id,
-            match.id,
-            user.id,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Game error. Refresh and try again. Error reference: {error_id}",
-        ) from error
+    persisted = await db.get(GameMatch, match.id)
+    if persisted is not None:
+        await record_state(db, persisted, user.id, {"column": payload.column}, match.snapshot())
+    await grant_game_participation_reward(db, user.id, match.id)
+    if match.state.winner is not None or match.state.draw:
+        await grant_completed_game_rewards(db, match.player_ids, match.id, match.state.winner)
+        match.reward_granted = match.state.winner is not None
+        if persisted is not None:
+            persisted.status = "completed"
+        await db.commit()
+    else:
+        await db.commit()
+    await realtime_bus.publish(
+        match_channel(match.id),
+        {
+            "origin": get_settings().realtime_node_id,
+            "payload": {"type": "state", "state": match.snapshot()},
+        },
+    )
     return match_response(match, user.id)
 
 
@@ -2831,104 +2392,35 @@ async def websocket_user(websocket: WebSocket) -> User | None:
         return result.scalar_one_or_none()
 
 
-def websocket_origin_allowed(websocket: WebSocket) -> bool:
-    origin = websocket.headers.get("origin")
-    if not origin:
-        return True
-    settings = get_settings()
-    if origin in settings.api_cors_origins:
-        return True
-    forwarded_host = websocket.headers.get("x-forwarded-host")
-    forwarded_proto = websocket.headers.get("x-forwarded-proto", "https")
-    if forwarded_host and origin == f"{forwarded_proto}://{forwarded_host}":
-        return True
-    scheme = "https" if websocket.url.scheme == "wss" else "http"
-    return origin == f"{scheme}://{websocket.url.netloc}"
-
-
-async def receive_socket_object(
-    websocket: WebSocket, match_id: str, user_id: int
-) -> dict[str, Any] | None:
-    try:
-        message = await websocket.receive_json()
-    except WebSocketDisconnect:
-        raise
-    except Exception:
-        logger.warning(
-            "game_websocket_invalid_json match_id=%s user_id=%s",
-            match_id,
-            user_id,
-            exc_info=True,
-        )
-        await websocket.send_json({"type": "error", "detail": "Send a valid JSON object"})
-        return None
-    if not isinstance(message, dict):
-        await websocket.send_json({"type": "error", "detail": "Send a JSON object"})
-        return None
-    return message
-
-
 @router.websocket("/games/matches/{match_id}/ws")
 async def match_socket(websocket: WebSocket, match_id: str) -> None:
-    if not websocket_origin_allowed(websocket):
-        logger.warning("game_websocket_origin_rejected match_id=%s", match_id)
-        await websocket.close(code=1008, reason="Origin is not allowed")
+    match = match_manager.get(match_id)
+    if match is None:
+        match, _ = await hydrate_match(match_id)
+    user = await websocket_user(websocket)
+    if match is None or user is None or user.id not in match.player_ids:
+        await websocket.close(code=1008)
         return
-    try:
-        match = match_manager.get(match_id)
-        if match is None:
-            match, _ = await hydrate_match(match_id)
-        user = await websocket_user(websocket)
-    except Exception:
-        error_id = uuid4().hex[:12]
-        logger.exception(
-            "connect_four_websocket_handshake_failed error_id=%s match_id=%s",
-            error_id,
-            match_id,
-        )
-        await websocket.close(code=1011, reason=f"Connection error: {error_id}")
-        return
-    if match is None or user is None:
-        await websocket.close(code=1008, reason="Match or session is unavailable")
-        return
-    is_spectator = user.id not in match.player_ids
     await websocket.accept()
     match.sockets[websocket] = user.id
-    relay_task = asyncio.create_task(
-        relay_remote_events(websocket, match, user.id, is_spectator)
-    )
-    await websocket.send_json({"type": "state", "state": {**match.snapshot(None if is_spectator else user.id), "spectator": is_spectator}})
-    await broadcast_spectator_count(match)
+    relay_task = asyncio.create_task(relay_remote_events(websocket, match.id))
+    await websocket.send_json({"type": "state", "state": match.snapshot(user.id)})
     try:
         while True:
-            message = await receive_socket_object(websocket, match.id, user.id)
-            if message is None:
-                continue
-            if is_spectator:
-                await websocket.send_json({"type": "error", "detail": "Spectators cannot play moves"})
-                continue
+            message = await websocket.receive_json()
             if message.get("type") == "play_again":
                 try:
-                    async with session_factory() as db:
-                        await apply_connect_action(
-                            match, user.id, {"action": "play_again"}, db
-                        )
+                    await match_manager.play_again(match, user.id)
                 except IllegalMove as error:
                     await websocket.send_json({"type": "error", "detail": str(error)})
-                except Exception:
-                    error_id = uuid4().hex[:12]
-                    logger.exception(
-                        "connect_four_websocket_action_failed error_id=%s match_id=%s user_id=%s",
-                        error_id,
-                        match.id,
-                        user.id,
-                    )
-                    await websocket.send_json(
-                        {
-                            "type": "error",
-                            "detail": f"Game error. Refresh and try again. Error reference: {error_id}",
-                        }
-                    )
+                else:
+                    await websocket.send_json({"type": "state", "state": match.snapshot(user.id)})
+                    async with session_factory() as db:
+                        persisted = await db.get(GameMatch, match.id)
+                        if persisted is not None:
+                            await record_state(db, persisted, user.id, {"action": "play_again"}, match.snapshot())
+                            persisted.status = "active"
+                        await db.commit()
                 continue
             if message.get("type") != "move" or not isinstance(message.get("column"), int):
                 await websocket.send_json(
@@ -2936,37 +2428,35 @@ async def match_socket(websocket: WebSocket, match_id: str) -> None:
                 )
                 continue
             try:
-                async with session_factory() as db:
-                    await apply_connect_action(
-                        match, user.id, {"column": message["column"]}, db
-                    )
+                await match_manager.move(match, user.id, message["column"])
             except IllegalMove as error:
                 await websocket.send_json({"type": "error", "detail": str(error)})
                 continue
-            except Exception:
-                error_id = uuid4().hex[:12]
-                logger.exception(
-                    "connect_four_websocket_action_failed error_id=%s match_id=%s user_id=%s",
-                    error_id,
-                    match.id,
-                    user.id,
-                )
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "detail": f"Game error. Refresh and try again. Error reference: {error_id}",
-                    }
-                )
+            async with session_factory() as db:
+                persisted = await db.get(GameMatch, match.id)
+                if persisted is not None:
+                    await record_state(
+                        db, persisted, user.id, {"column": message["column"]}, match.snapshot()
+                    )
+                await grant_game_participation_reward(db, user.id, match.id)
+                if match.state.winner is not None or match.state.draw:
+                    await grant_completed_game_rewards(
+                        db, match.player_ids, match.id, match.state.winner
+                    )
+                await db.commit()
+            await realtime_bus.publish(
+                match_channel(match.id),
+                {
+                    "origin": get_settings().realtime_node_id,
+                    "payload": {"type": "state", "state": match.snapshot()},
+                },
+            )
+            if match.state.winner is not None or match.state.draw:
+                match.reward_granted = match.state.winner is not None
     except WebSocketDisconnect:
         match.sockets.pop(websocket, None)
-    except Exception:
-        logger.exception(
-            "connect_four_websocket_failed match_id=%s user_id=%s", match.id, user.id
-        )
     finally:
         relay_task.cancel()
-        match.sockets.pop(websocket, None)
-        await broadcast_spectator_count(match)
 
 
 @router.post(
@@ -3004,7 +2494,7 @@ async def create_game_session(
         room.id,
         user.id,
         game_type,
-        len(player_ids) if game_type in {"together", "abc-fast-slow", "csec-it-mock-exam"} and not payload.fill_with_bots else (room.max_players if game_type == "abc-fast-slow" else min(room.max_players, game_capacity(game_type))),
+        min(room.max_players, game_capacity(game_type)),
         player_ids=player_ids,
         bot_players=bot_players,
         player_names=player_names,
@@ -3012,256 +2502,24 @@ async def create_game_session(
     )
     match.state["game_level"] = game_level
     match.state["game_streak"] = game_streak
-    if game_type == "abc-fast-slow":
-        match.state["categories"] = list(room.abc_categories or ["Animal", "Place", "Food", "Thing"])
-        match.state["majority_invalid"] = room.abc_majority_invalid
     room.status = "active"
     await create_persisted_match(db, match.id, room.id, game_type, user.id, match.state, seats)
     await db.commit()
-    ensure_universal_timer(match)
-    if universal_bot_needed(match):
-        match.bot_task = asyncio.create_task(run_universal_bots(match, user.id))
-    return universal_response(match, user.id, exam_admin=game_type == "csec-it-mock-exam" and user.name.strip().casefold() == "tyrese")
+    return universal_response(match, user.id)
 
 
 @router.get("/games/sessions/{match_id}", response_model=GameSessionResponse)
-async def get_game_session(match_id: str, user: CurrentUser, spectate: bool = False) -> GameSessionResponse:
+async def get_game_session(match_id: str, user: CurrentUser) -> GameSessionResponse:
     match = universal_matches.get(match_id)
     if match is None:
         _, match = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Game session not found")
-    is_spectator = user.id not in match.player_ids
-    if is_spectator and not spectate:
+    if match.game_type == "csec-it-mock-exam" and not can_access_csec_exam(user):
+        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
+    if user.id not in match.player_ids:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
-    ensure_universal_timer(match)
-    return universal_response(match, None if is_spectator else user.id, spectator=is_spectator, exam_admin=user.name.strip().casefold() == "tyrese")
-
-
-async def apply_universal_action(
-    match: UniversalMatch,
-    user_id: int,
-    action: dict[str, Any],
-    db: AsyncSession,
-) -> None:
-    """Apply one universal-game action with durable ordering and rollback."""
-    kind = action.get("action")
-    ephemeral = (
-        match.game_type == "together" and kind == "input"
-    ) or (
-        match.game_type == "scribble" and kind == "stroke_segment"
-    )
-    if ephemeral:
-        await universal_matches.action(match, user_id, action)
-        payload: dict[str, Any]
-        if match.game_type == "scribble":
-            payload = {"type": "drawing_segment", "segment": match.state["strokes"][-1]}
-        else:
-            payload = {
-                "type": "state",
-                "state": deepcopy(match.state),
-                "version": match.version,
-            }
-        await realtime_bus.publish(
-            match_channel(match.id),
-            {"origin": get_settings().realtime_node_id, "payload": payload},
-        )
-        return
-
-    async with match.lock:
-        previous_state = deepcopy(match.state)
-        previous_version = match.version
-        previous_reward_granted = match.reward_granted
-        persisted = await db.scalar(
-            select(GameMatch).where(GameMatch.id == match.id).with_for_update()
-        )
-        if persisted is None:
-            raise ValueError("Persisted match not found")
-        if persisted.version > match.version:
-            match.state = deepcopy(persisted.state)
-            match.version = persisted.version
-        try:
-            if kind == "play_again":
-                await settle_completed_match_progress(db, match, user_id)
-            await universal_matches.action_locked(
-                match, user_id, action, broadcast=True, run_bots=False
-            )
-            await record_state(db, persisted, user_id, action, match.state)
-            if kind == "play_again":
-                persisted.status = "active"
-            elif match.state.get("winner") is not None or match.state.get("draw", False):
-                persisted.status = "completed"
-            await grant_game_participation_reward(db, user_id, match.id)
-            if await settle_completed_match_progress(db, match, user_id):
-                persisted.state = deepcopy(match.state)
-            await db.commit()
-            match.version = persisted.version
-        except Exception:
-            await db.rollback()
-            match.state = previous_state
-            match.version = previous_version
-            match.reward_granted = previous_reward_granted
-            raise
-    await realtime_bus.publish(
-        match_channel(match.id),
-        {
-            "origin": get_settings().realtime_node_id,
-            "payload": {
-                "type": "state",
-                "state": deepcopy(match.state),
-                "version": match.version,
-            },
-        },
-    )
-    if universal_bot_needed(match) and (match.bot_task is None or match.bot_task.done()):
-        match.bot_task = asyncio.create_task(run_universal_bots(match, user_id))
-
-
-def universal_bot_needed(match: UniversalMatch) -> bool:
-    bots = match.bot_players or ((match.bot_player,) if match.bot_player is not None else ())
-    if not bots or match.state.get("winner") is not None or match.state.get("draw", False):
-        return False
-    if match.game_type == "abc-fast-slow":
-        phase = match.state.get("phase")
-        if phase in {"letter_picker", "letter_picker_running"}:
-            return int(match.state.get("letter_chooser", -1)) in bots
-        if phase == "answering":
-            return any(not value for value in match.state.get("submitted", []))
-        if phase == "voting":
-            return any(not value for value in match.state.get("voted", [])) or any(
-                not value for value in match.state.get("confirmed", [])
-            )
-        return False
-    current = int(match.state.get("current_player", -1))
-    return current in bots and (
-        match.game_type != "scribble"
-        or match.state.get("phase") == "choosing"
-        or match.state.get("bot_draw_pending", False)
-    )
-
-
-async def run_universal_bots(match: UniversalMatch, initiator_id: int) -> None:
-    """Process bot actions asynchronously, persisting each authoritative state."""
-    current_task = asyncio.current_task()
-    first = True
-    try:
-        while universal_bot_needed(match):
-            if match.game_type == "ludo":
-                delay = 2.05 if first else (0.95 if match.state.get("phase") == "roll" else 1.15)
-            elif match.game_type == "abc-fast-slow":
-                delay = 0.35
-            else:
-                delay = 0.7
-            await asyncio.sleep(delay)
-            first = False
-            async with session_factory() as db:
-                async with match.lock:
-                    persisted = await db.scalar(
-                        select(GameMatch).where(GameMatch.id == match.id).with_for_update()
-                    )
-                    if persisted is None:
-                        return
-                    if persisted.version > match.version:
-                        match.state = deepcopy(persisted.state)
-                        match.version = persisted.version
-                    if not universal_bot_needed(match):
-                        return
-                    bot_action = await universal_matches.bot_action_locked(match, broadcast=False)
-                    if bot_action is None:
-                        return
-                    await record_state(
-                        db,
-                        persisted,
-                        initiator_id,
-                        {"action": "bot", **bot_action},
-                        match.state,
-                    )
-                    if await settle_completed_match_progress(db, match, initiator_id):
-                        persisted.status = "completed"
-                    await db.commit()
-                    match.version = persisted.version
-                    snapshot = deepcopy(match.state)
-                await universal_matches.broadcast(match)
-                await realtime_bus.publish(
-                    match_channel(match.id),
-                    {
-                        "origin": get_settings().realtime_node_id,
-                        "payload": {"type": "state", "state": snapshot, "version": match.version},
-                    },
-                )
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        logger.exception("universal_bot_turn_failed match_id=%s game=%s", match.id, match.game_type)
-    finally:
-        if match.bot_task is current_task:
-            match.bot_task = None
-
-
-def universal_deadline_action(
-    match: UniversalMatch,
-) -> tuple[int, dict[str, Any], float] | None:
-    state = match.state
-    if match.game_type == "abc-fast-slow":
-        if state.get("phase") in {"letter_picker", "letter_picker_running"}:
-            deadline = float(state.get("picker_deadline") or 0)
-            return (int(state.get("letter_chooser", 0)), {"action": "picker_timeout"}, deadline)
-        if state.get("phase") == "answering":
-            deadline = float(state.get("deadline") or 0)
-            return (0, {"action": "timeout"}, deadline)
-    if match.game_type == "scribble" and state.get("phase") == "guessing":
-        deadline = float(state.get("guess_deadline") or 0)
-        drawer = int(state.get("current_drawer", 0))
-        seat = next((value for value in match.player_ids.values() if value != drawer), -1)
-        return (seat, {"action": "timeout"}, deadline)
-    if match.game_type == "trivia" and state.get("phase") in {"question", "bot"}:
-        deadline = float(state.get("deadline") or 0)
-        return (int(state.get("current_player", 0)), {"answer": -1}, deadline)
-    return None
-
-
-async def universal_timer_worker(match: UniversalMatch) -> None:
-    while universal_matches.get(match.id) is match:
-        request = universal_deadline_action(match)
-        if request is None:
-            await asyncio.sleep(0.5)
-            continue
-        seat, action, deadline = request
-        if deadline <= 0:
-            await asyncio.sleep(0.25)
-            continue
-        remaining = deadline - time.time()
-        if remaining > 0:
-            await asyncio.sleep(min(remaining, 0.5))
-            continue
-        user_id = next(
-            (candidate for candidate, candidate_seat in match.player_ids.items() if candidate_seat == seat),
-            next(iter(match.player_ids), None),
-        )
-        if user_id is None:
-            await asyncio.sleep(0.5)
-            continue
-        try:
-            async with session_factory() as db:
-                await apply_universal_action(match, user_id, action, db)
-        except IllegalMove:
-            await asyncio.sleep(0.25)
-        except Exception:
-            error_id = uuid4().hex[:12]
-            logger.exception(
-                "game_timer_failed error_id=%s match_id=%s game=%s",
-                error_id,
-                match.id,
-                match.game_type,
-            )
-            await asyncio.sleep(1)
-
-
-def ensure_universal_timer(match: UniversalMatch) -> None:
-    if match.game_type not in {"abc-fast-slow", "scribble", "trivia"}:
-        return
-    if match.timer_task is None or match.timer_task.done():
-        match.timer_task = asyncio.create_task(universal_timer_worker(match))
+    return universal_response(match, user.id)
 
 
 @router.post("/games/sessions/{match_id}/actions", response_model=GameSessionResponse)
@@ -3273,117 +2531,107 @@ async def game_session_action(
         _, match = await hydrate_match(match_id)
     if match is None:
         raise HTTPException(status_code=404, detail="Game session not found")
-    user_id = user.id
-    if user_id not in match.player_ids:
-        raise HTTPException(status_code=403, detail="Spectators cannot play actions")
+    if match.game_type == "csec-it-mock-exam" and not can_access_csec_exam(user):
+        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
     try:
-        await apply_universal_action(match, user_id, payload.action, db)
+        await universal_matches.action(match, user.id, payload.action)
     except IllegalMove as error:
-        logger.warning(
-            "game_session_action_rejected match_id=%s user_id=%s action=%s error=%s",
-            match_id,
-            user_id,
-            payload.action.get("action"),
-            error,
-        )
         raise HTTPException(status_code=409, detail=str(error)) from error
-    except Exception as error:
-        error_id = uuid4().hex[:12]
-        logger.exception(
-            "game_session_action_failed error_id=%s match_id=%s user_id=%s action=%s",
-            error_id,
-            match_id,
-            user_id,
-            payload.action.get("action"),
+    persisted = await db.get(GameMatch, match.id)
+    if persisted is not None:
+        await record_state(db, persisted, user.id, payload.action, match.state)
+        if payload.action.get("action") == "play_again":
+            persisted.status = "active"
+        elif match.state.get("winner") is not None or match.state.get("draw", False):
+            persisted.status = "completed"
+    await grant_game_participation_reward(db, user.id, match.id)
+    if match.state.get("winner") is not None or match.state.get("draw", False):
+        await grant_completed_game_rewards(
+            db, match.player_ids, match.id, match.state.get("winner")
         )
-        raise HTTPException(
-            status_code=500,
-            detail=f"Game error. Refresh and try again. Error reference: {error_id}",
-        ) from error
-    ensure_universal_timer(match)
-    return universal_response(match, user_id, exam_admin=match.game_type == "csec-it-mock-exam" and user.name.strip().casefold() == "tyrese")
+        match.reward_granted = match.state.get("winner") is not None
+    await db.commit()
+    await realtime_bus.publish(
+        match_channel(match.id),
+        {
+            "origin": get_settings().realtime_node_id,
+            "payload": {"type": "refresh", "match_id": match.id},
+        },
+    )
+    return universal_response(match, user.id)
 
 
 @router.websocket("/games/sessions/{match_id}/ws")
 async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
-    if not websocket_origin_allowed(websocket):
-        logger.warning("game_websocket_origin_rejected match_id=%s", match_id)
-        await websocket.close(code=1008, reason="Origin is not allowed")
+    match = universal_matches.get(match_id)
+    if match is None:
+        _, match = await hydrate_match(match_id)
+    user = await websocket_user(websocket)
+    if match is None or user is None or user.id not in match.player_ids:
+        await websocket.close(code=1008)
         return
-    try:
-        match = universal_matches.get(match_id)
-        if match is None:
-            _, match = await hydrate_match(match_id)
-        user = await websocket_user(websocket)
-    except Exception:
-        error_id = uuid4().hex[:12]
-        logger.exception(
-            "game_session_websocket_handshake_failed error_id=%s match_id=%s",
-            error_id,
-            match_id,
-        )
-        await websocket.close(code=1011, reason=f"Connection error: {error_id}")
+    if match.game_type == "csec-it-mock-exam" and not can_access_csec_exam(user):
+        await websocket.close(code=1008)
         return
-    if match is None or user is None:
-        await websocket.close(code=1008, reason="Match or session is unavailable")
-        return
-    is_spectator = user.id not in match.player_ids
     await websocket.accept()
     match.sockets[websocket] = user.id
-    ensure_universal_timer(match)
     relay_task = asyncio.create_task(relay_remote_universal_events(websocket, match, user.id))
-    await websocket.send_json({"type": "state", "match": match.snapshot(None if is_spectator else user.id, spectator=is_spectator, exam_admin=user.name.strip().casefold() == "tyrese")})
-    await broadcast_spectator_count(match)
+    await websocket.send_json({"type": "state", "match": match.snapshot(user.id)})
     try:
         while True:
-            message = await receive_socket_object(websocket, match.id, user.id)
-            if message is None:
-                continue
-            if is_spectator:
-                await websocket.send_json({"type": "error", "detail": "Spectators cannot play actions"})
-                continue
+            message = await websocket.receive_json()
             if message.get("type") != "action" or not isinstance(message.get("action"), dict):
                 await websocket.send_json({"type": "error", "detail": "Send an action object"})
                 continue
             try:
-                async with session_factory() as db:
-                    await apply_universal_action(match, user.id, message["action"], db)
+                await universal_matches.action(match, user.id, message["action"])
             except IllegalMove as error:
-                logger.warning(
-                    "game_session_websocket_action_rejected match_id=%s user_id=%s action=%s error=%s",
-                    match_id,
-                    user.id,
-                    message["action"].get("action"),
-                    error,
-                )
                 await websocket.send_json({"type": "error", "detail": str(error)})
                 continue
-            except Exception:
-                error_id = uuid4().hex[:12]
-                logger.exception(
-                    "game_session_websocket_action_failed error_id=%s match_id=%s user_id=%s action=%s",
-                    error_id,
-                    match_id,
-                    user.id,
-                    message["action"].get("action"),
-                )
-                await websocket.send_json(
+            # Drawing segments are deliberately ephemeral websocket events.
+            # Persisting and rebroadcasting the entire growing canvas for every
+            # pointer move overwhelms the connection and lets stale snapshots
+            # resurrect erased pixels. The completed state is persisted by the
+            # next meaningful action (finish, clear, or round transition).
+            if match.game_type == "scribble" and message["action"].get("action") == "stroke_segment":
+                await realtime_bus.publish(
+                    match_channel(match.id),
                     {
-                        "type": "error",
-                        "detail": f"Game error. Refresh and try again. Error reference: {error_id}",
-                    }
+                        "origin": get_settings().realtime_node_id,
+                        "payload": {"type": "drawing_segment", "segment": match.state["strokes"][-1]},
+                    },
                 )
                 continue
+            # Broadcast updates the other players. Send the acting player's
+            # authoritative snapshot directly as well so their own token
+            # animation cannot be lost in websocket/realtime timing.
+            await websocket.send_json({"type": "state", "match": match.snapshot(user.id)})
+            async with session_factory() as db:
+                persisted = await db.get(GameMatch, match.id)
+                if persisted is not None:
+                    await record_state(db, persisted, user.id, message["action"], match.state)
+                    if message["action"].get("action") == "play_again":
+                        persisted.status = "active"
+                    elif match.state.get("winner") is not None or match.state.get("draw", False):
+                        persisted.status = "completed"
+                await grant_game_participation_reward(db, user.id, match.id)
+                if match.state.get("winner") is not None or match.state.get("draw", False):
+                    await grant_completed_game_rewards(
+                        db, match.player_ids, match.id, match.state.get("winner")
+                    )
+                    match.reward_granted = match.state.get("winner") is not None
+                await db.commit()
+            await realtime_bus.publish(
+                match_channel(match.id),
+                {
+                    "origin": get_settings().realtime_node_id,
+                    "payload": {"type": "refresh", "match_id": match.id},
+                },
+            )
     except WebSocketDisconnect:
         match.sockets.pop(websocket, None)
-    except Exception:
-        logger.exception(
-            "game_session_websocket_failed match_id=%s user_id=%s", match.id, user.id
-        )
     finally:
         relay_task.cancel()
-        match.sockets.pop(websocket, None)
-        await broadcast_spectator_count(match)
 
 
 @router.get("/games/winners", response_model=list[dict[str, object]])
@@ -3439,30 +2687,19 @@ async def list_winners(
     return result
 
 
-def leaderboard_query(
-    period: str,
-    period_start: datetime | None = None,
-    period_end: datetime | None = None,
-):
+def leaderboard_query(period: str, period_start: datetime | None = None):
     """Return members and the XP earned in the requested ranking window."""
     member_filter = User.is_guest.is_(False)
     if period == "all":
         return select(User, User.xp.label("ranking_xp")).where(member_filter)
 
     start = period_start or leaderboard_period_start(period)
-    reward_window = [RewardLedger.created_at >= start]
-    checkin_window = [CheckIn.created_at >= start, CheckIn.completed.is_(True)]
-    challenge_window = [ChallengeCompletion.created_at >= start]
-    if period_end is not None:
-        reward_window.append(RewardLedger.created_at < period_end)
-        checkin_window.append(CheckIn.created_at < period_end)
-        challenge_window.append(ChallengeCompletion.created_at < period_end)
     reward_totals = (
         select(
             RewardLedger.user_id,
             func.coalesce(func.sum(RewardLedger.xp), 0).label("reward_xp"),
         )
-        .where(*reward_window)
+        .where(RewardLedger.created_at >= start)
         .group_by(RewardLedger.user_id)
         .subquery()
     )
@@ -3471,7 +2708,7 @@ def leaderboard_query(
             CheckIn.user_id,
             (func.count(CheckIn.id) * 25).label("checkin_xp"),
         )
-        .where(*checkin_window)
+        .where(CheckIn.created_at >= start, CheckIn.completed.is_(True))
         .group_by(CheckIn.user_id)
         .subquery()
     )
@@ -3480,7 +2717,7 @@ def leaderboard_query(
             ChallengeCompletion.user_id,
             func.coalesce(func.sum(ChallengeCompletion.xp_awarded), 0).label("challenge_xp"),
         )
-        .where(*challenge_window)
+        .where(ChallengeCompletion.created_at >= start)
         .group_by(ChallengeCompletion.user_id)
         .subquery()
     )
@@ -3496,14 +2733,6 @@ def leaderboard_query(
         .outerjoin(challenge_totals, challenge_totals.c.user_id == User.id)
         .where(member_filter, ranking_xp > 0)
     )
-
-
-def public_asset_url(value: str | None, public_url: str) -> str | None:
-    if not value:
-        return None
-    if value.startswith(("http://", "https://")):
-        return value
-    return f"{public_url.rstrip('/')}/{value.lstrip('/')}"
 
 
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
@@ -3805,39 +3034,18 @@ async def admin_users(
 
 @router.post("/admin/notifications/weekly-performers", response_model=AdminNotificationResponse)
 async def send_weekly_performer_notification(
-    admin: CurrentAdmin,
-    db: DbSession,
-    start_date: date | None = None,
-    end_date: date | None = None,
+    admin: CurrentAdmin, db: DbSession
 ) -> AdminNotificationResponse:
     if not can_manage_content(admin):
         raise HTTPException(status_code=403, detail="Staff access required")
-    if (start_date is None) != (end_date is None):
-        raise HTTPException(status_code=422, detail="Provide both start_date and end_date")
-    if start_date is None:
-        period_start = leaderboard_period_start("week") - timedelta(days=7)
-        period_end = period_start + timedelta(days=7)
-    else:
-        if start_date >= end_date:
-            raise HTTPException(status_code=422, detail="end_date must be after start_date")
-        period_start = datetime.combine(start_date, datetime.min.time(), tzinfo=UTC)
-        period_end = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), tzinfo=UTC)
-    query = leaderboard_query("week", period_start=period_start, period_end=period_end)
+    period_start = leaderboard_period_start("week") - timedelta(days=7)
+    query = leaderboard_query("week", period_start=period_start)
     rows = (
         await db.execute(
             query.order_by(query.selected_columns.ranking_xp.desc(), User.created_at.asc()).limit(3)
         )
     ).all()
-    settings = get_settings()
-    winners = [
-        (
-            member.id,
-            member.name,
-            int(ranking_xp),
-            public_asset_url(member.avatar_url, settings.public_app_url),
-        )
-        for member, ranking_xp in rows
-    ]
+    winners = [(member.id, member.name, int(ranking_xp)) for member, ranking_xp in rows]
     recipients = (
         await db.scalars(
             select(User).where(
@@ -3854,12 +3062,12 @@ async def send_weekly_performer_notification(
             failed=0,
             recipients=len(recipients),
             period_start=period_start.date(),
-            winners=[name for _, name, _, _ in winners],
+            winners=[name for _, name, _ in winners],
         )
+    settings = get_settings()
     html, text = weekly_performers_email(
         winners=winners,
         period_start=period_start.date(),
-        period_end=(period_end - timedelta(days=1)).date(),
         action_url=f"{settings.public_app_url.rstrip('/')}/leaderboard",
     )
     results = await asyncio.gather(
@@ -3881,7 +3089,7 @@ async def send_weekly_performer_notification(
         failed=len(results) - sent,
         recipients=len(recipients),
         period_start=period_start.date(),
-        winners=[name for _, name, _, _ in winners],
+        winners=[name for _, name, _ in winners],
     )
 
 

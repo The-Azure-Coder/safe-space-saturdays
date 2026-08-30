@@ -28,8 +28,6 @@ test('Scribble room starts with bots and opens a playable drawing session', asyn
     expect(session.state.player_count).toBe(2)
     expect(session.state.current_drawer).toBe(0)
 
-    const chooseWord = await client.post(`/api/games/sessions/${session.match_id}/actions`, { data: { action: { action: 'choose_word', word: session.state.word_choices[0] } } })
-    expect(chooseWord.status()).toBe(200)
     const stroke = await client.post(`/api/games/sessions/${session.match_id}/actions`, { data: { action: { action: 'stroke', points: [{ x: 0.1, y: 0.1 }, { x: 0.8, y: 0.8 }] } } })
     expect(stroke.status()).toBe(200)
     const endTurn = await client.post(`/api/games/sessions/${session.match_id}/actions`, { data: { action: { action: 'end_turn' } } })

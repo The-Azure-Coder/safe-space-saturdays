@@ -41,7 +41,6 @@ import {
 import { ApiError, api, apiRetryDelay, assetUrl, googleLoginUrl, shouldRetryApiRequest } from '../lib/api'
 import type { CheckIn, CommunityApplication, LeaderboardPeriod, Post, Quote } from '../lib/api'
 import { GeneralLoader } from './general-loader'
-import { ServerWakeLoader } from './server-wake-loader'
 
 type Screen =
   | 'home'
@@ -97,8 +96,6 @@ type GameDefinition = {
 function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
-  if (normalized === 'abc fast or slow' || normalized === 'abc fast/slow' || normalized === 'fast or slow') return Number.POSITIVE_INFINITY
-  if (normalized === 'csec it mock exam' || normalized === 'csec it exam') return 2
   return 4
 }
 
@@ -107,63 +104,49 @@ const games: Array<GameDefinition> = [
     name: 'Ludo',
     players: '2–4 players',
     description: 'Roll, race, and make a little room for friendly competition.',
-    icon: '/assets/optimized/game-ludo.webp',
+    icon: '/assets/game-ludo.png',
     color: 'sage',
   },
   {
     name: 'Dominoes',
     players: '2–4 players',
     description: 'Match the ends, play your hand, and keep the table flowing.',
-    icon: '/assets/optimized/game-dominoes.webp',
+    icon: '/assets/game-dominoes.png',
     color: 'peach',
   },
   {
     name: 'Trivia Battle',
     players: '2+ players',
     description: 'Put your curious mind to work across bright, playful categories.',
-    icon: '/assets/optimized/game-trivia.webp',
+    icon: '/assets/game-trivia.png',
     color: 'lilac',
   },
   {
     name: 'Connect Four',
     players: '2 players',
     description: 'Think one move ahead and connect four before your rival does.',
-    icon: '/assets/optimized/game-connect-four.webp',
+    icon: '/assets/game-connect-four.png',
     color: 'blue',
   },
   {
     name: 'Scribble',
     players: '2–4 players',
     description: 'Draw something wonderfully imperfect and see who can guess it.',
-    icon: '/assets/optimized/game-scribble.webp',
+    icon: '/assets/game-scribble.png',
     color: 'coral',
   },
   {
     name: 'ABC Fast or Slow',
     players: '2–6 players',
     description: 'Race the clock, think creatively, and find one-of-a-kind answers.',
-    icon: '/assets/optimized/game-abc-fast-slow.webp',
+    icon: '/assets/game-abc-fast-slow.png',
     color: 'sage',
   },
   {
     name: 'Checkers',
     players: '2 players',
     description: 'Plan your jumps, crown your pieces, and make every move count.',
-    icon: '/assets/optimized/game-checkers.webp',
-    color: 'coral',
-  },
-  {
-    name: 'Together',
-    players: '2–4 players',
-    description: 'Grab your friends and work together through chaotic obstacle courses where nobody gets left behind.',
-    icon: '/assets/optimized/game-together.webp',
-    color: 'lilac',
-  },
-  {
-    name: 'CSEC IT Mock Exam',
-    players: '1–2 players',
-    description: 'A private, teacher-created IT mock exam with a playful study-room feel.',
-    icon: '/assets/game-csec-it-mock-exam.png',
+    icon: '/assets/game-checkers.png',
     color: 'coral',
   },
 ]
@@ -177,7 +160,7 @@ function Logo({ compact = false }: { compact?: boolean }) {
     >
       <img
         className="brand-mark__image"
-        src="/assets/optimized/safe-space-saturdays-logo.webp"
+        src="/assets/safe-space-saturdays-logo.jpeg"
         alt="Safe Space Saturdays — you are not alone"
       />
     </Link>
@@ -202,7 +185,7 @@ function PageHeader({ screen }: { screen: Screen }) {
     queryKey: ['me'],
     queryFn: api.me,
     retry: false,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: 60_000,
   })
   const queryClient = useQueryClient()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -553,25 +536,21 @@ function Avatar({
   color = 'sage',
   imageUrl,
   online = false,
-  showPresence = true,
 }: {
   initials: string
   color?: string
   imageUrl?: string | null
   online?: boolean
-  showPresence?: boolean
 }) {
   return (
     <span className={`avatar avatar--${color}`}>
       {imageUrl ? <img src={assetUrl(imageUrl)} alt="" /> : initials}
-      {showPresence && (
-        <span
-          className={`avatar__presence${online ? ' avatar__presence--online' : ''}`}
-          role="img"
-          aria-label={online ? 'Online now' : 'Offline'}
-          title={online ? 'Online now' : 'Offline'}
-        />
-      )}
+      <span
+        className={`avatar__presence${online ? ' avatar__presence--online' : ''}`}
+        role="img"
+        aria-label={online ? 'Online now' : 'Offline'}
+        title={online ? 'Online now' : 'Offline'}
+      />
     </span>
   )
 }
@@ -673,7 +652,7 @@ function AuthLayout({ mode }: { mode: 'login' | 'registration' }) {
             : 'This is a space to breathe, be seen, and belong. We’re here to listen, support, and walk alongside you.'}
         </p>
         <img
-          src="/assets/optimized/community-circle.webp"
+          src="/assets/community-circle.png"
           alt="A group of people gathered together in a supportive circle"
         />
       </section>
@@ -1027,7 +1006,7 @@ function WelcomeCarousel() {
       <div key={`art-${activeSlide}`} className="welcome-carousel__art">
         <img
           className="welcome-carousel__image"
-          src="/assets/optimized/community-circle.webp"
+          src="/assets/community-circle.png"
           alt="Friends supporting one another in a safe space"
         />
         <span className="welcome-carousel__sun" aria-hidden="true" />
@@ -1133,7 +1112,6 @@ function GameStrip() {
         name: `${catalogGame.name} · Friendly bot`,
         max_players: 2,
       })
-      if (catalogGame.name === 'Together') return { kind: 'room' as const, id: room.id }
       if (catalogGame.name === 'Connect Four') {
         const match = await api.createMatch({
           room_id: room.id,
@@ -1146,9 +1124,7 @@ function GameStrip() {
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {
-      if (match.kind === 'room')
-        navigate({ to: '/games/rooms/$roomId', params: { roomId: String(match.id) } })
-      else if (match.kind === 'connect-four')
+      if (match.kind === 'connect-four')
         navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
       else
         navigate({
@@ -1202,7 +1178,7 @@ function GameStrip() {
           </div>
         </div>
         <div className="game-feature__art" aria-hidden="true">
-          <img src={activeGame.icon as string} alt="" loading="lazy" decoding="async" />
+          <img src={activeGame.icon as string} alt="" />
           <span className="game-feature__spark game-feature__spark--one">✦</span>
           <span className="game-feature__spark game-feature__spark--two">✿</span>
         </div>
@@ -1769,15 +1745,13 @@ function GameTile({
 }) {
   const GameIcon = typeof game.icon === 'string' ? null : game.icon
   const generatedAssets: Record<string, string> = {
-    Ludo: '/assets/optimized/game-ludo.webp',
-    Dominoes: '/assets/optimized/game-dominoes.webp',
-    'Trivia Battle': '/assets/optimized/game-trivia.webp',
-    'Connect Four': '/assets/optimized/game-connect-four.webp',
-    Scribble: '/assets/optimized/game-scribble.webp',
-    'ABC Fast or Slow': '/assets/optimized/game-abc-fast-slow.webp',
-    Checkers: '/assets/optimized/game-checkers.webp',
-    Together: '/assets/optimized/game-together.webp',
-    'CSEC IT Mock Exam': '/assets/game-csec-it-mock-exam.png',
+    Ludo: '/assets/game-ludo.png',
+    Dominoes: '/assets/game-dominoes.png',
+    'Trivia Battle': '/assets/game-trivia.png',
+    'Connect Four': '/assets/game-connect-four.png',
+    Scribble: '/assets/game-scribble.png',
+    'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
+    Checkers: '/assets/game-checkers.png',
   }
   const generatedIcon =
     typeof game.icon === 'string' && game.icon.startsWith('/')
@@ -1789,7 +1763,7 @@ function GameTile({
     >
       <span className="game-tile__icon" aria-hidden="true">
         {generatedIcon ? (
-          <img src={generatedIcon} alt="" loading="lazy" decoding="async" />
+          <img src={generatedIcon} alt="" />
         ) : GameIcon ? (
           <GameIcon size={compact ? 34 : 48} weight="duotone" />
         ) : null}
@@ -1892,7 +1866,7 @@ function CheckInScreen() {
           >
             <div className="checkin-cooldown-card__visual">
               <img
-                src="/assets/optimized/community-circle.webp"
+                src="/assets/community-circle.png"
                 alt="Friends reflecting together in a supportive circle"
               />
               <span className="checkin-complete-card__icon">
@@ -2483,10 +2457,6 @@ function CommunityScreen() {
   const [openReplyPostId, setOpenReplyPostId] = useState<number | null>(null)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [editingCommentDraft, setEditingCommentDraft] = useState('')
-  const [commentEditError, setCommentEditError] = useState('')
-  const [editingPostId, setEditingPostId] = useState<number | null>(null)
-  const [editingPostDraft, setEditingPostDraft] = useState('')
-  const [postEditError, setPostEditError] = useState('')
   const [removedPostIds, setRemovedPostIds] = useState<number[]>([])
   const [moderatingPostId, setModeratingPostId] = useState<number | null>(null)
   const [announcementTitle, setAnnouncementTitle] = useState('')
@@ -2510,7 +2480,7 @@ function CommunityScreen() {
   const postsQuery = useQuery({
     queryKey: ['posts', page, sort],
     queryFn: () => api.posts(page, 10, sort),
-    refetchInterval: 90_000,
+    refetchInterval: 60_000,
   })
   const create = useMutation({
     mutationFn: () => api.createPost(draft.trim(), imageFile),
@@ -2549,34 +2519,11 @@ function CommunityScreen() {
   })
   const editReply = useMutation({
     mutationFn: ({ id, text }: { id: number; text: string }) => api.editReply(id, text),
-    onSuccess: async (updatedComment) => {
+    onSuccess: async () => {
       setEditingCommentId(null)
       setEditingCommentDraft('')
-      setCommentEditError('')
-      queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) =>
-        current.map((post) => ({
-          ...post,
-          comments: post.comments.map((comment) =>
-            comment.id === updatedComment.id
-              ? { ...comment, ...updatedComment }
-              : comment,
-          ),
-        })),
-      )
+      await queryClient.refetchQueries({ queryKey: ['posts', page, sort], type: 'active' })
     },
-    onError: (error) => setCommentEditError(error instanceof Error ? error.message : 'We could not update your reply.'),
-  })
-  const editPost = useMutation({
-    mutationFn: ({ id, text }: { id: number; text: string }) => api.editPost(id, text),
-    onSuccess: (updatedPost) => {
-      setEditingPostId(null)
-      setEditingPostDraft('')
-      setPostEditError('')
-      queryClient.setQueryData<Array<Post>>(['posts', page, sort], (current = []) =>
-        current.map((post) => post.id === updatedPost.id ? updatedPost : post),
-      )
-    },
-    onError: (error) => setPostEditError(error instanceof Error ? error.message : 'We could not update your post.'),
   })
   const moderatePost = useMutation({
     mutationFn: ({ id, action }: { id: number; action: 'flag' | 'unflag' | 'timeout' }) => api.moderatePost(id, action),
@@ -2637,7 +2584,7 @@ function CommunityScreen() {
       <main className="page-content community-page">
         <section className="community-hero">
           <img
-            src="/assets/optimized/community-circle.webp"
+            src="/assets/community-circle.png"
             alt="A group of friends supporting each other"
           />
           <SectionHeading
@@ -2768,19 +2715,7 @@ function CommunityScreen() {
                         • {new Date(post.created_at).toLocaleString()}
                       </span>
                     </div>
-                    {editingPostId === post.id ? (
-                      <form className="post-edit" onSubmit={(event) => { event.preventDefault(); const text = editingPostDraft.trim(); if (text) editPost.mutate({ id: post.id, text }) }}>
-                        <textarea aria-label="Edit post" value={editingPostDraft} onChange={(event) => { setPostEditError(''); setEditingPostDraft(event.target.value) }} maxLength={2000} autoFocus />
-                        <div className="post-edit__actions">
-                          <button className="button button--secondary button--small" type="submit" disabled={!editingPostDraft.trim() || editPost.isPending}>Save</button>
-                          <button className="button button--secondary button--small" type="button" onClick={() => { setEditingPostId(null); setPostEditError('') }}>Cancel</button>
-                        </div>
-                        {postEditError && <p className="form-error" role="alert">{postEditError}</p>}
-                      </form>
-                    ) : <>
-                      <p>{post.text}</p>
-                      {post.mine && <button className="edit-post-button" type="button" aria-label="Edit post" onClick={() => { setPostEditError(''); setEditingPostId(post.id); setEditingPostDraft(post.text) }}>Edit post</button>}
-                    </>}
+                    <p>{post.text}</p>
                     {post.post_type === 'shared_quote' && <span className="shared-quote-badge"><Quotes size={15} weight="fill" /> Shared quote</span>}
                     {post.image_url && (
                       <img
@@ -2840,13 +2775,12 @@ function CommunityScreen() {
                                 <strong>{comment.author}</strong>
                                 {editingCommentId === comment.id ? (
                                   <form className="post-reply__edit" onSubmit={(event) => { event.preventDefault(); const text = editingCommentDraft.trim(); if (text) editReply.mutate({ id: comment.id, text }) }}>
-                                    <input aria-label="Edit reply" value={editingCommentDraft} onChange={(event) => { setCommentEditError(''); setEditingCommentDraft(event.target.value) }} maxLength={1000} autoFocus />
+                                    <input value={editingCommentDraft} onChange={(event) => setEditingCommentDraft(event.target.value)} maxLength={1000} autoFocus />
                                     <button className="button button--secondary button--small" type="submit" disabled={!editingCommentDraft.trim() || editReply.isPending}>Save</button>
-                                    <button className="button button--secondary button--small" type="button" onClick={() => { setEditingCommentId(null); setCommentEditError('') }}>Cancel</button>
+                                    <button className="button button--secondary button--small" type="button" onClick={() => setEditingCommentId(null)}>Cancel</button>
                                   </form>
                                 ) : <p>{comment.text}</p>}
-                                {comment.mine && editingCommentId !== comment.id && <button className="edit-reply-button" type="button" onClick={() => { setCommentEditError(''); setEditingCommentId(comment.id); setEditingCommentDraft(comment.text) }}>Edit</button>}
-                                {editingCommentId === comment.id && commentEditError && <p className="form-error" role="alert">{commentEditError}</p>}
+                                {(comment.mine || comment.author === profile.data?.name) && editingCommentId !== comment.id && <button className="edit-reply-button" type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentDraft(comment.text) }}>Edit</button>}
                               </div>
                             </div>
                           ))}
@@ -2923,7 +2857,7 @@ function CommunityScreen() {
               <p className="announcement-card__intro">The latest little updates from your Safe Space.</p>
               <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>Game night is here</strong><p>Friendly rooms, bot play, and game-night rules are ready whenever you are.</p><Link to="/games">Explore the games <ArrowRight size={15} /></Link></div></div>
               <div className="announcement-item"><span className="announcement-item__badge">New</span><div><strong>ABC Fast or Slow is now available</strong><p>Spin the letter wheel, choose your pace, and race to find creative answers.</p><Link to="/games">Play ABC Fast or Slow <ArrowRight size={15} /></Link></div></div>
-              {(announcementsQuery.data ?? []).map((announcement) => <div className="announcement-item" key={announcement.id}><span className="announcement-item__badge announcement-item__badge--sage">New</span><div>{announcement.image_url && <img className="announcement-item__image" src={assetUrl(announcement.image_url)} alt="" loading="lazy" decoding="async" />}</div><div><strong>{announcement.title}</strong><p>{announcement.body}</p>{announcement.cta_label && announcement.cta_path && <a href={announcement.cta_path}>{announcement.cta_label} <ArrowRight size={15} /></a>}</div></div>)}
+              {(announcementsQuery.data ?? []).map((announcement) => <div className="announcement-item" key={announcement.id}><span className="announcement-item__badge announcement-item__badge--sage">New</span><div>{announcement.image_url && <img className="announcement-item__image" src={announcement.image_url} alt="" />}</div><div><strong>{announcement.title}</strong><p>{announcement.body}</p>{announcement.cta_label && announcement.cta_path && <a href={announcement.cta_path}>{announcement.cta_label} <ArrowRight size={15} /></a>}</div></div>)}
             </section>
             <section className="guidelines-card">
               <div className="card-title">
@@ -3174,12 +3108,12 @@ function GamesScreen() {
   const roomsQuery = useQuery({
     queryKey: ['rooms', roomsPage],
     queryFn: () => api.rooms(roomsPage, 5),
-    refetchInterval: 5000,
+    refetchInterval: 2500,
   })
   const winnersQuery = useQuery({
     queryKey: ['game-winners'],
     queryFn: () => api.winners(1, 5),
-    refetchInterval: 30_000,
+    refetchInterval: 10000,
   })
   const queryClient = useQueryClient()
   const join = useMutation({
@@ -3195,16 +3129,13 @@ function GamesScreen() {
   })
   const playGame = useMutation({
     mutationFn: async (game: GameDefinition) => {
-      const catalogGame = (gamesQuery.data ?? []).find((entry) => entry.name === game.name)
-        ?? (await gamesQuery.refetch()).data?.find((entry) => entry.name === game.name)
-      if (!catalogGame?.id) throw new Error('This game is not available yet')
+      if (!game.id) throw new Error('This game is not available yet')
       const room = await api.createRoom({
-        game_id: catalogGame.id,
+        game_id: game.id,
         name: `${game.name} · Friendly bot`,
         max_players: 2,
       })
-      if (catalogGame.name === 'Together') return { kind: 'room' as const, id: room.id }
-      if (catalogGame.name === 'Connect Four') {
+      if (game.name === 'Connect Four') {
         const match = await api.createMatch({
           room_id: room.id,
           with_bot: true,
@@ -3216,9 +3147,7 @@ function GamesScreen() {
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {
-      if (match.kind === 'room')
-        navigate({ to: '/games/rooms/$roomId', params: { roomId: String(match.id) } })
-      else if (match.kind === 'connect-four')
+      if (match.kind === 'connect-four')
         navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
       else
         navigate({
@@ -3246,11 +3175,8 @@ function GamesScreen() {
   const selectedGame = availableGames.find((game) => game.id === roomGameId)
   const maxRoomPlayers = gameRoomCapacity(selectedGame?.name)
   useEffect(() => {
-    setRoomPlayers((current) => {
-      const isAbc = selectedGame?.name.trim().toLowerCase() === 'abc fast or slow'
-      return isAbc ? maxRoomPlayers : Math.min(current, maxRoomPlayers)
-    })
-  }, [maxRoomPlayers, selectedGame?.name])
+    if (roomPlayers > maxRoomPlayers) setRoomPlayers(maxRoomPlayers)
+  }, [maxRoomPlayers, roomPlayers])
   const rooms = roomsQuery.data ?? []
   const firstGameId = availableGames[0]?.id ?? null
   return (
@@ -3263,7 +3189,7 @@ function GamesScreen() {
             description="Play, connect, and unwind with the community. Jump in for fun, friendly competition, and good vibes!"
           />
           <img
-            src="/assets/optimized/community-circle.webp"
+            src="/assets/community-circle.png"
             alt="Friends playing games together"
           />
         </section>
@@ -3342,14 +3268,14 @@ function GamesScreen() {
             </label>
             <label className="field-label">
               Players
-              {Number.isFinite(maxRoomPlayers) ? <select
+              <select
                 value={roomPlayers}
                 onChange={(event) => setRoomPlayers(Number(event.target.value))}
               >
                 {[2, 3, 4, 5, 6, 7, 8].filter((count) => count <= maxRoomPlayers).map((count) => (
                   <option value={count} key={count}>{count} players</option>
                 ))}
-              </select> : <input type="number" min="2" value={roomPlayers} onChange={(event) => setRoomPlayers(Math.max(2, Number(event.target.value) || 2))} aria-label="Number of players" />}
+              </select>
             </label>
             <label className="field-label">
               Open seats
@@ -3549,27 +3475,6 @@ function GamesScreen() {
                       Enter game
                     </button>
                   )}
-                  {room.status === 'active' && room.match_id && (
-                    <button
-                      className="button button--small button--secondary room-spectate-button"
-                      type="button"
-                      aria-label={`Watch ${room.name}`}
-                      title="Watch game"
-                      onClick={() =>
-                        room.game === 'Connect Four'
-                          ? navigate({
-                              to: '/games/play/$matchId',
-                              params: { matchId: room.match_id! },
-                            })
-                          : navigate({
-                              to: '/games/session/$matchId',
-                              params: { matchId: room.match_id! },
-                            })
-                      }
-                    >
-                      <Eye size={17} aria-hidden="true" /> <span className="sr-only">Watch game</span>
-                    </button>
-                  )}
                 </div>
               ))
             )}
@@ -3594,10 +3499,10 @@ function GamesScreen() {
             {winnersQuery.data?.length ? winnersQuery.data.map((winner) => (
               <div className="winner-row" key={`${winner.position}-${winner.name}`}>
                 <span className="winner-rank" aria-label={`Position ${winner.position}`}>{winner.position}</span>
-                <Avatar initials={winner.name.slice(0, 1).toUpperCase()} color={winner.position === 1 ? 'gold' : 'sage'} imageUrl={winner.avatar_url} showPresence={false} />
+                <Avatar initials={winner.name.slice(0, 1).toUpperCase()} color={winner.position === 1 ? 'gold' : 'sage'} imageUrl={winner.avatar_url} />
                 <div>
                   <strong>{winner.name}</strong>
-                  <small>{winner.game} · Level {winner.level}</small>
+                  <small>{winner.game} · Level {winner.level} · {winner.streak} win streak</small>
                 </div>
               </div>
             )) : !winnersQuery.isLoading && (
@@ -3745,18 +3650,20 @@ function BugReportWidget() {
 }
 
 function LeaderboardScreen() {
-  const [period, setPeriod] = useState<LeaderboardPeriod>('day')
+  const [period, setPeriod] = useState<LeaderboardPeriod>('week')
   const [page, setPage] = useState(1)
   const leaderboard = useQuery({
     queryKey: ['leaderboard', period, page],
     queryFn: () => api.leaderboard(period, page, 10),
     refetchInterval: 60_000,
-    refetchOnMount: false,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
   const progress = useQuery({
     queryKey: ['leaderboard-me', period],
     queryFn: () => api.leaderboardMe(period),
-    refetchOnMount: false,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
   const entries = leaderboard.data ?? []
   const isRefreshing = leaderboard.isFetching || progress.isFetching
@@ -3834,7 +3741,6 @@ function LeaderboardScreen() {
                   : 'filter-chip'
               }
               type="button"
-              aria-pressed={period === value}
               onClick={() => {
                 setPeriod(value)
                 setPage(1)
@@ -4828,14 +4734,7 @@ function ProtectedApp({
   if (!sessionCheckEnabled || currentUser.isPending)
     return (
       <main className="page-content auth-gate">
-        {currentUser.failureCount > 0 ? (
-          <ServerWakeLoader
-            context="game"
-            attempt={currentUser.failureCount - 1}
-          />
-        ) : (
-          <GeneralLoader label="Checking your safe-space session…" />
-        )}
+        <GeneralLoader label="Checking your safe-space session…" />
       </main>
     )
   if (currentUser.isError && !isUnauthenticated)

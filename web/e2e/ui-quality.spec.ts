@@ -23,14 +23,9 @@ const routes = [
   ['Admin', '/admin'],
 ] as const
 
-async function waitForAppReady(page: Page) {
-  await page.waitForFunction(() => document.documentElement.dataset.clientReady === 'true', undefined, { timeout: 110_000 })
-}
-
 for (const [name, route] of routes) {
   test(`${name}: accessibility and interaction baseline`, async ({ page }) => {
-    await page.goto(route, { waitUntil: 'domcontentloaded' })
-    await waitForAppReady(page)
+    await page.goto(route, { waitUntil: 'networkidle' })
     const missingAlt = await page.locator('img').evaluateAll((images) => images.filter((image) => !image.hasAttribute('alt')).map((image) => image.outerHTML.slice(0, 180)))
     expect(missingAlt, `${name} has images without alt text`).toHaveLength(0)
     const unlabeledControls = await page.locator('input:not([type="hidden"]), textarea, select').evaluateAll((controls) => controls.filter((control) => {
@@ -52,8 +47,7 @@ for (const [name, route] of routes) {
 
   test(`${name}: no horizontal overflow on mobile`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
-    await page.goto(route, { waitUntil: 'domcontentloaded' })
-    await waitForAppReady(page)
+    await page.goto(route, { waitUntil: 'networkidle' })
     const dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }))
     expect(dimensions.scrollWidth, `${name} overflows horizontally at mobile width`).toBeLessThanOrEqual(dimensions.clientWidth)
   })
@@ -62,8 +56,7 @@ for (const [name, route] of routes) {
 test('Mobile navigation is left-aligned when opened', async ({ page }) => {
   await authenticate(page)
   await page.setViewportSize({ width: 375, height: 667 })
-  await page.goto('/community', { waitUntil: 'domcontentloaded' })
-  await waitForAppReady(page)
+  await page.goto('/community', { waitUntil: 'networkidle' })
   await page.getByRole('button', { name: 'Open navigation menu' }).click()
   const navigation = page.locator('#main-navigation')
   await expect(navigation).toBeVisible()
@@ -78,15 +71,13 @@ test('Mobile navigation is left-aligned when opened', async ({ page }) => {
 test('Community stacks into one column on mobile', async ({ page }) => {
   await authenticate(page)
   await page.setViewportSize({ width: 375, height: 667 })
-  await page.goto('/community', { waitUntil: 'domcontentloaded' })
-  await waitForAppReady(page)
+  await page.goto('/community', { waitUntil: 'networkidle' })
   const layout = await page.locator('.community-layout').evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)
   expect(layout).toBe(1)
 })
 
 test('Community keeps staff announcements private from members', async ({ page }) => {
   await authenticate(page)
-  await page.goto('/community', { waitUntil: 'domcontentloaded' })
-  await waitForAppReady(page)
+  await page.goto('/community', { waitUntil: 'networkidle' })
   await expect(page.getByRole('tab', { name: /Announcements · admin/i })).toHaveCount(0)
 })

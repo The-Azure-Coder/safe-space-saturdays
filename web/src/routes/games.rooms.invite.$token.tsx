@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
-import { Eye } from '@phosphor-icons/react'
 
 import { api } from '../lib/api'
 
@@ -35,18 +34,7 @@ function RoomInviteScreen() {
       await navigate({ to: '/games/rooms/$roomId', params: { roomId: String(result.room.id) } })
     },
   })
-  const spectateGuest = useMutation({
-    mutationFn: () => api.spectateGuestRoom(token, name.trim()),
-    onSuccess: async (result) => {
-      queryClient.setQueryData(['me'], result.user)
-      if (!result.room.match_id) return
-      await navigate({
-        to: result.room.game === 'Connect Four' ? '/games/play/$matchId' : '/games/session/$matchId',
-        params: { matchId: result.room.match_id },
-      })
-    },
-  })
-  const error = invite.error || join.error || joinGuest.error || spectateGuest.error
+  const error = invite.error || join.error || joinGuest.error
   const isLoggedIn = Boolean(currentUser.data)
 
   if (invite.isLoading) {
@@ -57,24 +45,18 @@ function RoomInviteScreen() {
   }
 
   const room = invite.data
-  const busy = join.isPending || joinGuest.isPending || spectateGuest.isPending
+  const busy = join.isPending || joinGuest.isPending
   return <main className="public-room-invite page-content">
     <section className="auth-card public-room-invite__card">
       <span className="eyebrow">You’re invited to play</span>
       <h1>{room.name}</h1>
       <p className="muted-text">{room.game} · {room.players} of {room.max_players} seats filled</p>
-      {room.status === 'active' && <p className="spectator-banner" role="status"><Eye size={18} aria-hidden="true" /> This game is live. You can watch without taking a player seat.</p>}
-      {room.status === 'active' && room.match_id && isLoggedIn && <button className="button button--primary" type="button" disabled={busy} onClick={() => void navigate({ to: room.game === 'Connect Four' ? '/games/play/$matchId' : '/games/session/$matchId', params: { matchId: room.match_id! } })}><Eye size={18} /> Watch live game</button>}
+      {room.status === 'active' && <p className="form-error" role="alert">This game has already started. Ask the host to invite you to the next round.</p>}
       {room.status === 'open' && isLoggedIn && <button className="button button--primary" type="button" disabled={busy} onClick={() => join.mutate()}>{join.isPending ? 'Joining…' : 'Join room'}</button>}
       {room.status === 'open' && !isLoggedIn && <form onSubmit={(event) => { event.preventDefault(); if (name.trim()) joinGuest.mutate() }}>
         <label className="field-label" htmlFor="guest-name">Your display name</label>
         <input id="guest-name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} required placeholder="e.g. Alex" />
         <button className="button button--primary" type="submit" disabled={busy || name.trim().length < 2}>{joinGuest.isPending ? 'Joining…' : 'Join as guest'}</button>
-      </form>}
-      {room.status === 'active' && !isLoggedIn && <form onSubmit={(event) => { event.preventDefault(); if (name.trim()) spectateGuest.mutate() }}>
-        <label className="field-label" htmlFor="guest-name">Your display name</label>
-        <input id="guest-name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} required placeholder="e.g. Alex" />
-        <button className="button button--primary" type="submit" disabled={busy || name.trim().length < 2}>{spectateGuest.isPending ? 'Opening game…' : 'Watch as guest'}</button>
       </form>}
       {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : 'We could not join this room.'}</p>}
     </section>

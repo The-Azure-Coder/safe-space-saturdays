@@ -66,10 +66,9 @@ def test_ludo_six_releases_a_token_and_grants_another_roll(
 
 def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=(1,))
-    chooser = int(state["letter_chooser"])
-    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
+    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
     state["picker_started_at"] = time.time() - 1
-    apply_action(state, chooser, {"action": "stop_picker"})
+    apply_action(state, 0, {"action": "stop_picker"})
     bot_submission = bot_action(state, 1)
     apply_action(state, 0, {"action": "submit", "answers": bot_submission["answers"]})
     apply_action(state, 1, bot_submission)
@@ -81,8 +80,6 @@ def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
             for category in CATEGORIES:
                 action = {"action": "vote", "target": target, "category": category, "valid": True}
                 apply_action(state, player, action)
-    apply_action(state, 0, {"action": "confirm_results"})
-    apply_action(state, 1, {"action": "confirm_results"})
     assert state["phase"] == "round_result"
     assert state["scores"] == [0, 0]  # identical answers are duplicates
     apply_action(state, 0, {"action": "next_round"})
@@ -90,90 +87,23 @@ def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
     assert state["round"] == 2
 
 
-def test_abc_fast_or_slow_supports_six_players() -> None:
-    state = new_state("abc-fast-slow", player_count=6, bot_players=())
-    assert state["player_count"] == 6
-    assert len(state["players"]) == 6
-    assert len(state["submitted"]) == 6
-
-
-def test_abc_fast_or_slow_supports_host_defined_players_and_categories() -> None:
-    state = new_state("abc-fast-slow", player_count=9, bot_players=(),)
-    state["categories"] = ["Animal", "Movie", "Song"]
-    state["majority_invalid"] = True
-    assert state["player_count"] == 9
-    assert state["categories"] == ["Animal", "Movie", "Song"]
-
-
-def test_abc_breakdown_explains_duplicate_and_invalid_points() -> None:
-    state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    state["letter"] = "A"
-    state["phase"] = "voting"
-    state["answers"] = [{category: "apple" for category in CATEGORIES}, {category: "apple" for category in CATEGORIES}]
-    state["voted"] = [True, True]
-    state["votes"] = [
-        {f"1:{category}": True for category in CATEGORIES},
-        {f"0:{category}": True for category in CATEGORIES},
-    ]
-    from app.games.abc_fast_slow import _score_round
-
-    _score_round(state)
-    assert state["scores"] == [0, 0]
-    assert len(state["round_breakdown"]) == len(CATEGORIES) * 2
-    assert {row["reason"] for row in state["round_breakdown"]} == {"Duplicate answer"}
-
-
 def test_abc_human_players_validate_only_each_other_and_advance() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    chooser = int(state["letter_chooser"])
-    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
+    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
     state["picker_started_at"] = time.time() - 1
-    apply_action(state, chooser, {"action": "stop_picker"})
+    apply_action(state, 0, {"action": "stop_picker"})
     answers = {category: "apple" for category in CATEGORIES}
     apply_action(state, 0, {"action": "submit", "answers": answers})
     apply_action(state, 1, {"action": "submit", "answers": answers})
-    assert state["phase"] == "voting"
     with pytest.raises(IllegalMove, match="another player's"):
         apply_action(state, 0, {"action": "vote", "target": 0, "category": "Animal", "valid": True})
     for player, target in ((0, 1), (1, 0)):
         for category in CATEGORIES:
             apply_action(state, player, {"action": "vote", "target": target, "category": category, "valid": True})
-    apply_action(state, 0, {"action": "confirm_results"})
-    apply_action(state, 1, {"action": "confirm_results"})
     assert state["phase"] == "round_result"
     apply_action(state, 1, {"action": "next_round"})
     assert state["phase"] == "letter_picker"
     assert state["round"] == 2
-
-
-def test_abc_only_rotating_letter_chooser_can_control_picker() -> None:
-    state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    chooser = int(state["letter_chooser"])
-    other = 1 - chooser
-    with pytest.raises(IllegalMove, match="letter chooser"):
-        apply_action(state, other, {"action": "start_picker", "speed": "slow"})
-    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
-    with pytest.raises(IllegalMove, match="letter chooser"):
-        apply_action(state, other, {"action": "stop_picker"})
-
-
-def test_abc_invalid_vote_denies_points() -> None:
-    state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    chooser = int(state["letter_chooser"])
-    other = 1 - chooser
-    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
-    state["picker_started_at"] = time.time() - 1
-    apply_action(state, chooser, {"action": "stop_picker"})
-    answers = {category: f"{state['letter'].lower()}answer" for category in CATEGORIES}
-    apply_action(state, 0, {"action": "submit", "answers": answers})
-    apply_action(state, 1, {"action": "submit", "answers": answers})
-    for player, target in ((0, 1), (1, 0)):
-        for category in CATEGORIES:
-            apply_action(state, player, {"action": "vote", "target": target, "category": category, "valid": False})
-    apply_action(state, 0, {"action": "confirm_results"})
-    apply_action(state, 1, {"action": "confirm_results"})
-    assert state["phase"] == "round_result"
-    assert state["scores"] == [0, 0]
 
 
 def test_abc_selects_a_random_dictator_and_rotates_the_letter_chooser() -> None:
@@ -202,37 +132,14 @@ def test_abc_selects_a_random_dictator_and_rotates_the_letter_chooser() -> None:
 
 def test_abc_timeout_locks_blank_answers() -> None:
     state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    chooser = int(state["letter_chooser"])
-    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
+    apply_action(state, 0, {"action": "start_picker", "speed": "slow"})
     state["picker_started_at"] = time.time() - 1
-    apply_action(state, chooser, {"action": "stop_picker"})
+    apply_action(state, 0, {"action": "stop_picker"})
     assert state["letter"] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     state["deadline"] = 0
     apply_action(state, 0, {"action": "timeout"})
     assert state["submitted"][0] is True
     assert state["answers"][0] == {category: "" for category in CATEGORIES}
-
-
-def test_abc_picker_timeout_recovers_with_server_selected_letter() -> None:
-    state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    state["picker_deadline"] = 0
-    apply_action(state, 0, {"action": "picker_timeout"})
-    assert state["phase"] == "answering"
-    assert state["letter"] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    assert state["deadline"] is not None
-
-
-def test_abc_timeout_submits_answers_typed_before_deadline() -> None:
-    state = new_state("abc-fast-slow", player_count=2, bot_players=())
-    chooser = int(state["letter_chooser"])
-    apply_action(state, chooser, {"action": "start_picker", "speed": "slow"})
-    state["picker_started_at"] = time.time() - 1
-    apply_action(state, chooser, {"action": "stop_picker"})
-    typed = {category: f"{state['letter'].lower()} word" for category in CATEGORIES}
-    state["deadline"] = 0
-    apply_action(state, 0, {"action": "timeout", "answers": typed})
-    assert state["answers"][0] == typed
-    assert state["phase"] == "voting"
 
 
 def test_ludo_capture_sends_an_opponent_home_and_grants_extra_turn(
@@ -345,23 +252,6 @@ def test_domino_snapshot_hides_bot_hands_but_exposes_counts() -> None:
     assert public_state["hands"][1:] == [[], [], []]
     assert public_state["hand_counts"] == [7, 7, 7, 7]
     assert all(len(hand) == 7 for hand in state["hands"])
-
-
-def test_domino_spectator_snapshot_hides_every_hand() -> None:
-    state = new_state("dominoes", player_count=4)
-    match = UniversalMatch(
-        id="domino-spectator-test",
-        room_id=1,
-        game_type="dominoes",
-        state=state,
-        player_ids={1: 0},
-    )
-
-    spectator_state = match.snapshot(spectator=True)["state"]
-
-    assert spectator_state["seat_index"] == -1
-    assert spectator_state["hands"] == [[], [], [], []]
-    assert spectator_state["hand_counts"] == [7, 7, 7, 7]
 
 
 def test_four_player_dominoes_deals_every_tile_and_cycles_turns() -> None:
@@ -478,7 +368,6 @@ def test_scribble_word_choice_preview_warm_guess_and_timeout() -> None:
     state["guess_deadline"] = 9_999_999_999
     state = apply_action(state, 1, {"action": "guess", "text": "car"})
     assert state["guesses"][-1]["warm"] is True
-    state["guess_deadline"] = 0
     state = apply_action(state, 1, {"action": "timeout"})
     assert state["phase"] == "round_result"
 
@@ -499,21 +388,6 @@ def test_play_again_resets_the_board_but_keeps_scores() -> None:
     assert updated["phase"] == "choosing"
     assert updated["strokes"] == []
     assert updated["scores"] == [250, 175]
-
-
-def test_checkers_play_again_requires_a_result_and_resets_the_board() -> None:
-    state = new_state("checkers", player_count=2, bot_players=(1,))
-    with pytest.raises(IllegalMove, match="Finish the current game"):
-        apply_action(state, 0, {"action": "play_again"})
-
-    state["winner"] = 0
-    state["board"] = [[0 for _ in range(8)] for _ in range(8)]
-    updated = apply_action(state, 0, {"action": "play_again"})
-
-    assert updated["winner"] is None
-    assert updated["draw"] is False
-    assert updated["current_player"] == 0
-    assert sum(piece != 0 for row in updated["board"] for piece in row) == 24
 
 
 def test_bingo_marks_drawn_numbers_and_trivia_scores() -> None:

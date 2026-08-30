@@ -1,10 +1,8 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 
@@ -13,11 +11,6 @@ from app.db import engine
 from app.games.realtime import realtime_bus
 from app.routes.api import router as api_router
 from app.routes.health import router as health_router
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
 
 settings = get_settings()
 settings.upload_dir.mkdir(parents=True, exist_ok=True)
@@ -37,11 +30,6 @@ app = FastAPI(
     docs_url=None if settings.app_env == "production" else "/docs",
     redoc_url=None if settings.app_env == "production" else "/redoc",
     openapi_url=None if settings.app_env == "production" else "/openapi.json",
-)
-app.add_middleware(
-    GZipMiddleware,
-    minimum_size=500,
-    compresslevel=6,
 )
 app.add_middleware(
     CORSMiddleware,

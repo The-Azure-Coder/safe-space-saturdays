@@ -1,6 +1,6 @@
 import asyncio
-import logging
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
+from dataclasses import replace
 from typing import Any
 from uuid import uuid4
 
@@ -15,8 +15,6 @@ from app.games.connect_four import (
     initial_state,
     serialize,
 )
-
-logger = logging.getLogger("safe_space_saturdays.games.websocket")
 
 
 @dataclass
@@ -34,12 +32,6 @@ class LiveMatch:
     reward_granted: bool = False
     sockets: dict[WebSocket, int] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    settlement_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    bot_task: asyncio.Task[None] | None = None
-    version: int = 0
-
-    def spectator_count(self) -> int:
-        return sum(user_id not in self.player_ids for user_id in self.sockets.values())
 
     def snapshot(self, user_id: int | None = None) -> dict[str, Any]:
         player = self.player_ids.get(user_id, 1) if user_id is not None else None
@@ -52,7 +44,6 @@ class LiveMatch:
             "players": self.players,
             "game_level": getattr(self, "game_level", 1),
             "game_streak": getattr(self, "game_streak", 0),
-            "spectator_count": self.spectator_count(),
         }
 
 
@@ -67,16 +58,11 @@ class MatchManager:
         user_id: int,
         with_bot: bool,
         difficulty: str,
-        game_level: int | dict[int, int] = 1,
+        game_level: int = 1,
         game_streak: int = 0,
         player_ids: dict[int, int] | None = None,
         player_names: dict[int, str] | None = None,
     ) -> LiveMatch:
-        # Preserve compatibility with callers that historically passed the
-        # player-seat map as the fifth positional argument.
-        if isinstance(game_level, dict) and player_ids is None:
-            player_ids = game_level
-            game_level = 1
         match = LiveMatch(
             id=str(uuid4()),
             room_id=room_id,
@@ -107,103 +93,56 @@ class MatchManager:
         return self.matches.get(match_id)
 
     async def broadcast(self, match: LiveMatch, message: dict[str, Any]) -> None:
-        message = {**message, "spectator_count": match.spectator_count()}
         disconnected: list[WebSocket] = []
         for socket in list(match.sockets):
             try:
                 await socket.send_json(message)
             except Exception:
-                logger.warning(
-                    "connect_four_socket_send_failed match_id=%s", match.id, exc_info=True
-                )
                 disconnected.append(socket)
         for socket in disconnected:
             match.sockets.pop(socket, None)
 
-    async def move(
-        self, match: LiveMatch, user_id: int, column: int, *, broadcast: bool = True
-    ) -> dict[str, Any]:
+    async def move(self, match: LiveMatch, user_id: int, column: int) -> dict[str, Any]:
         async with match.lock:
-            return await self.move_locked(match, user_id, column, broadcast=broadcast)
-
-    async def move_locked(
-        self,
-        match: LiveMatch,
-        user_id: int,
-        column: int,
-        *,
-        broadcast: bool = True,
-        run_bot: bool = True,
-    ) -> dict[str, Any]:
-        stored_player = match.player_ids.get(user_id)
-        if stored_player is None:
-            raise IllegalMove("You are not a player in this match")
-        player: Player = 1 if stored_player == 1 else 2
-        match.state = apply_move(match.state, player, column)
-        if broadcast:
+            stored_player = match.player_ids.get(user_id)
+            if stored_player is None:
+                raise IllegalMove("You are not a player in this match")
+            player: Player = 1 if stored_player == 1 else 2
+            match.state = apply_move(match.state, player, column)
             await self.broadcast(match, {"type": "state", "state": match.snapshot()})
-        bot_turn = (
-            match.bot_player == match.state.current_player
-            and not match.state.winner
-            and not match.state.draw
-        )
-        if bot_turn and run_bot:
-            await asyncio.sleep(0.55)
-            bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
-            match.state = apply_move(match.state, 2, bot_column)
-            if broadcast:
+            bot_turn = (
+                match.bot_player == match.state.current_player
+                and not match.state.winner
+                and not match.state.draw
+            )
+            if bot_turn:
+                await asyncio.sleep(0.55)
+                bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
+                match.state = apply_move(match.state, 2, bot_column)
                 await self.broadcast(
                     match, {"type": "state", "state": match.snapshot(), "bot": True}
                 )
-        return match.snapshot(user_id)
+            return match.snapshot(user_id)
 
-    async def bot_move_locked(
-        self, match: LiveMatch, *, broadcast: bool = True
-    ) -> dict[str, Any]:
-        if (
-            match.bot_player != match.state.current_player
-            or match.state.winner
-            or match.state.draw
-        ):
-            return match.snapshot()
-        bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
-        match.state = apply_move(match.state, 2, bot_column)
-        if broadcast:
-            await self.broadcast(match, {"type": "state", "state": match.snapshot(), "bot": True})
-        return match.snapshot()
-
-    async def play_again(
-        self, match: LiveMatch, user_id: int, *, broadcast: bool = True
-    ) -> dict[str, Any]:
+    async def play_again(self, match: LiveMatch, user_id: int) -> dict[str, Any]:
         async with match.lock:
-            return await self.play_again_locked(match, user_id, broadcast=broadcast)
-
-    async def play_again_locked(
-        self,
-        match: LiveMatch,
-        user_id: int,
-        *,
-        broadcast: bool = True,
-        run_bot: bool = True,
-    ) -> dict[str, Any]:
-        if user_id not in match.player_ids:
-            raise IllegalMove("You are not a player in this match")
-        if not match.state.winner and not match.state.draw:
-            raise IllegalMove("Finish the current game before playing again")
-        match.starting_player = 2 if match.starting_player == 1 else 1
-        match.state = initial_state()
-        match.state = replace(match.state, current_player=match.starting_player)
-        match.reward_granted = False
-        if match.bot_player == match.state.current_player and run_bot:
-            await asyncio.sleep(0.55)
-            bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
-            match.state = apply_move(match.state, 2, bot_column)
-        # Publish one authoritative reset after any bot opening move. This
-        # prevents clients from briefly seeing an interactive empty board
-        # before the bot has taken its alternating opening turn.
-        if broadcast:
+            if user_id not in match.player_ids:
+                raise IllegalMove("You are not a player in this match")
+            if not match.state.winner and not match.state.draw:
+                raise IllegalMove("Finish the current game before playing again")
+            match.starting_player = 2 if match.starting_player == 1 else 1
+            match.state = initial_state()
+            match.state = replace(match.state, current_player=match.starting_player)
+            match.reward_granted = False
+            if match.bot_player == match.state.current_player:
+                await asyncio.sleep(0.55)
+                bot_column = choose_bot_column(match.state, 2, match.bot_difficulty)
+                match.state = apply_move(match.state, 2, bot_column)
+            # Publish one authoritative reset after any bot opening move. This
+            # prevents clients from briefly seeing an interactive empty board
+            # before the bot has taken its alternating opening turn.
             await self.broadcast(match, {"type": "state", "state": match.snapshot()})
-        return match.snapshot()
+            return match.snapshot()
 
 
 match_manager = MatchManager()

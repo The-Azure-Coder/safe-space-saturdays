@@ -14,10 +14,8 @@ from app.games.scribble import apply_scribble_action, bot_draw_action, new_scrib
 from app.games.trivia import apply_trivia_action, new_trivia_state, trivia_bot_action
 from app.games.abc_fast_slow import abc_bot_action, apply_abc_action, new_abc_state, next_abc_round
 from app.games.checkers import checkers_bot_action, apply_checkers_action, new_checkers_state, normalise_checkers_state
-from app.games.together import apply_together_action, new_together_state
-from app.games.csec_exam import apply_csec_exam_action, new_csec_exam_state
 
-GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow", "checkers", "together", "csec-it-mock-exam"}
+GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow", "checkers"}
 _RNG = random.Random()
 # 52-56 are the five coloured home-lane squares; 57 is the centre HOME.
 LUDO_FINISH = 57
@@ -86,10 +84,6 @@ def new_state(
 ) -> dict[str, Any]:
     if game_type not in GAME_TYPES:
         raise IllegalMove("This game is not available yet")
-    if game_type == "together":
-        return new_together_state(player_count)
-    if game_type == "csec-it-mock-exam":
-        return new_csec_exam_state(player_count)
     if game_type == "ludo":
         players = _ludo_players(player_count)
         return {
@@ -573,10 +567,6 @@ def _apply_domino_action(
 
 
 def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> dict[str, Any]:
-    if state.get("game") == "csec-it-mock-exam":
-        return apply_csec_exam_action(state, player, action)
-    if state.get("game") == "together":
-        return apply_together_action(state, player, action)
     game = state["game"]
     if action.get("action") == "play_again":
         if state.get("winner") is None and not state.get("draw", False):
@@ -589,7 +579,6 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
         )
         replacement["game_level"] = state.get("game_level", 1)
         replacement["game_streak"] = state.get("game_streak", 0)
-        replacement["bot_difficulty"] = state.get("bot_difficulty", "friendly")
         if old_players and replacement.get("players"):
             replacement["players"] = old_players
         for score_key in ("scores", "round_wins"):
@@ -690,10 +679,5 @@ def bot_action(state: dict[str, Any], player: int) -> dict[str, Any]:
         return abc_bot_action(state, player)
     if game == "checkers":
         normalise_checkers_state(state)
-        return checkers_bot_action(
-            state,
-            player,
-            state.get("bot_difficulty", "friendly"),
-            int(state.get("game_level", 1)),
-        )
+        return checkers_bot_action(state, player, state.get("bot_difficulty", "friendly"))
     return {"answer": state["correct"] if _RNG.random() > 0.35 else _RNG.randrange(4)}

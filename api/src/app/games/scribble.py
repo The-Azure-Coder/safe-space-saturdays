@@ -264,13 +264,8 @@ def apply_scribble_action(state: dict[str, Any], player: int, action: dict[str, 
         state["phase"], state["last_event"] = "guessing", "The drawing is ready. Take your best guess!"
         state["guess_deadline"] = time.time() + GUESS_SECONDS
     elif kind == "timeout":
-        # Timer messages can arrive from more than one browser, including a
-        # drawer whose local countdown ended at the same time. Treat stale
-        # timeout notifications as harmless idempotent no-ops.
         if state["phase"] != "guessing" or player == drawer:
-            return state
-        if time.time() < float(state.get("guess_deadline") or 0):
-            raise IllegalMove("The guessing timer has not expired")
+            raise IllegalMove("The guessing round is not ready to end")
         state["phase"] = "round_result"
         state["round_winner"] = None
         state["round_points"] = [0 for _ in state["players"]]

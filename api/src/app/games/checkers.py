@@ -8,7 +8,6 @@ the board; player 1 starts at the top and moves down it. Men are encoded as
 from __future__ import annotations
 
 import random
-from copy import deepcopy
 from typing import Any
 
 from app.games.connect_four import IllegalMove
@@ -187,106 +186,15 @@ def apply_checkers_action(state: dict[str, Any], player: int, action: dict[str, 
     return state
 
 
-def _evaluate_position(state: dict[str, Any], bot_player: int) -> int:
-    winner = state.get("winner")
-    if winner is not None:
-        return 100_000 if int(winner) == bot_player else -100_000
-    score = 0
-    for row, board_row in enumerate(state["board"]):
-        for col, piece in enumerate(board_row):
-            owner = _piece_owner(piece)
-            if owner is None:
-                continue
-            value = 175 if _is_king(piece) else 100
-            if not _is_king(piece):
-                value += row * 4 if owner == 1 else (BOARD_SIZE - 1 - row) * 4
-            if 2 <= row <= 5 and 2 <= col <= 5:
-                value += 8
-            score += value if owner == bot_player else -value
-    bot_moves = len(legal_moves(state, bot_player))
-    opponent_moves = len(legal_moves(state, 1 - bot_player))
-    return score + (bot_moves - opponent_moves) * 6
-
-
-def _minimax(
-    state: dict[str, Any],
-    bot_player: int,
-    depth: int,
-    alpha: int,
-    beta: int,
-) -> int:
-    if depth <= 0 or state.get("winner") is not None or state.get("draw", False):
-        return _evaluate_position(state, bot_player)
-    current = int(state["current_player"])
-    moves = legal_moves(state, current)
-    if not moves:
-        return _evaluate_position(state, bot_player)
-    maximizing = current == bot_player
-    best = -1_000_000 if maximizing else 1_000_000
-    for move in moves:
-        candidate = deepcopy(state)
-        apply_checkers_action(
-            candidate,
-            current,
-            {"action": "move", "move": {"from": move["from"], "to": move["to"]}},
-        )
-        score = _minimax(candidate, bot_player, depth - 1, alpha, beta)
-        if maximizing:
-            best = max(best, score)
-            alpha = max(alpha, best)
-        else:
-            best = min(best, score)
-            beta = min(beta, best)
-        if beta <= alpha:
-            break
-    return best
-
-
-def _search_depth_for_level(level: int, piece_count: int = 24) -> int:
-    # Five-ply opening searches are noticeably slow on the single-CPU service.
-    # Unlock that deepest search in the tactically sharper endgame instead.
-    if level >= 5 and piece_count <= 16:
-        return 5
-    return max(2, min(4, level))
-
-
-def _best_minimax_move(
-    state: dict[str, Any],
-    player: int,
-    moves: list[dict[str, Any]],
-    depth: int,
-) -> dict[str, Any]:
-    best_move = moves[0]
-    best_score = -1_000_000
-    alpha = -1_000_000
-    for move in moves:
-        candidate = apply_checkers_action(
-            deepcopy(state),
-            player,
-            {"action": "move", "move": {"from": move["from"], "to": move["to"]}},
-        )
-        score = _minimax(candidate, player, depth - 1, alpha, 1_000_000)
-        if score > best_score:
-            best_move = move
-            best_score = score
-        alpha = max(alpha, best_score)
-    return best_move
-
-
-def checkers_bot_action(
-    state: dict[str, Any],
-    player: int,
-    difficulty: str = "friendly",
-    level: int = 1,
-) -> dict[str, Any]:
+def checkers_bot_action(state: dict[str, Any], player: int, difficulty: str = "friendly") -> dict[str, Any]:
     moves = legal_moves(state, player)
     if not moves:
         raise IllegalMove("The bot has no legal checkers move")
-    effective_level = max(level, 2 if difficulty == "thoughtful" else 1)
-    if effective_level == 1:
-        move = random.choice(moves)
-    else:
-        piece_count = sum(piece != 0 for row in state["board"] for piece in row)
-        depth = _search_depth_for_level(effective_level, piece_count)
-        move = _best_minimax_move(state, player, moves, depth)
+    move = random.choice(moves) if difficulty == "friendly" else max(
+        moves,
+        key=lambda item: (
+            item.get("capture") is not None,
+            item["to"][0] if player == 0 else -item["to"][0],
+        ),
+    )
     return {"action": "move", "move": {"from": move["from"], "to": move["to"]}}

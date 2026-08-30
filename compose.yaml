@@ -33,7 +33,6 @@ services:
   api:
     build:
       context: ./api
-      target: runtime
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
@@ -44,13 +43,9 @@ services:
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
-      # Mount application code for fast local iteration. Dependency changes still
-      # require an image rebuild; source changes are picked up by reload.
-      - ./api/src:/app/src
-      - ./api/migrations:/app/migrations
-      - ./api/alembic.ini:/app/alembic.ini:ro
+      - ./api:/app
       - api-uploads:/app/uploads
-    command: ["sh", "-c", ".venv/bin/alembic upgrade head && exec .venv/bin/uvicorn app.main:app --app-dir src --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src"]
+      - api-venv:/app/.venv
     depends_on:
       db:
         condition: service_healthy
@@ -62,46 +57,25 @@ services:
       timeout: 5s
       retries: 10
 
-  api-test:
-    build:
-      context: ./api
-      target: test
-    environment:
-      APP_ENV: development
-      DATABASE_URL: postgresql+psycopg://app:app@db:5432/app
-      REDIS_URL: redis://redis:6379/0
-      API_CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
-      COOKIE_SECURE: "false"
-    profiles: [test]
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
   web:
     build:
       context: ./web
     environment:
       VITE_API_URL: http://localhost:${API_PORT:-8000}
-      API_PROXY_URL: http://api:8000
+      CHOKIDAR_USEPOLLING: "true"
       PORT: "3000"
-    # Use the Vite dev server against mounted source so UI edits are reflected
-    # without rebuilding the web image.
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    command: npm run dev -- --host 0.0.0.0
     ports:
       - "${WEB_PORT:-3000}:3000"
-    volumes:
-      # Keep the complete Vite workspace on one mount so TanStack Router can
-      # atomically write generated routes and its temporary files.
-      - ./web:/app
-      - web-node-modules:/app/node_modules
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/assets/safe-space-saturdays-logo.jpeg').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 5s
       timeout: 5s
       retries: 12
       start_period: 10s
+    volumes:
+      - ./web:/app
+      - web-node-modules:/app/node_modules
     depends_on:
       api:
         condition: service_healthy
@@ -109,5 +83,6 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  api-venv:
   web-node-modules:
   api-uploads:

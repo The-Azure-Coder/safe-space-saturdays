@@ -3,15 +3,11 @@ import https from 'node:https'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { brotliCompress, gzip } from 'node:zlib'
-import { promisify } from 'node:util'
 
 import handler from './dist/server/server.js'
 
 const port = Number(process.env.PORT || 10000)
 const clientDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'dist/client')
-const compressBrotli = promisify(brotliCompress)
-const compressGzip = promisify(gzip)
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
@@ -19,36 +15,8 @@ const contentTypes = new Map([
   ['.jpg', 'image/jpeg'],
   ['.png', 'image/png'],
   ['.svg', 'image/svg+xml'],
-  ['.avif', 'image/avif'],
   ['.webp', 'image/webp'],
 ])
-
-const hashedAssetPattern = /[-.][a-f0-9]{8,}(?:\.|$)/i
-
-function isCompressible(contentType) {
-  return /^(text\/|application\/(?:javascript|json|wasm)|image\/svg\+xml)/.test(contentType)
-}
-
-async function sendBody(nodeResponse, body, contentType, requestHeaders, cacheControl) {
-  const acceptEncoding = requestHeaders['accept-encoding'] || ''
-  let output = body
-  let contentEncoding = ''
-  if (isCompressible(contentType) && /br/.test(acceptEncoding)) {
-    output = await compressBrotli(body)
-    contentEncoding = 'br'
-  } else if (isCompressible(contentType) && /gzip/.test(acceptEncoding)) {
-    output = await compressGzip(body)
-    contentEncoding = 'gzip'
-  }
-  nodeResponse.setHeader('content-type', contentType)
-  nodeResponse.setHeader('cache-control', cacheControl)
-  if (contentEncoding) {
-    nodeResponse.setHeader('content-encoding', contentEncoding)
-    nodeResponse.setHeader('vary', 'Accept-Encoding')
-  }
-  nodeResponse.setHeader('content-length', output.byteLength)
-  nodeResponse.end(output)
-}
 
 function apiTarget() {
   const configured = process.env.API_PROXY_URL || process.env.VITE_API_URL
@@ -175,11 +143,9 @@ const server = http.createServer(async (nodeRequest, nodeResponse) => {
       try {
         const asset = await readFile(assetPath)
         nodeResponse.statusCode = 200
-        const contentType = contentTypes.get(path.extname(assetPath)) || 'application/octet-stream'
-        const cacheControl = hashedAssetPattern.test(path.basename(assetPath))
-          ? 'public, max-age=31536000, immutable'
-          : 'public, max-age=604800, stale-while-revalidate=86400'
-        await sendBody(nodeResponse, asset, contentType, nodeRequest.headers, cacheControl)
+        nodeResponse.setHeader('content-type', contentTypes.get(path.extname(assetPath)) || 'application/octet-stream')
+        nodeResponse.setHeader('cache-control', 'public, max-age=31536000, immutable')
+        nodeResponse.end(asset)
       } catch {
         nodeResponse.statusCode = 404
         nodeResponse.end('Not Found')
@@ -194,14 +160,9 @@ const server = http.createServer(async (nodeRequest, nodeResponse) => {
       duplex: hasBody ? 'half' : undefined,
     })
     const response = await handler.fetch(request)
-    const body = Buffer.from(await response.arrayBuffer())
     nodeResponse.statusCode = response.status
-    const contentType = response.headers.get('content-type') || 'text/html; charset=utf-8'
-    response.headers.forEach((value, key) => {
-      if (!['content-length', 'content-encoding', 'content-type'].includes(key))
-        nodeResponse.setHeader(key, value)
-    })
-    await sendBody(nodeResponse, body, contentType, nodeRequest.headers, 'no-cache')
+    response.headers.forEach((value, key) => nodeResponse.setHeader(key, value))
+    nodeResponse.end(Buffer.from(await response.arrayBuffer()))
   } catch (error) {
     console.error('SSR request failed', error)
     nodeResponse.statusCode = 500
