@@ -1236,6 +1236,7 @@ function formatCooldown(milliseconds: number) {
 }
 
 function AdminScreen() {
+  const queryClient = useQueryClient()
   const profile = useQuery({ queryKey: ['me'], queryFn: api.me, retry: false })
   const [tab, setTab] = useState<'reports' | 'users' | 'quotes' | 'applications' | 'exams'>('reports')
   const [reportStatus, setReportStatus] = useState('')
@@ -1318,7 +1319,10 @@ function AdminScreen() {
   })
   const gradeExam = useMutation({
     mutationFn: ({ matchId, targetPlayer, questionId, points, feedback }: { matchId: string; targetPlayer: number; questionId: string; points: number; feedback: string }) => api.gradeCsecExam(matchId, { target_player: targetPlayer, question_id: questionId, points, feedback }),
-    onSuccess: () => exams.refetch(),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Array<typeof updated>>(['admin-csec-exams'], (current) => current?.map((exam) => exam.match_id === updated.match_id ? updated : exam) ?? [updated])
+      void exams.refetch()
+    },
   })
   const sendExamResults = useMutation({
     mutationFn: api.sendCsecExamResults,
@@ -1453,6 +1457,7 @@ function AdminScreen() {
             <div className="csec-admin-submission__answers"><h4>Paper 2 responses</h4>{exam.paper_two.map((question, index) => { const saved = exam.grades[0]?.[index]; const answer = exam.answers_two[0]?.[index] ?? ''; return <div className="csec-admin-grade" key={question.id}><strong>{question.id} · {question.prompt}</strong><p>{answer || 'No response submitted.'}</p><label>Points (0–{question.marks})<input type="number" min="0" max={question.marks} defaultValue={saved?.points ?? 0} id={`grade-${exam.match_id}-${question.id}`} /></label><label>Feedback<textarea defaultValue={saved?.feedback ?? ''} id={`feedback-${exam.match_id}-${question.id}`} rows={2} /></label><button className="button button--secondary button--small" type="button" disabled={gradeExam.isPending} onClick={() => { const points = Number((document.getElementById(`grade-${exam.match_id}-${question.id}`) as HTMLInputElement)?.value ?? 0); const feedback = (document.getElementById(`feedback-${exam.match_id}-${question.id}`) as HTMLTextAreaElement)?.value ?? ''; gradeExam.mutate({ matchId: exam.match_id, targetPlayer: 0, questionId: question.id, points, feedback }) }}>Save grade</button></div> })}</div>
           </article>)}</div> : (!exams.isLoading && <div className="admin-empty"><GameController size={28} /><p>No CSEC exam submissions yet.</p></div>)}
           {sendExamResults.error && <p className="form-error" role="alert">{sendExamResults.error instanceof Error ? sendExamResults.error.message : 'The results email could not be sent.'}</p>}
+          {gradeExam.error && <p className="form-error" role="alert">{gradeExam.error instanceof Error ? gradeExam.error.message : 'The grade could not be saved.'}</p>}
         </section>}
         {tab === 'applications' && (
           <section className="admin-panel">
