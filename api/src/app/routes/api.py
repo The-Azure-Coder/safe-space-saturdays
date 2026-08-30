@@ -3100,7 +3100,7 @@ def csec_exam_percentage(state: dict[str, object]) -> float:
     return round(((paper_one_score + paper_two_score) / total) * 100, 1) if total else 0.0
 
 
-async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession) -> None:
+async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession, grader_email: str) -> None:
     state = row.state if isinstance(row.state, dict) else {}
     if state.get("phase") != "complete" or state.get("results_email_sent_at") is not None:
         return
@@ -3141,6 +3141,7 @@ async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession) -> None:
         html=html,
         text=text,
         attachments=[{"name": "csec-exam-breakdown.csv", "content": base64.b64encode(csv_buffer.getvalue().encode()).decode()}],
+        cc=[grader_email],
     )
     if sent:
         state["results_email_sent_at"] = datetime.now(UTC).timestamp()
@@ -3189,7 +3190,7 @@ async def admin_grade_csec_exam(
         )
     except IllegalMove as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
-    await send_csec_results_if_ready(row, db)
+    await send_csec_results_if_ready(row, db, admin.email)
     await db.commit()
     await db.refresh(row)
     return csec_submission_response(row)
