@@ -14,6 +14,7 @@ function GameRoomLobby() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [copied, setCopied] = useState(false)
+  const [showExamStart, setShowExamStart] = useState(false)
   const room = useQuery({
     queryKey: ['room', roomId],
     queryFn: () => api.room(roomId),
@@ -115,8 +116,22 @@ function GameRoomLobby() {
       {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : 'The lobby could not update.'}</p>}
       <div className="game-lobby-actions">
         {!currentRoom.is_host && <button className={currentRoom.ready ? 'button button--secondary' : 'button button--primary'} type="button" disabled={ready.isPending} onClick={() => ready.mutate()}>{ready.isPending ? 'Updating…' : currentRoom.ready ? 'Ready ✓' : 'Ready up'}</button>}
-        {currentRoom.is_host && <button className="button button--primary" type="button" disabled={start.isPending} onClick={() => start.mutate()}>{start.isPending ? 'Starting…' : currentRoom.fill_with_bots ? 'Start game with bots' : 'Start game'}</button>}
+        {currentRoom.is_host && <button className="button button--primary" type="button" disabled={start.isPending} onClick={() => {
+          if (currentRoom.game.trim().toLowerCase() === 'csec it mock exam') setShowExamStart(true)
+          else start.mutate()
+        }}>{start.isPending ? 'Starting…' : currentRoom.fill_with_bots ? 'Start game with bots' : 'Start game'}</button>}
       </div>
     </section>
+    {showExamStart && currentRoom.game.trim().toLowerCase() === 'csec it mock exam' && <div className="exam-start-modal__backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowExamStart(false) }}>
+      <section className="exam-start-modal" role="dialog" aria-modal="true" aria-labelledby="exam-start-title">
+        <span className="eyebrow">Private mock exam</span>
+        <h2 id="exam-start-title">Ready to begin?</h2>
+        <p>This is a single-player exam. Paper 1 is auto-marked, and Paper 2 has written answers that Tyrese can review and grade.</p>
+        <div className="exam-start-modal__actions">
+          <button className="button button--secondary" type="button" onClick={() => setShowExamStart(false)}>Not yet</button>
+          <button className="button button--primary" type="button" disabled={start.isPending} onClick={() => { setShowExamStart(false); start.mutate() }}>{start.isPending ? 'Starting…' : 'Start exam'}</button>
+        </div>
+      </section>
+    </div>}
   </main>
 }

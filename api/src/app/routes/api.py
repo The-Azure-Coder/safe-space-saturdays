@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlencode
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
@@ -195,6 +196,11 @@ GOOGLE_MOBILE_COOKIE = "safe_space_google_mobile"
 
 def can_manage_roles(user: User) -> bool:
     return user.role in {"admin", "super_admin"}
+
+
+def can_access_csec_exam(user: User) -> bool:
+    """Keep the private mock exam visible only to its two intended users."""
+    return user.name.strip().casefold() in {"kashi miller", "tyrese"}
 
 
 def can_manage_content(user: User) -> bool:
@@ -571,6 +577,8 @@ def game_type_for_name(name: str) -> str | None:
         return "abc-fast-slow"
     if normalized in {"checkers", "draughts"}:
         return "checkers"
+    if normalized in {"csec it mock exam", "csec mock exam", "csec-it-mock-exam"}:
+        return "csec-it-mock-exam"
     return None
 
 
@@ -740,6 +748,8 @@ def user_response(user: User) -> UserResponse:
 
 def game_capacity(game_name: str) -> int:
     normalized = game_name.strip().lower()
+    if normalized in {"csec it mock exam", "csec mock exam", "csec-it-mock-exam"}:
+        return 1
     if normalized in {"connect four", "connect-four", "trivia", "trivia battle", "checkers", "draughts"}:
         return 2
     if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
@@ -1860,17 +1870,19 @@ async def list_games(
 ) -> list[GameResponse]:
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    return [
-        GameResponse.model_validate(game)
-        for game in (
-            await db.scalars(
+    games = (
+        await db.scalars(
             select(Game)
             .where(Game.name != "Bingo")
             .order_by(Game.is_featured.desc(), Game.id)
-                .offset((page - 1) * limit)
-                .limit(limit)
-            )
-        ).all()
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+    return [
+        GameResponse.model_validate(game)
+        for game in games
+        if game.name.casefold() != "csec it mock exam" or can_access_csec_exam(user)
     ]
 
 
@@ -1932,11 +1944,16 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
     game = await db.get(Game, payload.game_id)
     if game is None:
         raise HTTPException(status_code=404, detail="Game not found")
+    game_type = game_type_for_name(game.name)
+    if payload.max_players < 2 and game_type != "csec-it-mock-exam":
+        raise HTTPException(status_code=422, detail=f"{game.name} requires at least 2 players")
     if payload.max_players > game_capacity(game.name):
         raise HTTPException(
             status_code=422,
             detail=f"{game.name} supports at most {game_capacity(game.name)} players",
         )
+    if game_type == "csec-it-mock-exam":
+        payload = payload.model_copy(update={"max_players": 1, "fill_with_bots": False})
     room = GameRoom(
         game_id=payload.game_id,
         host_id=user.id,
@@ -2481,6 +2498,8 @@ async def create_game_session(
     game_type = game_type_for_name(game.name if game else "")
     if game_type not in GAME_TYPES:
         raise HTTPException(status_code=409, detail="This game is not playable yet")
+    if game_type == "csec-it-mock-exam":
+        payload = payload.model_copy(update={"fill_with_bots": False})
     seats, player_ids, bot_players, player_names = await build_match_seats(
         room, game_type, user.id, db, payload.fill_with_bots
     )

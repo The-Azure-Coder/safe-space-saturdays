@@ -354,7 +354,7 @@ class RoomParticipantResponse(BaseModel):
 class RoomCreateRequest(BaseModel):
     game_id: int
     name: str = Field(min_length=2, max_length=100)
-    max_players: int = Field(default=4, ge=2, le=8)
+    max_players: int = Field(default=4, ge=1, le=8)
     fill_with_bots: bool = True
     bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
 

@@ -14,8 +14,9 @@ from app.games.scribble import apply_scribble_action, bot_draw_action, new_scrib
 from app.games.trivia import apply_trivia_action, new_trivia_state, trivia_bot_action
 from app.games.abc_fast_slow import abc_bot_action, apply_abc_action, new_abc_state, next_abc_round
 from app.games.checkers import checkers_bot_action, apply_checkers_action, new_checkers_state, normalise_checkers_state
+from app.games.csec_exam import apply_csec_exam_action, new_csec_exam_state
 
-GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow", "checkers"}
+GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow", "checkers", "csec-it-mock-exam"}
 _RNG = random.Random()
 # 52-56 are the five coloured home-lane squares; 57 is the centre HOME.
 LUDO_FINISH = 57
@@ -165,6 +166,8 @@ def new_state(
         return new_abc_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
     if game_type == "checkers":
         return new_checkers_state(player_count, bot_players if bot_players is not None else (1,))
+    if game_type == "csec-it-mock-exam":
+        return new_csec_exam_state(1)
     return new_trivia_state(_RNG, player_count, bot_players if bot_players is not None else (1,))
 
 
@@ -618,6 +621,8 @@ def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> 
         return apply_abc_action(state, player, action)
     if game == "checkers":
         return apply_checkers_action(state, player, action)
+    if game == "csec-it-mock-exam":
+        return apply_csec_exam_action(state, player, action)
     return apply_trivia_action(state, player, action)
 
 

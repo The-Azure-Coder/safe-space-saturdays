@@ -1247,6 +1247,12 @@ html[data-theme='crimson'] .game-room-controls__select select { color-scheme: da
 .lobby-ready { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .lobby-ready--yes { color: var(--sage-dark); }
 .game-lobby-actions { display: flex; justify-content: flex-end; margin-top: 22px; }
+.exam-start-modal__backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgb(28 35 29 / 54%); }
+.exam-start-modal { width: min(100%, 500px); padding: clamp(24px, 5vw, 38px); border: 1px solid var(--line); border-radius: 24px; background: var(--paper); box-shadow: 0 22px 70px rgb(28 35 29 / 24%); }
+.exam-start-modal h2 { margin: 7px 0 10px; font-family: 'Playfair Display', serif; font-size: clamp(28px, 5vw, 38px); line-height: 1.08; }
+.exam-start-modal p { margin: 0; color: var(--muted); line-height: 1.6; }
+.exam-start-modal__actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 26px; }
+@media (max-width: 480px) { .exam-start-modal__actions { flex-direction: column-reverse; }.exam-start-modal__actions .button { width: 100%; } }
 @keyframes lobby-pulse { 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 @media (max-width: 640px) {
   .game-lobby-page { width: calc(100% - 20px); padding-top: 20px; }

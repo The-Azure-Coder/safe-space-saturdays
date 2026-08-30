@@ -95,6 +95,7 @@ type GameDefinition = {
 
 function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
+  if (normalized === 'csec it mock exam' || normalized === 'csec mock exam' || normalized === 'csec-it-mock-exam') return 1
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
   return 4
 }
@@ -147,6 +148,20 @@ const games: Array<GameDefinition> = [
     players: '2 players',
     description: 'Plan your jumps, crown your pieces, and make every move count.',
     icon: '/assets/game-checkers.png',
+    color: 'coral',
+  },
+  {
+    name: 'Together',
+    players: '2–4 players',
+    description: 'Work together through bright cooperative obstacle courses.',
+    icon: '/assets/optimized/game-together.webp',
+    color: 'lilac',
+  },
+  {
+    name: 'CSEC IT Mock Exam',
+    players: '1–2 players',
+    description: 'A private, teacher-created IT mock exam with playful study-room energy.',
+    icon: '/assets/game-csec-it-mock-exam.png',
     color: 'coral',
   },
 ]
@@ -1752,6 +1767,8 @@ function GameTile({
     Scribble: '/assets/game-scribble.png',
     'ABC Fast or Slow': '/assets/game-abc-fast-slow.png',
     Checkers: '/assets/game-checkers.png',
+    Together: '/assets/optimized/game-together.webp',
+    'CSEC IT Mock Exam': '/assets/game-csec-it-mock-exam.png',
   }
   const generatedIcon =
     typeof game.icon === 'string' && game.icon.startsWith('/')
@@ -3173,10 +3190,12 @@ function GamesScreen() {
       }))
     : games.map((game, index) => ({ ...game, id: index + 1 }))
   const selectedGame = availableGames.find((game) => game.id === roomGameId)
+  const selectedGameIsExam = selectedGame?.name.trim().toLowerCase() === 'csec it mock exam'
   const maxRoomPlayers = gameRoomCapacity(selectedGame?.name)
   useEffect(() => {
+    if (selectedGameIsExam && roomFillBots) setRoomFillBots(false)
     if (roomPlayers > maxRoomPlayers) setRoomPlayers(maxRoomPlayers)
-  }, [maxRoomPlayers, roomPlayers])
+  }, [maxRoomPlayers, roomPlayers, roomFillBots, selectedGameIsExam])
   const rooms = roomsQuery.data ?? []
   const firstGameId = availableGames[0]?.id ?? null
   return (
@@ -3272,23 +3291,23 @@ function GamesScreen() {
                 value={roomPlayers}
                 onChange={(event) => setRoomPlayers(Number(event.target.value))}
               >
-                {[2, 3, 4, 5, 6, 7, 8].filter((count) => count <= maxRoomPlayers).map((count) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8].filter((count) => count <= maxRoomPlayers && (selectedGameIsExam || count >= 2)).map((count) => (
                   <option value={count} key={count}>{count} players</option>
                 ))}
               </select>
             </label>
-            <label className="field-label">
-              Open seats
-              <select
-                value={roomFillBots ? 'bots' : 'humans'}
-                onChange={(event) =>
-                  setRoomFillBots(event.target.value === 'bots')
-                }
-              >
-                <option value="bots">Fill remaining seats with bots</option>
-                <option value="humans">Humans only</option>
-              </select>
-            </label>
+            {!selectedGameIsExam && <label className="field-label">
+                Open seats
+                <select
+                  value={roomFillBots ? 'bots' : 'humans'}
+                  onChange={(event) =>
+                    setRoomFillBots(event.target.value === 'bots')
+                  }
+                >
+                  <option value="bots">Fill remaining seats with bots</option>
+                  <option value="humans">Humans only</option>
+                </select>
+              </label>}
             {roomFillBots && <label className="field-label">
               Bot difficulty
               <select value={roomBotDifficulty} onChange={(event) => setRoomBotDifficulty(event.target.value as 'friendly' | 'thoughtful')}>

@@ -87,7 +87,10 @@ class UniversalMatchManager:
         player_names: dict[int, str] | None = None,
         bot_difficulty: str = "friendly",
     ) -> UniversalMatch:
-        effective_count = player_count if game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow"} else 2
+        if game_type == "csec-it-mock-exam":
+            effective_count = 1
+        else:
+            effective_count = player_count if game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow"} else 2
         resolved_bot_players = (
             bot_players if bot_players is not None else tuple(range(1, effective_count))
         )
