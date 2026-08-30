@@ -2134,6 +2134,9 @@ html[data-theme='purple'] .app-nav__link--active { border-color: rgb(200 169 237
 .csec-exam__header h2 { margin: 5px 0 8px; font-family: 'Playfair Display', serif; font-size: clamp(26px, 4vw, 38px); }
 .csec-exam__header p { max-width: 700px; margin: 0; color: var(--muted); line-height: 1.55; }
 .csec-exam__progress { flex: 0 0 auto; padding: 9px 13px; border-radius: 999px; background: var(--sage-pale); color: var(--sage-dark); font-weight: 800; }
+.csec-exam__header-meta { display: flex; align-items: center; gap: 9px; }
+.csec-exam__timer { flex: 0 0 auto; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 850; }
+.csec-exam__timer.is-urgent { border-color: #c97862; background: #fff0eb; color: #a74732; }
 .csec-exam__questions, .csec-exam__written, .csec-exam__grading { display: grid; gap: 16px; }
 .csec-exam__question { min-width: 0; margin: 0; padding: 18px; border: 1px solid var(--line); border-radius: 16px; }
 .csec-exam__question legend { max-width: 100%; padding: 0 5px; line-height: 1.5; }

@@ -3072,6 +3072,7 @@ def csec_submission_response(row: GameMatch) -> CsecExamSubmissionResponse:
         status=row.status,
         phase=str(state.get("phase", "paper_one")),
         started_at=state.get("started_at"),
+        deadline_at=state.get("deadline_at"),
         submitted_at=state.get("submitted_at"),
         time_spent_seconds=state.get("time_spent_seconds"),
         paper_one=state.get("paper_one", []),

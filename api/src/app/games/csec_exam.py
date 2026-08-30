@@ -7,6 +7,8 @@ from typing import Any
 
 from app.games.connect_four import IllegalMove
 
+EXAM_DURATION_SECONDS = 2 * 60 * 60
+
 PAPER_ONE: tuple[dict[str, Any], ...] = (
     {
         "question": "Which component stores data and instructions currently being used by the CPU?",
@@ -292,6 +294,7 @@ PAPER_TWO: tuple[dict[str, Any], ...] = (
 
 def new_csec_exam_state(player_count: int = 2) -> dict[str, Any]:
     count = max(1, min(2, player_count))
+    started_at = time.time()
     return {
         "game": "csec-it-mock-exam",
         "phase": "paper_one",
@@ -309,7 +312,8 @@ def new_csec_exam_state(player_count: int = 2) -> dict[str, Any]:
         ],
         "winner": None,
         "draw": False,
-        "started_at": time.time(),
+        "started_at": started_at,
+        "deadline_at": started_at + EXAM_DURATION_SECONDS,
         "submitted_at": None,
         "time_spent_seconds": None,
         "paper_one_breakdown": [],
@@ -322,6 +326,25 @@ def apply_csec_exam_action(
     if player < 0 or player >= int(state["player_count"]):
         raise IllegalMove("You are not seated in this exam")
     action = payload.get("action")
+    if (
+        state.get("phase") != "complete"
+        and state.get("deadline_at") is not None
+        and time.time() >= float(state["deadline_at"])
+    ):
+        state["phase"] = "complete"
+        state["winner"] = None
+        state["submitted_at"] = time.time()
+        state["time_spent_seconds"] = EXAM_DURATION_SECONDS
+        state["paper_one_breakdown"] = [
+            {
+                "question": question["question"],
+                "selected": question["options"][answer] if answer is not None else "",
+                "correct": question["options"][question["correct"]],
+                "points": int(answer == question["correct"]),
+            }
+            for answer, question in zip(state["answers_one"][player], PAPER_ONE, strict=True)
+        ]
+        return state
     if action == "answer_one":
         index = int(payload.get("question_index", -1))
         answer = int(payload.get("answer", -1))

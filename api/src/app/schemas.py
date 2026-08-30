@@ -148,6 +148,7 @@ class CsecExamSubmissionResponse(BaseModel):
     status: str
     phase: str
     started_at: float | None
+    deadline_at: float | None
     submitted_at: float | None
     time_spent_seconds: int | None
     paper_one: list[dict[str, object]]

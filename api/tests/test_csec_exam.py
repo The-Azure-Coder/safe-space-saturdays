@@ -1,6 +1,7 @@
 import pytest
 
 from app.games.connect_four import IllegalMove
+import app.games.csec_exam as csec_exam
 from app.games.csec_exam import PAPER_ONE, PAPER_TWO, apply_csec_exam_action, new_csec_exam_state
 
 
@@ -68,3 +69,14 @@ def test_non_teacher_cannot_grade_and_points_are_bounded() -> None:
                 "points": PAPER_TWO[0]["marks"] + 1,
             },
         )
+
+
+def test_exam_auto_submits_when_two_hour_deadline_expires(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = new_csec_exam_state(1)
+    state["deadline_at"] = 100.0
+    monkeypatch.setattr(csec_exam.time, "time", lambda: 101.0)
+    apply_csec_exam_action(state, 0, {"action": "answer_one", "question_index": 0, "answer": 0})
+    assert state["phase"] == "complete"
+    assert state["submitted_at"] == 101.0
+    assert state["time_spent_seconds"] == csec_exam.EXAM_DURATION_SECONDS
+    assert len(state["paper_one_breakdown"]) == len(PAPER_ONE)

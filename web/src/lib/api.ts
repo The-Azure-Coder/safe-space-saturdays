@@ -293,6 +293,7 @@ export type CsecExamSubmission = {
   status: string
   phase: string
   started_at: number | null
+  deadline_at: number | null
   submitted_at: number | null
   time_spent_seconds: number | null
   paper_one: Array<{ question: string; options: string[] }>
