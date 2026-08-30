@@ -794,6 +794,25 @@ html[data-theme='night'] .domino-game-head p, html[data-theme='night'] .domino-p
   .domino-chain__cell--new, .domino-hand-tile--legal { animation: none; }
 }
 .game-tile--coral { background: #fff0e8; }
+.exam-game { display: grid; gap: 20px; max-width: 900px; margin: 0 auto; }
+.exam-game__intro, .exam-paper, .exam-grading, .exam-complete { padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: var(--shadow); }
+.exam-game__intro h2, .exam-game__intro p, .exam-complete h2, .exam-complete p { margin: 0; }
+.exam-game__intro { display: grid; gap: 8px; }
+.exam-game__intro p { color: var(--muted); }
+.exam-paper { display: grid; gap: 18px; }
+.exam-progress { color: var(--sage-dark); font-weight: 800; }
+.exam-question { display: grid; gap: 12px; margin: 0; padding: 16px 0; border: 0; border-top: 1px solid var(--line); }
+.exam-question legend, .exam-question > span { padding: 0; line-height: 1.5; }
+.exam-options { display: grid; gap: 8px; }
+.exam-options label { display: block; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.exam-options label:has(input:checked) { border-color: var(--sage-dark); background: var(--sage-pale); }
+.exam-question textarea { width: 100%; min-height: 120px; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--cream); color: var(--ink); font: inherit; }
+.exam-grading { display: grid; gap: 16px; border-color: var(--orange); }
+.exam-grading article { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.exam-grading h3, .exam-grading p { margin: 0; }
+.exam-answer { white-space: pre-wrap; line-height: 1.55; color: var(--muted); }
+.exam-grading label { display: grid; gap: 6px; max-width: 180px; font-weight: 700; }
+.exam-grading input { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 9px; background: var(--cream); color: var(--ink); font: inherit; }
 .game-grid--games-expanded { display: grid; }
 .games-view-more { display: flex; margin: 16px auto 0; }
 .scribble-game-shell { display: grid; gap: 18px; padding: clamp(18px, 3vw, 34px); border: 1px solid color-mix(in srgb, var(--line) 78%, #d87958); border-radius: 24px; background: color-mix(in srgb, var(--surface) 92%, #fff0e8); }

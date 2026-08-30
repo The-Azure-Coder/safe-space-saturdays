@@ -15,8 +15,9 @@ from app.games.trivia import apply_trivia_action, new_trivia_state, trivia_bot_a
 from app.games.abc_fast_slow import abc_bot_action, apply_abc_action, new_abc_state, next_abc_round
 from app.games.checkers import checkers_bot_action, apply_checkers_action, new_checkers_state, normalise_checkers_state
 from app.games.together import apply_together_action, new_together_state
+from app.games.csec_exam import apply_csec_exam_action, new_csec_exam_state
 
-GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow", "checkers", "together"}
+GAME_TYPES = {"ludo", "dominoes", "bingo", "trivia", "scribble", "abc-fast-slow", "checkers", "together", "csec-it-mock-exam"}
 _RNG = random.Random()
 # 52-56 are the five coloured home-lane squares; 57 is the centre HOME.
 LUDO_FINISH = 57
@@ -87,6 +88,8 @@ def new_state(
         raise IllegalMove("This game is not available yet")
     if game_type == "together":
         return new_together_state(player_count)
+    if game_type == "csec-it-mock-exam":
+        return new_csec_exam_state(player_count)
     if game_type == "ludo":
         players = _ludo_players(player_count)
         return {
@@ -570,6 +573,8 @@ def _apply_domino_action(
 
 
 def apply_action(state: dict[str, Any], player: int, action: dict[str, Any]) -> dict[str, Any]:
+    if state.get("game") == "csec-it-mock-exam":
+        return apply_csec_exam_action(state, player, action)
     if state.get("game") == "together":
         return apply_together_action(state, player, action)
     game = state["game"]

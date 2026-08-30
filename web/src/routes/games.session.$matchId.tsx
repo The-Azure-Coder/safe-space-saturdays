@@ -119,7 +119,7 @@ function GameSessionScreen() {
     return <main className="page-content game-play-page"><GeneralLoader label="Loading your game…" /></main>
   if (!match && gameSession.isError)
     return <main className="page-content game-play-page"><GeneralLoader label="Reconnecting to your game…" onRetry={() => void gameSession.refetch()} /></main>
-  const title = match?.game === 'together' ? 'Together' : match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : match?.game === 'abc-fast-slow' ? 'ABC Fast or Slow' : match?.game === 'checkers' ? 'Checkers' : 'Trivia Battle'
+  const title = match?.game === 'together' ? 'Together' : match?.game === 'ludo' ? 'Ludo' : match?.game === 'dominoes' ? 'Block Dominoes' : match?.game === 'bingo' ? 'Bingo' : match?.game === 'scribble' ? 'Scribble' : match?.game === 'abc-fast-slow' ? 'ABC Fast or Slow' : match?.game === 'checkers' ? 'Checkers' : match?.game === 'csec-it-mock-exam' ? 'CSEC IT Mock Exam' : 'Trivia Battle'
   const isTrivia = match?.game === 'trivia'
   const players = state?.players ?? []
   const seat = Number(state?.seat_index ?? 0)
@@ -143,8 +143,27 @@ function GameSessionScreen() {
       {match?.game === 'abc-fast-slow' && <AbcFastSlowGame state={state ?? {}} send={send} />}
       {match?.game === 'checkers' && <CheckersGame state={(state ?? {}) as any} send={send} />}
       {match?.game === 'together' && <Suspense fallback={<GeneralLoader label="Loading Together…" />}><TogetherGame state={(state ?? {}) as any} send={send} spectator={isSpectator} /></Suspense>}
+      {match?.game === 'csec-it-mock-exam' && <CsecExamGame state={state ?? {}} send={send} />}
     </div>
   </main>
+}
+
+function CsecExamGame({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {
+  const seat = Number(state.seat_index ?? 0)
+  const paperOne = (state.paper_one ?? []) as Array<{ question: string; options: string[] }>
+  const paperTwo = (state.paper_two ?? []) as Array<{ id: string; prompt: string; marks: number }>
+  const oneAnswers = state.answers_one?.[seat] ?? []
+  const twoAnswers = state.answers_two?.[seat] ?? []
+  const isTeacher = Array.isArray(state.answers_two) && state.answers_two.some((answers: unknown[], index: number) => index !== seat && answers.some(Boolean))
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const phase = String(state.phase ?? 'paper_one')
+  return <section className="exam-game" aria-labelledby="exam-title">
+    <div className="exam-game__intro"><span className="eyebrow">Teacher-created mock · 75 marks</span><h2 id="exam-title">CSEC Information Technology</h2><p>Paper 1 is auto-marked. Paper 2 gives you space to explain your thinking.</p></div>
+    {phase === 'paper_one' && <div className="exam-paper"><div className="exam-progress">Paper 1 · {oneAnswers.filter((answer: unknown) => answer !== null).length} / {paperOne.length} answered</div>{paperOne.map((question, index) => <fieldset className="exam-question" key={question.question}><legend><strong>{index + 1}.</strong> {question.question}</legend><div className="exam-options">{question.options.map((option, optionIndex) => <label key={option}><input type="radio" name={`q-${index}`} checked={oneAnswers[index] === optionIndex} onChange={() => send({ action: 'answer_one', question_index: index, answer: optionIndex })} /> {String.fromCharCode(65 + optionIndex)}. {option}</label>)}</div></fieldset>)}</div>}
+    {phase === 'paper_two' && <div className="exam-paper"><div className="exam-progress">Paper 2 · Structured answers</div>{paperTwo.map((question, index) => <label className="exam-question exam-question--structured" key={question.id}><span><strong>{question.id}.</strong> {question.prompt} <small>({question.marks} marks)</small></span><textarea value={draft[question.id] ?? twoAnswers[index] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, [question.id]: event.target.value }))} onBlur={(event) => send({ action: 'answer_two', question_id: question.id, answer: event.target.value })} rows={5} placeholder="Write a concise but complete answer…" /></label>)}<button className="button button--primary" type="button" onClick={() => send({ action: 'submit_exam' })}>Submit Paper 2</button></div>}
+    {phase === 'complete' && <div className="exam-complete" role="status"><h2>Exam submitted</h2><p>Paper 1 score: <strong>{state.paper_one_scores?.[seat] ?? 0} / 30</strong></p><p>Paper 2 is awaiting teacher grading.</p></div>}
+    {isTeacher && <div className="exam-grading"><span className="eyebrow">Tyrese · teacher view</span><h2>Paper 2 responses</h2>{paperTwo.map((question, index) => <article key={question.id}><h3>{question.id}. {question.prompt} <small>/{question.marks}</small></h3><p className="exam-answer">{state.answers_two?.[seat === 0 ? 1 : 0]?.[index] || 'No response yet.'}</p><label>Points<input type="number" min={0} max={question.marks} value={state.grades?.[seat === 0 ? 1 : 0]?.[index]?.points ?? ''} onChange={(event) => send({ action: 'grade_two', target_player: seat === 0 ? 1 : 0, question_id: question.id, points: Number(event.target.value) || 0 })} /></label></article>)}</div>}
+  </section>
 }
 
 function AbcFastSlowGame({ state, send }: { state: Record<string, any>; send: (action: Record<string, unknown>) => void }) {
