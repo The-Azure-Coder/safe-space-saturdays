@@ -107,6 +107,7 @@ from app.schemas import (
     ChallengesResponse,
     ChangePasswordRequest,
     CheckInRequest,
+    AbcRoomSettingsRequest,
     CheckInResponse,
     CommentCreateRequest,
     CommentResponse,
@@ -908,7 +909,7 @@ def game_capacity(game_name: str) -> int:
     if normalized in {"together", "linked together"}:
         return 5
     if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
-        return 6
+        return 0  # ABC capacity is chosen by the room host.
     if normalized == "bingo":
         return 8
     return 4
@@ -937,12 +938,13 @@ async def build_match_seats(
         raise HTTPException(status_code=403, detail="Join the room before starting a match")
     if not all(room_participant_is_ready(room, participant) for participant in participants):
         raise HTTPException(status_code=409, detail="Every human player must be ready")
-    count = min(room.max_players, game_capacity(game_type))
+    capacity = game_capacity(game_type)
+    count = room.max_players if game_type == "abc-fast-slow" or capacity == 0 else min(room.max_players, capacity)
     if len(participants) > count:
         raise HTTPException(
             status_code=409, detail="This room has too many players for the selected game"
         )
-    if game_type != "together" and not fill_with_bots and len(participants) < count:
+    if game_type not in {"together", "abc-fast-slow"} and not fill_with_bots and len(participants) < count:
         raise HTTPException(
             status_code=409, detail=f"All {count} seats must be filled before starting"
         )
@@ -969,7 +971,7 @@ async def build_match_seats(
     player_ids: dict[int, int] = {}
     bot_players: list[int] = []
     player_names: dict[int, str] = {}
-    seat_count = len(participants) if game_type == "together" else count
+    seat_count = len(participants) if game_type in {"together", "abc-fast-slow"} and not fill_with_bots else count
     for seat_index in range(seat_count):
         if seat_index < len(participants):
             participant = participants[seat_index]
@@ -2091,6 +2093,8 @@ async def room_out(
         fill_with_bots=room.fill_with_bots,
         invite_token=room.invite_token if participant is not None or spectator else None,
         room_code=room.room_code if participant is not None or spectator else None,
+        abc_categories=room.abc_categories,
+        abc_majority_invalid=room.abc_majority_invalid,
     )
 
 
@@ -2117,7 +2121,8 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
     game = await db.get(Game, payload.game_id)
     if game is None:
         raise HTTPException(status_code=404, detail="Game not found")
-    if payload.max_players > game_capacity(game.name):
+    capacity = game_capacity(game.name)
+    if capacity and payload.max_players > capacity:
         raise HTTPException(
             status_code=422,
             detail=f"{game.name} supports at most {game_capacity(game.name)} players",
@@ -2139,12 +2144,41 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
         max_players=payload.max_players,
         fill_with_bots=payload.fill_with_bots,
         bot_difficulty=payload.bot_difficulty,
+        abc_categories=None,
+        abc_majority_invalid=True,
         invite_token=secrets.token_urlsafe(32),
         room_code=room_code,
     )
     db.add(room)
     await db.flush()
     db.add(RoomParticipant(room_id=room.id, user_id=user.id, seat_index=0, ready=True))
+    await db.commit()
+    return await room_out(room, user.id, db)
+
+
+@router.patch("/games/rooms/{room_id}/abc-settings", response_model=RoomResponse)
+async def update_abc_room_settings(
+    room_id: int, payload: AbcRoomSettingsRequest, user: CurrentUser, db: DbSession
+) -> RoomResponse:
+    room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
+    if room is None:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.host_id != user.id:
+        raise HTTPException(status_code=403, detail="Only the room host can change ABC settings")
+    if room.status != "open":
+        raise HTTPException(status_code=409, detail="ABC settings can only change before the game starts")
+    game = await db.get(Game, room.game_id)
+    if game is None or game_type_for_name(game.name) != "abc-fast-slow":
+        raise HTTPException(status_code=409, detail="This room is not an ABC Fast or Slow room")
+    categories = list(dict.fromkeys(category.strip()[:40] for category in payload.categories if category.strip()))
+    if not categories:
+        raise HTTPException(status_code=422, detail="Add at least one category")
+    participant_count = await db.scalar(select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room.id)) or 0
+    if payload.max_players < participant_count:
+        raise HTTPException(status_code=409, detail="Capacity cannot be below the number of players already in the room")
+    room.max_players = payload.max_players
+    room.abc_categories = categories
+    room.abc_majority_invalid = payload.majority_invalid
     await db.commit()
     return await room_out(room, user.id, db)
 
@@ -2519,7 +2553,7 @@ async def change_room_game(
     participants = (
         await db.scalars(select(RoomParticipant).where(RoomParticipant.room_id == room.id))
     ).all()
-    if room.max_players > capacity or len(participants) > capacity:
+    if capacity and (room.max_players > capacity or len(participants) > capacity):
         raise HTTPException(
             status_code=409,
             detail=f"{game.name} supports at most {capacity} players; remove players or choose another game",
@@ -2942,7 +2976,7 @@ async def create_game_session(
         room.id,
         user.id,
         game_type,
-        len(player_ids) if game_type == "together" else min(room.max_players, game_capacity(game_type)),
+        len(player_ids) if game_type in {"together", "abc-fast-slow"} and not payload.fill_with_bots else (room.max_players if game_type == "abc-fast-slow" else min(room.max_players, game_capacity(game_type))),
         player_ids=player_ids,
         bot_players=bot_players,
         player_names=player_names,
@@ -2950,6 +2984,9 @@ async def create_game_session(
     )
     match.state["game_level"] = game_level
     match.state["game_streak"] = game_streak
+    if game_type == "abc-fast-slow":
+        match.state["categories"] = list(room.abc_categories or ["Animal", "Place", "Food", "Thing"])
+        match.state["majority_invalid"] = room.abc_majority_invalid
     room.status = "active"
     await create_persisted_match(db, match.id, room.id, game_type, user.id, match.state, seats)
     await db.commit()
@@ -3063,7 +3100,9 @@ def universal_bot_needed(match: UniversalMatch) -> bool:
         if phase == "answering":
             return any(not value for value in match.state.get("submitted", []))
         if phase == "voting":
-            return any(not value for value in match.state.get("voted", []))
+            return any(not value for value in match.state.get("voted", [])) or any(
+                not value for value in match.state.get("confirmed", [])
+            )
         return False
     current = int(match.state.get("current_player", -1))
     return current in bots and (

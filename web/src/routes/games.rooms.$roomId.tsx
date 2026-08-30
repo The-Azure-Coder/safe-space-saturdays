@@ -15,6 +15,9 @@ function GameRoomLobby() {
   const queryClient = useQueryClient()
   const [copied, setCopied] = useState(false)
   const [kickingUserId, setKickingUserId] = useState<number | null>(null)
+  const [abcCapacity, setAbcCapacity] = useState(4)
+  const [abcCategories, setAbcCategories] = useState('Animal, Place, Food, Thing')
+  const [abcMajorityInvalid, setAbcMajorityInvalid] = useState(true)
   const room = useQuery({
     queryKey: ['room', roomId],
     queryFn: () => api.room(roomId),
@@ -71,6 +74,24 @@ function GameRoomLobby() {
     },
     onError: () => setKickingUserId(null),
   })
+  const saveAbcSettings = useMutation({
+    mutationFn: () => api.updateAbcRoomSettings(roomId, {
+      max_players: abcCapacity,
+      categories: abcCategories.split(',').map((category) => category.trim()).filter(Boolean),
+      majority_invalid: abcMajorityInvalid,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['room', roomId] })
+      queryClient.invalidateQueries({ queryKey: ['room-participants', roomId] })
+    },
+  })
+
+  useEffect(() => {
+    if (!room.data || room.data.game !== 'ABC Fast or Slow') return
+    setAbcCapacity(room.data.max_players)
+    setAbcCategories((room.data.abc_categories ?? ['Animal', 'Place', 'Food', 'Thing']).join(', '))
+    setAbcMajorityInvalid(room.data.abc_majority_invalid ?? true)
+  }, [room.data])
 
   useEffect(() => {
     const current = room.data
@@ -94,7 +115,7 @@ function GameRoomLobby() {
 
   const currentRoom = room.data
   const members = participants.data ?? []
-  const error = room.error || participants.error || ready.error || start.error || endRoom.error
+  const error = room.error || participants.error || ready.error || start.error || endRoom.error || saveAbcSettings.error
 
   return <main className="page-content game-lobby-page">
     <div className="game-lobby-topbar">
@@ -113,6 +134,13 @@ function GameRoomLobby() {
         }}><Copy size={17} /> {copied ? 'Link copied' : 'Copy invite link'}</button>}
       </div>
       <div className="game-lobby-waiting"><span className="game-lobby-pulse" /> <strong>{currentRoom.is_host ? 'Your room is ready.' : 'Waiting for the host to start…'}</strong><small>Everyone will enter the game automatically when it begins.</small></div>
+      {currentRoom.is_host && currentRoom.game === 'ABC Fast or Slow' && <form className="abc-room-settings" onSubmit={(event) => { event.preventDefault(); saveAbcSettings.mutate() }}>
+        <div><span className="eyebrow">ABC host settings</span><h2>Shape this match</h2><p>Choose any number of seats and add the categories your group wants to play.</p></div>
+        <label>Players who can join<input type="number" min="2" value={abcCapacity} onChange={(event) => setAbcCapacity(Math.max(2, Number(event.target.value) || 2))} /></label>
+        <label>Categories <small>Separate with commas</small><input value={abcCategories} onChange={(event) => setAbcCategories(event.target.value)} /></label>
+        <label className="abc-room-settings__toggle"><input type="checkbox" checked={abcMajorityInvalid} onChange={(event) => setAbcMajorityInvalid(event.target.checked)} /> Majority-invalid veto: an answer earns no points when most reviewers mark it invalid.</label>
+        <button className="button button--secondary" type="submit" disabled={saveAbcSettings.isPending}>{saveAbcSettings.isPending ? 'Saving…' : 'Save ABC settings'}</button>
+      </form>}
       <div className="game-lobby-members" aria-label="Room participants">
         {members.map((member) => {
           const isReady = member.is_host || member.ready
@@ -120,7 +148,7 @@ function GameRoomLobby() {
             <span className="avatar avatar--sage">{member.avatar_url ? <img src={assetUrl(member.avatar_url)} alt="" /> : member.name.slice(0, 1).toUpperCase()}</span>
             <div><strong>{member.name}</strong><small>{member.is_host ? 'Host · ready to start' : isReady ? 'Ready to play' : 'Getting ready'}</small></div>
             <span className={isReady ? 'lobby-ready lobby-ready--yes' : 'lobby-ready'}><CheckCircle size={18} weight={isReady ? 'fill' : 'regular'} /> {isReady ? 'Ready' : 'Not ready'}</span>
-            {currentRoom.is_host && !member.is_host && <button className="button button--small button--danger" type="button" disabled={kick.isPending} onClick={() => { if (window.confirm(`Remove ${member.name} from this room?`)) { setKickingUserId(member.user_id); kick.mutate(member.user_id) } }}>{kickingUserId === member.user_id ? 'Removing…' : 'Remove'}</button>}
+            {currentRoom.is_host && !member.is_host && <div className="game-lobby-member__actions"><button className="button button--small button--danger" type="button" disabled={kick.isPending} onClick={() => { if (window.confirm(`Remove ${member.name} from this room?`)) { setKickingUserId(member.user_id); kick.mutate(member.user_id) } }}>{kickingUserId === member.user_id ? 'Removing…' : 'Remove'}</button></div>}
           </article>
         })}
         {Array.from({ length: Math.max(0, currentRoom.max_players - members.length) }, (_, index) => <article className="game-lobby-member game-lobby-member--empty" key={`empty-${index}`}><span className="game-lobby-empty-avatar"><UsersThree size={19} /></span><div><strong>Open seat</strong><small>{currentRoom.fill_with_bots ? 'A friendly bot can fill this seat' : 'Waiting for a player'}</small></div></article>)}

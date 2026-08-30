@@ -97,7 +97,7 @@ type GameDefinition = {
 function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
-  if (normalized === 'abc fast or slow' || normalized === 'abc fast/slow' || normalized === 'fast or slow') return 6
+  if (normalized === 'abc fast or slow' || normalized === 'abc fast/slow' || normalized === 'fast or slow') return Number.POSITIVE_INFINITY
   return 4
 }
 
@@ -3333,14 +3333,14 @@ function GamesScreen() {
             </label>
             <label className="field-label">
               Players
-              <select
+              {Number.isFinite(maxRoomPlayers) ? <select
                 value={roomPlayers}
                 onChange={(event) => setRoomPlayers(Number(event.target.value))}
               >
                 {[2, 3, 4, 5, 6, 7, 8].filter((count) => count <= maxRoomPlayers).map((count) => (
                   <option value={count} key={count}>{count} players</option>
                 ))}
-              </select>
+              </select> : <input type="number" min="2" value={roomPlayers} onChange={(event) => setRoomPlayers(Math.max(2, Number(event.target.value) || 2))} aria-label="Number of players" />}
             </label>
             <label className="field-label">
               Open seats
