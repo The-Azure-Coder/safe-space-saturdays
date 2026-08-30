@@ -3080,6 +3080,7 @@ def csec_submission_response(row: GameMatch) -> CsecExamSubmissionResponse:
         answers_two=state.get("answers_two", []),
         paper_one_scores=state.get("paper_one_scores", []),
         paper_two_scores=state.get("paper_two_scores", []),
+        paper_one_breakdown=state.get("paper_one_breakdown", []),
         grades=state.get("grades", []),
         created_at=row.created_at,
     )

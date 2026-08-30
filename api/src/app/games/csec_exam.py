@@ -312,6 +312,7 @@ def new_csec_exam_state(player_count: int = 2) -> dict[str, Any]:
         "started_at": time.time(),
         "submitted_at": None,
         "time_spent_seconds": None,
+        "paper_one_breakdown": [],
     }
 
 
@@ -350,6 +351,15 @@ def apply_csec_exam_action(
         state["winner"] = None
         state["submitted_at"] = time.time()
         state["time_spent_seconds"] = max(0, round(state["submitted_at"] - state.get("started_at", state["submitted_at"])))
+        state["paper_one_breakdown"] = [
+            {
+                "question": question["question"],
+                "selected": question["options"][answer] if answer is not None else "",
+                "correct": question["options"][question["correct"]],
+                "points": int(answer == question["correct"]),
+            }
+            for answer, question in zip(state["answers_one"][player], PAPER_ONE, strict=True)
+        ]
         return state
     if action == "grade_two":
         if state["players"][player].get("name", "").strip().casefold() != "tyrese":

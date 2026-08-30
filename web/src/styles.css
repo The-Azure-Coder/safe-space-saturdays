@@ -2151,6 +2151,11 @@ html[data-theme='purple'] .app-nav__link--active { border-color: rgb(200 169 237
 .csec-exam__grade input { min-height: 40px; padding: 0 10px; }
 .csec-exam__complete { display: grid; gap: 16px; }
 .csec-exam__complete h3, .csec-exam__complete p { margin: 0; }
+.csec-exam__navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.csec-exam__breakdown { display: grid; gap: 10px; }
+.csec-exam__breakdown h3 { margin: 0; }
+.csec-exam__breakdown > div { display: grid; gap: 5px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; line-height: 1.45; }
+.csec-exam__breakdown small { color: var(--muted); }
 .csec-admin-submission { display: grid; gap: 20px; }
 .csec-admin-submission__answers { display: grid; gap: 10px; }
 .csec-admin-submission__answers h4 { margin: 0; }

@@ -1,54 +1,51 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export type CsecExamState = {
   phase?: 'paper_one' | 'paper_two' | 'complete'
-  question_index?: number
   paper_one?: Array<{ question: string; options: string[] }>
   paper_two?: Array<{ id: string; prompt: string; marks: number }>
   answers_one?: Array<Array<number | null>>
   answers_two?: string[][]
   paper_one_scores?: number[]
   paper_two_scores?: number[]
+  paper_one_breakdown?: Array<{ question: string; selected: string; correct: string; points: number }>
   grades?: Array<Array<{ points: number; feedback?: string } | null>>
   players?: Array<{ name: string; is_bot?: boolean }>
   seat_index?: number
 }
 
-export function CsecExamGame({
-  state,
-  send,
-}: {
-  state: CsecExamState
-  send: (action: Record<string, unknown>) => void
-}) {
+export function CsecExamGame({ state, send }: { state: CsecExamState; send: (action: Record<string, unknown>) => void }) {
+  const [questionIndex, setQuestionIndex] = useState(0)
+  const [reviewPaperOne, setReviewPaperOne] = useState(false)
   const [answers, setAnswers] = useState<Record<number, number>>({})
   const [written, setWritten] = useState<Record<string, string>>({})
-  const [grades, setGrades] = useState<Record<string, { points: number; feedback: string }>>({})
   const seat = Number(state.seat_index ?? 0)
+  const phase = state.phase ?? 'paper_one'
   const paperOne = state.paper_one ?? []
   const paperTwo = state.paper_two ?? []
-  const phase = state.phase ?? 'paper_one'
   const paperOneAnswers = state.answers_one?.[seat] ?? []
   const paperTwoAnswers = state.answers_two?.[seat] ?? []
-  const isTyrese = state.players?.[seat]?.name.trim().toLowerCase() === 'tyrese'
+  const breakdown = state.paper_one_breakdown ?? []
 
-  const chooseAnswer = (questionIndex: number, answer: number) => {
-    setAnswers((current) => ({ ...current, [questionIndex]: answer }))
-    send({ action: 'answer_one', question_index: questionIndex, answer })
+  useEffect(() => {
+    if (phase !== 'paper_two') setReviewPaperOne(false)
+  }, [phase])
+
+  const chooseAnswer = (index: number, answer: number) => {
+    setAnswers((current) => ({ ...current, [index]: answer }))
+    send({ action: 'answer_one', question_index: index, answer })
   }
-  const saveWrittenAnswer = (questionId: string, answer: string) => {
-    setWritten((current) => ({ ...current, [questionId]: answer }))
-    send({ action: 'answer_two', question_id: questionId, answer })
+  const saveWrittenAnswer = (id: string, answer: string) => {
+    setWritten((current) => ({ ...current, [id]: answer }))
+    send({ action: 'answer_two', question_id: id, answer })
   }
-  const submit = () => send({ action: 'submit_exam' })
+  const question = paperOne[questionIndex]
+  const paperOneView = phase === 'paper_one' || reviewPaperOne
 
   return <section className="mini-game-card csec-exam" aria-label="CSEC IT Mock Exam">
-    <div className="csec-exam__header">
-      <div><span className="eyebrow">CSEC IT Mock Exam</span><h2>{phase === 'paper_one' ? 'Paper 1 · Multiple choice' : phase === 'paper_two' ? 'Paper 2 · Written responses' : 'Exam submitted'}</h2><p>{phase === 'paper_one' ? 'Choose the best answer for every question. Your score is calculated automatically.' : phase === 'paper_two' ? 'Write clear, complete responses. Tyrese can review and grade Paper 2.' : 'Your submission is saved for review.'}</p></div>
-      {phase === 'paper_one' && <span className="csec-exam__progress">{paperOneAnswers.filter((answer) => answer !== null).length}/{paperOne.length}</span>}
-    </div>
-    {phase === 'paper_one' && <div className="csec-exam__questions">{paperOne.map((item, index) => <fieldset className="csec-exam__question" key={index}><legend><strong>{index + 1}.</strong> {item.question}</legend><div className="csec-exam__options">{item.options.map((option, optionIndex) => { const selected = (answers[index] ?? paperOneAnswers[index]) === optionIndex; return <label className={selected ? 'csec-exam__option is-selected' : 'csec-exam__option'} key={option}><input type="radio" name={`question-${index}`} checked={selected} onChange={() => chooseAnswer(index, optionIndex)} /> <span>{option}</span></label> })}</div></fieldset>)}</div>}
-    {phase === 'paper_two' && <div className="csec-exam__written">{paperTwo.map((item) => <label className="csec-exam__written-question" key={item.id}><span><strong>{item.id}.</strong> {item.prompt} <small>{item.marks} mark{item.marks === 1 ? '' : 's'}</small></span><textarea value={written[item.id] ?? paperTwoAnswers[paperTwo.findIndex((question) => question.id === item.id)] ?? ''} onChange={(event) => saveWrittenAnswer(item.id, event.target.value)} rows={5} placeholder="Write your answer here…" /></label>)}<button className="button button--primary" type="button" onClick={submit}>Submit exam</button></div>}
-    {phase === 'complete' && <div className="csec-exam__complete"><h3>Paper 1 score: {state.paper_one_scores?.[seat] ?? 0}/{paperOne.length}</h3><p>Paper 2 responses are ready for review.</p>{isTyrese && <div className="csec-exam__grading"><h3>Paper 2 grading</h3>{paperTwo.map((item, index) => { const key = item.id; const grade = grades[key] ?? { points: state.grades?.[seat]?.[index]?.points ?? 0, feedback: state.grades?.[seat]?.[index]?.feedback ?? '' }; return <div className="csec-exam__grade" key={key}><strong>{item.id} · {item.prompt}</strong><p>{paperTwoAnswers[index] || 'No response submitted.'}</p><label>Points (0–{item.marks})<input type="number" min="0" max={item.marks} value={grade.points} onChange={(event) => setGrades((current) => ({ ...current, [key]: { ...grade, points: Math.max(0, Math.min(item.marks, Number(event.target.value) || 0)) } }))} /></label><label>Feedback<textarea value={grade.feedback} onChange={(event) => setGrades((current) => ({ ...current, [key]: { ...grade, feedback: event.target.value } }))} rows={3} /></label><button className="button button--secondary button--small" type="button" onClick={() => send({ action: 'grade_two', target_player: seat, question_id: key, points: grade.points, feedback: grade.feedback })}>Save grade</button></div> })}</div>}</div>}
+    <div className="csec-exam__header"><div><span className="eyebrow">CSEC IT Mock Exam</span><h2>{phase === 'paper_one' ? 'Paper 1 · Multiple choice' : phase === 'paper_two' ? (reviewPaperOne ? 'Review Paper 1' : 'Paper 2 · Written responses') : 'Exam breakdown'}</h2><p>{phase === 'paper_one' ? 'Move between questions with Previous and Next. Your answers are saved as you go.' : phase === 'paper_two' ? 'Complete Paper 2, or go back to review and change a Paper 1 answer.' : 'Your submitted exam results are shown below.'}</p></div>{phase === 'paper_one' && <span className="csec-exam__progress">{paperOneAnswers.filter((answer) => answer !== null).length}/{paperOne.length}</span>}</div>
+    {paperOneView && question && <div className="csec-exam__questions"><fieldset className="csec-exam__question"><legend><strong>{questionIndex + 1}.</strong> {question.question}</legend><div className="csec-exam__options">{question.options.map((option, optionIndex) => { const selected = (answers[questionIndex] ?? paperOneAnswers[questionIndex]) === optionIndex; return <label className={selected ? 'csec-exam__option is-selected' : 'csec-exam__option'} key={option}><input type="radio" name={`question-${questionIndex}`} checked={selected} onChange={() => chooseAnswer(questionIndex, optionIndex)} /> <span>{option}</span></label> })}</div></fieldset><div className="csec-exam__navigation"><button className="button button--secondary" type="button" disabled={questionIndex === 0} onClick={() => setQuestionIndex((current) => Math.max(0, current - 1))}>Previous</button><span>Question {questionIndex + 1} of {paperOne.length}</span><button className="button button--secondary" type="button" disabled={questionIndex === paperOne.length - 1} onClick={() => setQuestionIndex((current) => Math.min(paperOne.length - 1, current + 1))}>Next</button></div>{reviewPaperOne && <button className="button button--primary" type="button" onClick={() => setReviewPaperOne(false)}>Back to Paper 2</button>}</div>}
+    {phase === 'paper_two' && !reviewPaperOne && <div className="csec-exam__written"><button className="button button--secondary" type="button" onClick={() => setReviewPaperOne(true)}>Review Paper 1</button>{paperTwo.map((item, index) => <label className="csec-exam__written-question" key={item.id}><span><strong>{item.id}.</strong> {item.prompt} <small>{item.marks} mark{item.marks === 1 ? '' : 's'}</small></span><textarea value={written[item.id] ?? paperTwoAnswers[index] ?? ''} onChange={(event) => saveWrittenAnswer(item.id, event.target.value)} rows={5} placeholder="Write your answer here…" /></label>)}<button className="button button--primary" type="button" onClick={() => send({ action: 'submit_exam' })}>Submit exam</button></div>}
+    {phase === 'complete' && <div className="csec-exam__complete"><h3>Paper 1: {state.paper_one_scores?.[seat] ?? 0}/{paperOne.length}</h3><div className="csec-exam__breakdown"><h3>Paper 1 breakdown</h3>{breakdown.map((item, index) => <div key={index}><span><strong>{index + 1}.</strong> {item.question}</span><small>{item.points ? 'Correct · 1 point' : `Incorrect · Correct answer: ${item.correct}`}<br />Your answer: {item.selected || 'No answer'}</small></div>)}</div><div className="csec-exam__breakdown"><h3>Paper 2 breakdown</h3>{paperTwo.map((item, index) => { const grade = state.grades?.[seat]?.[index]; return <div key={item.id}><span><strong>{item.id}.</strong> {paperTwoAnswers[index] || 'No response submitted.'}</span><small>{grade ? `${grade.points}/${item.marks} points${grade.feedback ? ` · ${grade.feedback}` : ''}` : `Awaiting Tyrese's grading · ${item.marks} marks available`}</small></div> })}</div></div>}
   </section>
 }

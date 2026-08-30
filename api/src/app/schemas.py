@@ -156,6 +156,7 @@ class CsecExamSubmissionResponse(BaseModel):
     answers_two: list[list[str]]
     paper_one_scores: list[int]
     paper_two_scores: list[int]
+    paper_one_breakdown: list[dict[str, object]]
     grades: list[list[dict[str, object] | None]]
     created_at: datetime
 

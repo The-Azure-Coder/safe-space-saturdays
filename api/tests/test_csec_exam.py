@@ -18,6 +18,8 @@ def test_paper_one_scores_and_opens_paper_two() -> None:
     apply_csec_exam_action(state, 0, {"action": "submit_exam"})
     assert state["submitted_at"] is not None
     assert state["time_spent_seconds"] >= 0
+    assert len(state["paper_one_breakdown"]) == len(PAPER_ONE)
+    assert state["paper_one_breakdown"][0]["correct"] == PAPER_ONE[0]["options"][PAPER_ONE[0]["correct"]]
 
 
 def test_paper_two_answers_are_saved_and_teacher_can_grade() -> None:

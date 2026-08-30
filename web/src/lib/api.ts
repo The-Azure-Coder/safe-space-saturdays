@@ -301,6 +301,7 @@ export type CsecExamSubmission = {
   answers_two: Array<Array<string>>
   paper_one_scores: number[]
   paper_two_scores: number[]
+  paper_one_breakdown: Array<{ question: string; selected: string; correct: string; points: number }>
   grades: Array<Array<{ points: number; feedback?: string } | null>>
   created_at: string
 }
