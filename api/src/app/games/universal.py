@@ -40,6 +40,7 @@ class UniversalMatch:
         user_id: int | None = None,
         spectator: bool = False,
         spectator_count: int | None = None,
+        exam_admin: bool = False,
     ) -> dict[str, Any]:
         public_state = deepcopy(self.state)
         is_spectator = spectator or (user_id is not None and user_id not in self.player_ids)
@@ -86,6 +87,17 @@ class UniversalMatch:
             public_state["drawer_name"] = public_state.get("players", [{}])[drawer].get(
                 "name", "The drawer"
             )
+        if self.game_type == "csec-it-mock-exam" and not exam_admin:
+            answers = public_state.get("answers_two", [])
+            public_state["answers_two"] = [
+                answers[seat] if 0 <= seat < len(answers) and index == seat else []
+                for index in range(len(answers))
+            ]
+            grades = public_state.get("grades", [])
+            public_state["grades"] = [
+                grades[seat] if 0 <= seat < len(grades) and index == seat else []
+                for index in range(len(grades))
+            ]
         return {
             "match_id": self.id,
             "room_id": self.room_id,
@@ -115,12 +127,12 @@ class UniversalMatchManager:
     ) -> UniversalMatch:
         effective_count = (
             player_count
-            if game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow", "together"}
+            if game_type in {"ludo", "dominoes", "scribble", "abc-fast-slow", "together", "csec-it-mock-exam"}
             else 2
         )
         resolved_bot_players = (
             ()
-            if game_type == "together"
+            if game_type in {"together", "csec-it-mock-exam"}
             else bot_players
             if bot_players is not None
             else tuple(range(1, effective_count))

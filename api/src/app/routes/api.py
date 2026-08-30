@@ -207,6 +207,11 @@ def can_manage_roles(user: User) -> bool:
     return user.role in {"admin", "super_admin"}
 
 
+def can_access_csec_exam(user: User) -> bool:
+    """Keep the teacher-created exam private to its two named testers."""
+    return user.name.strip().casefold() in {"kashi miller", "tyrese"}
+
+
 def can_manage_content(user: User) -> bool:
     return user.role in {"admin", "super_admin", "manager"}
 
@@ -349,9 +354,12 @@ def match_response(
 
 
 def universal_response(
-    match: UniversalMatch, user_id: int | None = None, spectator: bool = False
+    match: UniversalMatch, user_id: int | None = None, spectator: bool = False,
+    exam_admin: bool = False,
 ) -> GameSessionResponse:
-    response = GameSessionResponse.model_validate(match.snapshot(user_id, spectator=spectator))
+    response = GameSessionResponse.model_validate(
+        match.snapshot(user_id, spectator=spectator, exam_admin=exam_admin)
+    )
     response.spectator = spectator
     response.spectator_count = match.spectator_count()
     return response
@@ -733,6 +741,8 @@ def game_type_for_name(name: str) -> str | None:
         return "checkers"
     if normalized in {"together", "linked together"}:
         return "together"
+    if normalized in {"csec it mock exam", "csec it exam"}:
+        return "csec-it-mock-exam"
     return None
 
 
@@ -910,6 +920,8 @@ def game_capacity(game_name: str) -> int:
         return 5
     if normalized in {"abc fast or slow", "abc fast/slow", "fast or slow"}:
         return 0  # ABC capacity is chosen by the room host.
+    if normalized in {"csec it mock exam", "csec it exam"}:
+        return 2
     if normalized == "bingo":
         return 8
     return 4
@@ -2044,18 +2056,20 @@ async def list_games(
 ) -> list[GameResponse]:
     page = max(page, 1)
     limit = min(max(limit, 1), 100)
-    return [
+    games = [
         GameResponse.model_validate(game)
         for game in (
             await db.scalars(
             select(Game)
             .where(Game.name != "Bingo")
+            .where((Game.name != "CSEC IT Mock Exam") | can_access_csec_exam(user))
             .order_by(Game.is_featured.desc(), Game.id)
                 .offset((page - 1) * limit)
                 .limit(limit)
             )
         ).all()
     ]
+    return games
 
 
 async def room_out(
@@ -2113,7 +2127,13 @@ async def list_rooms(
             .limit(limit)
         )
     ).all()
-    return [await room_out(room, user.id, db) for room in rooms]
+    visible_rooms: list[RoomResponse] = []
+    for room in rooms:
+        game = await db.get(Game, room.game_id)
+        if game is not None and game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
+            continue
+        visible_rooms.append(await room_out(room, user.id, db))
+    return visible_rooms
 
 
 @router.post("/games/rooms", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
@@ -2121,6 +2141,8 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
     game = await db.get(Game, payload.game_id)
     if game is None:
         raise HTTPException(status_code=404, detail="Game not found")
+    if game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
+        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
     capacity = game_capacity(game.name)
     if capacity and payload.max_players > capacity:
         raise HTTPException(
@@ -2309,6 +2331,9 @@ async def join_room(room_id: int, user: CurrentUser, db: DbSession) -> RoomRespo
     room = await db.scalar(select(GameRoom).where(GameRoom.id == room_id).with_for_update())
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room not available")
+    game = await db.get(Game, room.game_id)
+    if game is not None and game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
+        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
     count = (
         await db.scalar(
             select(func.count(RoomParticipant.id)).where(RoomParticipant.room_id == room_id)
@@ -2339,6 +2364,9 @@ async def get_room(
     room = await db.get(GameRoom, room_id)
     if room is None or room.status not in {"open", "active"}:
         raise HTTPException(status_code=404, detail="Room not available")
+    game = await db.get(Game, room.game_id)
+    if game is not None and game.name == "CSEC IT Mock Exam" and not can_access_csec_exam(user):
+        raise HTTPException(status_code=403, detail="This private exam is not available to your account")
     participant = await db.scalar(
         select(RoomParticipant.id).where(
             RoomParticipant.room_id == room_id, RoomParticipant.user_id == user.id
@@ -2976,7 +3004,7 @@ async def create_game_session(
         room.id,
         user.id,
         game_type,
-        len(player_ids) if game_type in {"together", "abc-fast-slow"} and not payload.fill_with_bots else (room.max_players if game_type == "abc-fast-slow" else min(room.max_players, game_capacity(game_type))),
+        len(player_ids) if game_type in {"together", "abc-fast-slow", "csec-it-mock-exam"} and not payload.fill_with_bots else (room.max_players if game_type == "abc-fast-slow" else min(room.max_players, game_capacity(game_type))),
         player_ids=player_ids,
         bot_players=bot_players,
         player_names=player_names,
@@ -2993,7 +3021,7 @@ async def create_game_session(
     ensure_universal_timer(match)
     if universal_bot_needed(match):
         match.bot_task = asyncio.create_task(run_universal_bots(match, user.id))
-    return universal_response(match, user.id)
+    return universal_response(match, user.id, exam_admin=game_type == "csec-it-mock-exam" and user.name.strip().casefold() == "tyrese")
 
 
 @router.get("/games/sessions/{match_id}", response_model=GameSessionResponse)
@@ -3007,7 +3035,7 @@ async def get_game_session(match_id: str, user: CurrentUser, spectate: bool = Fa
     if is_spectator and not spectate:
         raise HTTPException(status_code=403, detail="You are not a player in this match")
     ensure_universal_timer(match)
-    return universal_response(match, None if is_spectator else user.id, spectator=is_spectator)
+    return universal_response(match, None if is_spectator else user.id, spectator=is_spectator, exam_admin=user.name.strip().casefold() == "tyrese")
 
 
 async def apply_universal_action(
@@ -3273,7 +3301,7 @@ async def game_session_action(
             detail=f"Game error. Refresh and try again. Error reference: {error_id}",
         ) from error
     ensure_universal_timer(match)
-    return universal_response(match, user_id)
+    return universal_response(match, user_id, exam_admin=match.game_type == "csec-it-mock-exam" and user.name.strip().casefold() == "tyrese")
 
 
 @router.websocket("/games/sessions/{match_id}/ws")
@@ -3304,7 +3332,7 @@ async def game_session_socket(websocket: WebSocket, match_id: str) -> None:
     match.sockets[websocket] = user.id
     ensure_universal_timer(match)
     relay_task = asyncio.create_task(relay_remote_universal_events(websocket, match, user.id))
-    await websocket.send_json({"type": "state", "match": match.snapshot(None if is_spectator else user.id, spectator=is_spectator)})
+    await websocket.send_json({"type": "state", "match": match.snapshot(None if is_spectator else user.id, spectator=is_spectator, exam_admin=user.name.strip().casefold() == "tyrese")})
     await broadcast_spectator_count(match)
     try:
         while True:

@@ -98,6 +98,7 @@ function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
   if (normalized === 'abc fast or slow' || normalized === 'abc fast/slow' || normalized === 'fast or slow') return Number.POSITIVE_INFINITY
+  if (normalized === 'csec it mock exam' || normalized === 'csec it exam') return 2
   return 4
 }
 
@@ -157,6 +158,13 @@ const games: Array<GameDefinition> = [
     description: 'Grab your friends and work together through chaotic obstacle courses where nobody gets left behind.',
     icon: '/assets/optimized/game-together.webp',
     color: 'lilac',
+  },
+  {
+    name: 'CSEC IT Mock Exam',
+    players: '1–2 players',
+    description: 'A private, teacher-created IT mock exam with a playful study-room feel.',
+    icon: '/assets/game-csec-it-mock-exam.png',
+    color: 'coral',
   },
 ]
 
@@ -1769,6 +1777,7 @@ function GameTile({
     'ABC Fast or Slow': '/assets/optimized/game-abc-fast-slow.webp',
     Checkers: '/assets/optimized/game-checkers.webp',
     Together: '/assets/optimized/game-together.webp',
+    'CSEC IT Mock Exam': '/assets/game-csec-it-mock-exam.png',
   }
   const generatedIcon =
     typeof game.icon === 'string' && game.icon.startsWith('/')
