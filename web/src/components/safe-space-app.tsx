@@ -1125,7 +1125,7 @@ function GameStrip() {
       const room = await api.createRoom({
         game_id: catalogGame.id,
         name: `${catalogGame.name} · Friendly bot`,
-        max_players: 2,
+        max_players: gameRoomCapacity(catalogGame.name),
       })
       if (catalogGame.name === 'Connect Four') {
         const match = await api.createMatch({
@@ -3150,7 +3150,7 @@ function GamesScreen() {
       const room = await api.createRoom({
         game_id: game.id,
         name: `${game.name} · Friendly bot`,
-        max_players: 2,
+        max_players: gameRoomCapacity(game.name),
       })
       if (game.name === 'Connect Four') {
         const match = await api.createMatch({
