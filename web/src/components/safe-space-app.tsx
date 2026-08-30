@@ -97,6 +97,7 @@ function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
   if (normalized === 'csec it mock exam' || normalized === 'csec mock exam' || normalized === 'csec-it-mock-exam') return 1
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
+  if (normalized === 'abc fast or slow' || normalized === 'abc fast/slow' || normalized === 'fast or slow') return 6
   return 4
 }
 
