@@ -33,6 +33,7 @@ from fastapi.responses import RedirectResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.config import get_settings
 from app.db import get_session, session_factory
@@ -3146,6 +3147,7 @@ async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession, grader_em
     if sent:
         state["results_email_sent_at"] = datetime.now(UTC).timestamp()
         row.state = state
+        flag_modified(row, "state")
     return sent
 
 
@@ -3191,6 +3193,8 @@ async def admin_grade_csec_exam(
         )
     except IllegalMove as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    flag_modified(row, "state")
+    await db.commit()
     await send_csec_results_if_ready(row, db, admin.email)
     await db.commit()
     await db.refresh(row)
