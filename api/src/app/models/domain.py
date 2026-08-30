@@ -238,6 +238,10 @@ class GameRoom(TimestampMixin, Base):
     bot_difficulty: Mapped[str] = mapped_column(
         String(20), default="friendly", server_default="friendly"
     )
+    abc_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    abc_majority_invalid: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true"
+    )
 
 
 class RoomParticipant(Base):

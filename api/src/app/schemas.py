@@ -330,6 +330,8 @@ class RoomResponse(BaseModel):
     fill_with_bots: bool = True
     bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
     invite_token: str | None = None
+    abc_categories: list[str] | None = None
+    abc_majority_invalid: bool = True
 
 
 class RoomInviteResponse(BaseModel):
@@ -354,13 +356,19 @@ class RoomParticipantResponse(BaseModel):
 class RoomCreateRequest(BaseModel):
     game_id: int
     name: str = Field(min_length=2, max_length=100)
-    max_players: int = Field(default=4, ge=1, le=8)
+    max_players: int = Field(default=4, ge=1)
     fill_with_bots: bool = True
     bot_difficulty: Literal["friendly", "thoughtful"] = "friendly"
 
 
 class RoomGameChangeRequest(BaseModel):
     game_id: int
+
+
+class AbcRoomSettingsRequest(BaseModel):
+    max_players: int = Field(ge=2)
+    categories: list[str] = Field(min_length=1, max_length=20)
+    majority_invalid: bool = True
 
 
 class GuestRoomJoinRequest(BaseModel):

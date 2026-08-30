@@ -14,6 +14,9 @@ function GameRoomLobby() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [copied, setCopied] = useState(false)
+  const [abcCapacity, setAbcCapacity] = useState(4)
+  const [abcCategories, setAbcCategories] = useState('Animal, Place, Food, Thing')
+  const [abcMajorityInvalid, setAbcMajorityInvalid] = useState(true)
   const [showExamStart, setShowExamStart] = useState(false)
   const room = useQuery({
     queryKey: ['room', roomId],
@@ -62,6 +65,24 @@ function GameRoomLobby() {
     mutationFn: () => api.endRoom(roomId),
     onSuccess: () => navigate({ to: '/games' }),
   })
+  const saveAbcSettings = useMutation({
+    mutationFn: () => api.updateAbcRoomSettings(roomId, {
+      max_players: abcCapacity,
+      categories: abcCategories.split(',').map((category) => category.trim()).filter(Boolean),
+      majority_invalid: abcMajorityInvalid,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['room', roomId] })
+      queryClient.invalidateQueries({ queryKey: ['room-participants', roomId] })
+    },
+  })
+
+  useEffect(() => {
+    if (!room.data || room.data.game !== 'ABC Fast or Slow') return
+    setAbcCapacity(room.data.max_players)
+    setAbcCategories((room.data.abc_categories ?? ['Animal', 'Place', 'Food', 'Thing']).join(', '))
+    setAbcMajorityInvalid(room.data.abc_majority_invalid ?? true)
+  }, [room.data])
 
   useEffect(() => {
     const current = room.data
@@ -85,7 +106,7 @@ function GameRoomLobby() {
 
   const currentRoom = room.data
   const members = participants.data ?? []
-  const error = room.error || participants.error || ready.error || start.error || endRoom.error
+  const error = room.error || participants.error || ready.error || start.error || endRoom.error || saveAbcSettings.error
 
   return <main className="page-content game-lobby-page">
     <div className="game-lobby-topbar">
@@ -102,6 +123,13 @@ function GameRoomLobby() {
         void navigator.clipboard.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800) })
       }}><Copy size={17} /> {copied ? 'Link copied' : 'Copy invite link'}</button>}
       <div className="game-lobby-waiting"><span className="game-lobby-pulse" /> <strong>{currentRoom.is_host ? 'Your room is ready.' : 'Waiting for the host to start…'}</strong><small>Everyone will enter the game automatically when it begins.</small></div>
+      {currentRoom.is_host && currentRoom.game === 'ABC Fast or Slow' && <form className="abc-room-settings" onSubmit={(event) => { event.preventDefault(); saveAbcSettings.mutate() }}>
+        <div><span className="eyebrow">ABC host settings</span><h2>Shape this match</h2><p>Choose how many people can join, add categories, and decide whether the majority can reject an answer.</p></div>
+        <label>Players who can join<input type="number" min="2" value={abcCapacity} onChange={(event) => setAbcCapacity(Math.max(2, Number(event.target.value) || 2))} /></label>
+        <label>Categories <small>Separate with commas</small><input value={abcCategories} onChange={(event) => setAbcCategories(event.target.value)} /></label>
+        <label className="abc-room-settings__toggle"><input type="checkbox" checked={abcMajorityInvalid} onChange={(event) => setAbcMajorityInvalid(event.target.checked)} /> Majority-invalid veto: an answer earns no points when most reviewers mark it invalid.</label>
+        <button className="button button--secondary" type="submit" disabled={saveAbcSettings.isPending}>{saveAbcSettings.isPending ? 'Saving…' : 'Save ABC settings'}</button>
+      </form>}
       <div className="game-lobby-members" aria-label="Room participants">
         {members.map((member) => {
           const isReady = member.is_host || member.ready

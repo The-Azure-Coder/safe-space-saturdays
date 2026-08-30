@@ -602,6 +602,18 @@ select:focus-visible { border-color: var(--orange); outline: 3px solid rgb(222 1
 .abc-game__answer-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:8px; padding-top:9px; border-top:1px solid var(--line); }
 .abc-game__answer-row span { display:grid; gap:2px; min-width:0; overflow-wrap:anywhere; }
 .abc-game__answer-row small { color:var(--muted); font-size:.72rem; }
+.abc-game__voting-status { display:grid; gap:5px; margin:12px 0; padding:12px; border:1px solid var(--line); border-radius:14px; background:var(--sage-pale); font-size:.8rem; }
+.abc-game__voting-status span { color:var(--muted); }
+.abc-game__breakdown { display:grid; gap:8px; margin:18px 0; padding:14px; border:1px solid var(--line); border-radius:16px; text-align:left; background:color-mix(in srgb, var(--paper) 90%, var(--sage)); }
+.abc-game__breakdown > strong { color:var(--sage-dark); }
+.abc-game__breakdown > div { display:grid; gap:2px; padding-top:8px; border-top:1px solid var(--line); font-size:.82rem; }
+.abc-game__breakdown small { color:var(--muted); }
+.abc-room-settings { display:grid; gap:12px; margin:20px 0; padding:18px; border:1px solid var(--line); border-radius:18px; background:color-mix(in srgb, var(--paper) 88%, var(--sage)); }
+.abc-room-settings h2 { margin:3px 0; }
+.abc-room-settings label { display:grid; gap:6px; font-weight:700; }
+.abc-room-settings input[type='number'], .abc-room-settings input:not([type]) { width:100%; }
+.abc-room-settings__toggle { display:flex !important; align-items:center; gap:9px; font-size:.88rem; font-weight:600 !important; }
+.abc-room-settings__toggle input { width:18px; height:18px; }
 .abc-game__result { text-align:center; padding:30px 12px 10px; }
 @media (max-width:600px) { .abc-game__hero { align-items:flex-start; } .abc-game__letter { width:70px; font-size:2.5rem; } .abc-game__form { grid-template-columns:1fr; } .abc-game__form-actions { grid-column:auto; } .abc-game__form-actions button { flex:1 1 150px; } .abc-game__answer-row { grid-template-columns:minmax(0,1fr) 1fr 1fr; } .abc-game__answer-row .button { min-width:0; padding-inline:8px; } }
 .ludo-game-shell { --ludo-red: #ed6f59; --ludo-red-soft: #f9d7cd; --ludo-blue: #6397c2; --ludo-blue-soft: #d9ebf5; --ludo-green: #84a878; --ludo-green-soft: #e0edda; --ludo-yellow: #efba45; --ludo-yellow-soft: #fbe8ad; max-width: 900px; margin: 0 auto; padding: clamp(12px, 2.4vw, 24px); border: 1px solid var(--line); border-radius: 28px; background: var(--paper); box-shadow: 0 22px 55px rgb(67 76 53 / 10%); }
