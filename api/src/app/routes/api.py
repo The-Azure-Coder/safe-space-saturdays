@@ -2754,11 +2754,6 @@ def leaderboard_query(period: str, period_start: datetime | None = None):
     )
 
 
-def displayed_leaderboard_streak(user: User) -> int:
-    """Temporary seeded record while Tushaii's historical value is restored."""
-    return 9 if user.name.strip().casefold() == "tushaii" else user.streak
-
-
 @router.get("/leaderboard", response_model=list[LeaderboardEntry])
 async def leaderboard(
     user: CurrentUser, db: DbSession, period: str = "week", page: int = 1, limit: int = 10
@@ -2779,7 +2774,7 @@ async def leaderboard(
         LeaderboardEntry(
             rank=(page - 1) * limit + index,
             user=user_response(member).model_copy(
-                update={"xp": int(ranking_xp), "streak": displayed_leaderboard_streak(member)}
+                update={"xp": int(ranking_xp), "streak": member.streak}
             ),
         )
         for index, (member, ranking_xp) in enumerate(rows, start=1)
@@ -2807,7 +2802,7 @@ async def leaderboard_me(
     return LeaderboardEntry(
         rank=rank,
         user=user_response(user).model_copy(
-            update={"xp": current_xp, "streak": displayed_leaderboard_streak(user)}
+            update={"xp": current_xp, "streak": user.streak}
         ),
     )
 
