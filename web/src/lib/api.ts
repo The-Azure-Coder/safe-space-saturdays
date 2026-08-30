@@ -296,6 +296,8 @@ export type CsecExamSubmission = {
   deadline_at: number | null
   submitted_at: number | null
   time_spent_seconds: number | null
+  percentage: number
+  results_email_sent_at: number | null
   paper_one: Array<{ question: string; options: string[] }>
   paper_two: Array<{ id: string; prompt: string; marks: number }>
   answers_one: Array<Array<number | null>>

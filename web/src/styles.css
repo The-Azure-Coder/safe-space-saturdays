@@ -2167,6 +2167,7 @@ html[data-theme='purple'] .app-nav__link--active { border-color: rgb(200 169 237
 .csec-admin-submission__answers > div.is-incorrect { border-color: #d9917f; background: #fff0eb; }
 .csec-admin-submission__answers > div.is-incorrect span { color: #a74732; }
 .csec-admin-grade { border: 1px solid var(--line); background: var(--paper) !important; }
+.csec-admin-grade-progress { display: block; margin-top: 7px; color: var(--muted); }
 .csec-admin-grade p { margin: 0; white-space: pre-wrap; }
 .csec-admin-grade label { display: grid; gap: 5px; color: var(--muted); font-size: 13px; font-weight: 700; }
 .csec-admin-grade input, .csec-admin-grade textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); padding: 9px; }
