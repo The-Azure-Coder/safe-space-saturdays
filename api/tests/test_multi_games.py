@@ -81,6 +81,8 @@ def test_abc_fast_or_slow_submits_reviews_scores_and_advances() -> None:
             for category in CATEGORIES:
                 action = {"action": "vote", "target": target, "category": category, "valid": True}
                 apply_action(state, player, action)
+    apply_action(state, 0, {"action": "confirm_results"})
+    apply_action(state, 1, {"action": "confirm_results"})
     assert state["phase"] == "round_result"
     assert state["scores"] == [0, 0]  # identical answers are duplicates
     apply_action(state, 0, {"action": "next_round"})
@@ -93,6 +95,32 @@ def test_abc_fast_or_slow_supports_six_players() -> None:
     assert state["player_count"] == 6
     assert len(state["players"]) == 6
     assert len(state["submitted"]) == 6
+
+
+def test_abc_fast_or_slow_supports_host_defined_players_and_categories() -> None:
+    state = new_state("abc-fast-slow", player_count=9, bot_players=(),)
+    state["categories"] = ["Animal", "Movie", "Song"]
+    state["majority_invalid"] = True
+    assert state["player_count"] == 9
+    assert state["categories"] == ["Animal", "Movie", "Song"]
+
+
+def test_abc_breakdown_explains_duplicate_and_invalid_points() -> None:
+    state = new_state("abc-fast-slow", player_count=2, bot_players=())
+    state["letter"] = "A"
+    state["phase"] = "voting"
+    state["answers"] = [{category: "apple" for category in CATEGORIES}, {category: "apple" for category in CATEGORIES}]
+    state["voted"] = [True, True]
+    state["votes"] = [
+        {f"1:{category}": True for category in CATEGORIES},
+        {f"0:{category}": True for category in CATEGORIES},
+    ]
+    from app.games.abc_fast_slow import _score_round
+
+    _score_round(state)
+    assert state["scores"] == [0, 0]
+    assert len(state["round_breakdown"]) == len(CATEGORIES) * 2
+    assert {row["reason"] for row in state["round_breakdown"]} == {"Duplicate answer"}
 
 
 def test_abc_human_players_validate_only_each_other_and_advance() -> None:
@@ -110,6 +138,8 @@ def test_abc_human_players_validate_only_each_other_and_advance() -> None:
     for player, target in ((0, 1), (1, 0)):
         for category in CATEGORIES:
             apply_action(state, player, {"action": "vote", "target": target, "category": category, "valid": True})
+    apply_action(state, 0, {"action": "confirm_results"})
+    apply_action(state, 1, {"action": "confirm_results"})
     assert state["phase"] == "round_result"
     apply_action(state, 1, {"action": "next_round"})
     assert state["phase"] == "letter_picker"
@@ -140,6 +170,8 @@ def test_abc_invalid_vote_denies_points() -> None:
     for player, target in ((0, 1), (1, 0)):
         for category in CATEGORIES:
             apply_action(state, player, {"action": "vote", "target": target, "category": category, "valid": False})
+    apply_action(state, 0, {"action": "confirm_results"})
+    apply_action(state, 1, {"action": "confirm_results"})
     assert state["phase"] == "round_result"
     assert state["scores"] == [0, 0]
 

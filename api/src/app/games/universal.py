@@ -329,7 +329,16 @@ class UniversalMatchManager:
             elif phase == "answering":
                 seat = next((s for s in bot_players if not match.state["submitted"][s]), None)
             elif phase == "voting":
-                seat = next((s for s in bot_players if not match.state["voted"][s]), None)
+                confirmed = match.state.get("confirmed", [False] * len(match.state["voted"]))
+                seat = next(
+                    (
+                        s
+                        for s in bot_players
+                        if not match.state["voted"][s]
+                        or not confirmed[s]
+                    ),
+                    None,
+                )
             else:
                 return None
         else:

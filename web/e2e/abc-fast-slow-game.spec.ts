@@ -56,6 +56,9 @@ test('ABC Fast or Slow completes timed answers, reconnects, reviews, scores, and
       return 'waiting'
     }, { timeout: 70_000 }).toMatch(/review|next|complete/)
     while (await validButtons.count()) await validButtons.first().click()
+    const confirmResults = game.getByRole('button', { name: 'Confirm results' })
+    await expect(confirmResults).toBeVisible({ timeout: 70_000 })
+    await confirmResults.click()
     if (round < 3) {
       await expect(game.getByRole('button', { name: 'Next round' })).toBeVisible({ timeout: 30_000 })
       await game.getByRole('button', { name: 'Next round' }).click()

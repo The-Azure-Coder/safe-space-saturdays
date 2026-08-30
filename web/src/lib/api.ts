@@ -264,6 +264,8 @@ export type Room = {
   bot_difficulty: 'friendly' | 'thoughtful'
   invite_token?: string | null
   room_code?: string | null
+  abc_categories?: Array<string> | null
+  abc_majority_invalid?: boolean
 }
 export type RoomParticipant = {
   user_id: number
@@ -552,6 +554,11 @@ export const api = {
     apiFetch<Room>(`/api/games/rooms/${id}/game`, {
       method: 'POST',
       body: JSON.stringify({ game_id }),
+    }),
+  updateAbcRoomSettings: (id: number, body: { max_players: number; categories: Array<string>; majority_invalid: boolean }) =>
+    apiFetch<Room>(`/api/games/rooms/${id}/abc-settings`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
     }),
   endRoom: (id: number) =>
     apiFetch<void>(`/api/games/rooms/${id}`, { method: 'DELETE' }),
