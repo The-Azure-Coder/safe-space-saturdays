@@ -1128,6 +1128,8 @@ function GameStrip() {
         name: `${catalogGame.name} · Friendly bot`,
         max_players: gameRoomCapacity(catalogGame.name),
       })
+      if (catalogGame.name.trim().toLowerCase() === 'csec it mock exam')
+        return { kind: 'room' as const, id: room.id }
       if (catalogGame.name === 'Connect Four') {
         const match = await api.createMatch({
           room_id: room.id,
@@ -1140,7 +1142,9 @@ function GameStrip() {
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {
-      if (match.kind === 'connect-four')
+      if (match.kind === 'room')
+        navigate({ to: '/games/rooms/$roomId', params: { roomId: String(match.id) } })
+      else if (match.kind === 'connect-four')
         navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
       else
         navigate({
@@ -3153,6 +3157,8 @@ function GamesScreen() {
         name: `${game.name} · Friendly bot`,
         max_players: gameRoomCapacity(game.name),
       })
+      if (game.name.trim().toLowerCase() === 'csec it mock exam')
+        return { kind: 'room' as const, id: room.id }
       if (game.name === 'Connect Four') {
         const match = await api.createMatch({
           room_id: room.id,
@@ -3165,7 +3171,9 @@ function GamesScreen() {
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {
-      if (match.kind === 'connect-four')
+      if (match.kind === 'room')
+        navigate({ to: '/games/rooms/$roomId', params: { roomId: String(match.id) } })
+      else if (match.kind === 'connect-four')
         navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
       else
         navigate({
