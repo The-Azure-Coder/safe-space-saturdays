@@ -5,6 +5,7 @@ from html import escape
 import hashlib
 import io
 import secrets
+import time
 from collections import Counter
 from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
@@ -3220,6 +3221,51 @@ async def admin_grade_csec_exam(
     flag_modified(row, "state")
     await db.commit()
     await send_csec_results_if_ready(row, db, admin.email)
+    await db.commit()
+    await db.refresh(row)
+    return csec_submission_response(row)
+
+
+@router.post("/admin/csec-exams/{match_id}/end-session", response_model=CsecExamSubmissionResponse)
+async def admin_end_csec_exam_session(
+    match_id: str,
+    admin: CurrentAdmin,
+    db: DbSession,
+) -> CsecExamSubmissionResponse:
+    if admin.role not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Invigilator access required")
+    row = await db.get(GameMatch, match_id)
+    if row is None or row.game_type != "csec-it-mock-exam":
+        raise HTTPException(status_code=404, detail="CSEC exam submission not found")
+    state = row.state if isinstance(row.state, dict) else {}
+    if state.get("phase") != "complete":
+        ended_at = time.time()
+        state["phase"] = "complete"
+        state["submitted_at"] = ended_at
+        state["time_spent_seconds"] = max(
+            0, round(ended_at - float(state.get("started_at", ended_at)))
+        )
+        row.state = state
+        row.status = "completed"
+        flag_modified(row, "state")
+    room = await db.get(GameRoom, row.room_id)
+    if room is not None:
+        room.status = "closed"
+    live_match = universal_matches.get(match_id)
+    if live_match is not None:
+        for socket in list(live_match.sockets):
+            try:
+                await socket.send_json({"type": "session_ended", "detail": "The invigilator ended this exam session."})
+            except Exception:
+                live_match.sockets.pop(socket, None)
+        universal_matches.matches.pop(match_id, None)
+    await realtime_bus.publish(
+        match_channel(match_id),
+        {
+            "origin": get_settings().realtime_node_id,
+            "payload": {"type": "session_ended", "detail": "The invigilator ended this exam session."},
+        },
+    )
     await db.commit()
     await db.refresh(row)
     return csec_submission_response(row)
