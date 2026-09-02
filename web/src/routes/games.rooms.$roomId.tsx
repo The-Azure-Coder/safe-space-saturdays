@@ -56,7 +56,9 @@ function GameRoomLobby() {
       return { kind: 'session' as const, id: match.match_id }
     },
     onSuccess: (match) => {
-      if (match.kind === 'connect-four')
+      if (room.data?.game.trim().toLowerCase() === 'csec it mock exam')
+        navigate({ to: '/admin' })
+      else if (match.kind === 'connect-four')
         navigate({ to: '/games/play/$matchId', params: { matchId: match.id } })
       else navigate({ to: '/games/session/$matchId', params: { matchId: match.id } })
     },
@@ -87,6 +89,7 @@ function GameRoomLobby() {
   useEffect(() => {
     const current = room.data
     if (!current?.match_id) return
+    if (current.is_host && current.game.trim().toLowerCase() === 'csec it mock exam') return
     if (current.game === 'Connect Four')
       navigate({ to: '/games/play/$matchId', params: { matchId: current.match_id }, replace: true })
     else navigate({ to: '/games/session/$matchId', params: { matchId: current.match_id }, replace: true })
@@ -123,6 +126,7 @@ function GameRoomLobby() {
         void navigator.clipboard.writeText(url).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1800) })
       }}><Copy size={17} /> {copied ? 'Link copied' : 'Copy invite link'}</button>}
       <div className="game-lobby-waiting"><span className="game-lobby-pulse" /> <strong>{currentRoom.is_host ? 'Your room is ready.' : 'Waiting for the host to start…'}</strong><small>Everyone will enter the game automatically when it begins.</small></div>
+      {currentRoom.is_host && currentRoom.game === 'CSEC IT Mock Exam' && <div className="exam-invigilator-note"><span className="eyebrow">Invigilator room</span><h2>Invite one candidate</h2><p>Copy the invite link above and send it to the candidate. Their name and email will be collected before they enter the lobby. You can start once they are ready.</p></div>}
       {currentRoom.is_host && currentRoom.game === 'ABC Fast or Slow' && <form className="abc-room-settings" onSubmit={(event) => { event.preventDefault(); saveAbcSettings.mutate() }}>
         <div><span className="eyebrow">ABC host settings</span><h2>Shape this match</h2><p>Choose how many people can join, add categories, and decide whether the majority can reject an answer.</p></div>
         <label>Players who can join<input type="number" min="2" value={abcCapacity} onChange={(event) => setAbcCapacity(Math.max(2, Number(event.target.value) || 2))} /></label>
@@ -154,7 +158,7 @@ function GameRoomLobby() {
       <section className="exam-start-modal" role="dialog" aria-modal="true" aria-labelledby="exam-start-title">
         <span className="eyebrow">Private mock exam</span>
         <h2 id="exam-start-title">Ready to begin?</h2>
-        <p>This is a single-player exam. Paper 1 is auto-marked, and Paper 2 has written answers that Tyrese can review and grade.</p>
+        <p>This is a supervised exam. Paper 1 is auto-marked, and Paper 2 has written answers for you to review and grade from the Invigilator exam desk.</p>
         <div className="exam-start-modal__actions">
           <button className="button button--secondary" type="button" onClick={() => setShowExamStart(false)}>Not yet</button>
           <button className="button button--primary" type="button" disabled={start.isPending} onClick={() => { setShowExamStart(false); start.mutate() }}>{start.isPending ? 'Starting…' : 'Start exam'}</button>

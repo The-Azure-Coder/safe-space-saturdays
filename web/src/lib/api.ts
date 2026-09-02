@@ -507,12 +507,12 @@ export const api = {
       `/api/games/rooms/invite/${encodeURIComponent(token)}/join`,
       { method: 'POST' },
     ),
-  joinGuestRoom: (token: string, name: string) =>
+  joinGuestRoom: (token: string, name: string, email: string) =>
     apiFetch<{ room: Room; user: User }>(
       `/api/games/rooms/invite/${encodeURIComponent(token)}/guest`,
       {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, email }),
       },
     ),
   createMatch: (body: {

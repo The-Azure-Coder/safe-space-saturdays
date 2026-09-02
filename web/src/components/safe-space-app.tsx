@@ -95,7 +95,7 @@ type GameDefinition = {
 
 function gameRoomCapacity(name: string | undefined): number {
   const normalized = name?.trim().toLowerCase() ?? ''
-  if (normalized === 'csec it mock exam' || normalized === 'csec mock exam' || normalized === 'csec-it-mock-exam') return 1
+  if (normalized === 'csec it mock exam' || normalized === 'csec mock exam' || normalized === 'csec-it-mock-exam') return 2
   if (normalized === 'connect four' || normalized === 'connect-four' || normalized === 'trivia' || normalized === 'trivia battle' || normalized === 'checkers') return 2
   if (normalized === 'abc fast or slow' || normalized === 'abc fast/slow' || normalized === 'fast or slow') return 6
   return 4
@@ -1274,6 +1274,7 @@ function AdminScreen() {
     queryKey: ['admin-csec-exams'],
     queryFn: api.adminCsecExams,
     enabled: Boolean(profile.data && profile.data.name.trim().toLowerCase() === 'tyrese'),
+    refetchInterval: 1500,
   })
   const reportUpdate = useMutation({
     mutationFn: ({
@@ -1404,7 +1405,7 @@ function AdminScreen() {
           ) : null}
         </section>
         <div className="admin-tabs" role="tablist" aria-label="Admin sections">
-          {profile.data.name.trim().toLowerCase() === 'tyrese' && <button className={tab === 'exams' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'exams'} onClick={() => setTab('exams')} type="button"><GameController size={18} /> CSEC exams</button>}
+          {staffRoles.has(profile.data.role) && <button className={tab === 'exams' ? 'admin-tab admin-tab--active' : 'admin-tab'} role="tab" aria-selected={tab === 'exams'} onClick={() => setTab('exams')} type="button"><GameController size={18} /> Invigilator exams</button>}
           <button
             className={tab === 'applications' ? 'admin-tab admin-tab--active' : 'admin-tab'}
             role="tab"
@@ -1448,8 +1449,8 @@ function AdminScreen() {
             <Quotes size={18} /> Quotes
           </button>
         </div>
-        {tab === 'exams' && profile.data.name.trim().toLowerCase() === 'tyrese' && <section className="admin-panel">
-          <div className="admin-panel__toolbar"><div><h2>CSEC exam submissions</h2><p>Review submitted answers, time spent, and grade Paper 2.</p></div>{exams.isFetching && <GeneralLoader label="Updating…" />}</div>
+        {tab === 'exams' && staffRoles.has(profile.data.role) && <section className="admin-panel">
+          <div className="admin-panel__toolbar"><div><h2>Invigilator exam desk</h2><p>Share the room link, monitor active candidates, mark Paper 2, and email final results.</p></div>{exams.isFetching && <GeneralLoader label="Watching live…" />}</div>
           {exams.isLoading && <ContentSkeleton rows={3} />}
           {exams.data?.length ? <div className="admin-list">{exams.data.map((exam) => <article className="admin-list-item csec-admin-submission" key={exam.match_id}>
             <div className="admin-list-item__top"><div><span className="status-badge">{exam.phase === 'complete' ? 'Submitted' : 'In progress'}</span><h3>{exam.player_name}</h3><small>{exam.submitted_at ? new Date(exam.submitted_at * 1000).toLocaleString() : 'Not submitted'} · {exam.time_spent_seconds == null ? 'Time not recorded' : `${Math.floor(exam.time_spent_seconds / 60)}m ${exam.time_spent_seconds % 60}s spent`}</small></div><div><strong>{exam.percentage.toFixed(1)}% · Paper 1: {exam.paper_one_scores[0] ?? 0}/{exam.paper_one.length} · Paper 2: {exam.paper_two_scores[0] ?? 0}</strong>{exam.phase === 'complete' && (() => { const graded = exam.grades[0]?.filter(Boolean).length ?? 0; const ready = graded === exam.paper_two.length; return <><small className="csec-admin-grade-progress">Paper 2 grading: {graded}/{exam.paper_two.length}</small><button className="button button--secondary button--small" type="button" disabled={sendExamResults.isPending || !ready} onClick={() => sendExamResults.mutate(exam.match_id)}>{sendExamResults.isPending ? 'Sending…' : exam.results_email_sent_at ? 'Resend results email' : ready ? 'Send results email' : 'Grade all questions first'}</button></> })()}</div></div>
@@ -3231,7 +3232,10 @@ function GamesScreen() {
   const selectedGameIsExam = selectedGame?.name.trim().toLowerCase() === 'csec it mock exam'
   const maxRoomPlayers = gameRoomCapacity(selectedGame?.name)
   useEffect(() => {
-    if (selectedGameIsExam && roomFillBots) setRoomFillBots(false)
+    if (selectedGameIsExam) {
+      if (roomFillBots) setRoomFillBots(false)
+      if (roomPlayers !== 2) setRoomPlayers(2)
+    }
     if (roomPlayers > maxRoomPlayers) setRoomPlayers(maxRoomPlayers)
   }, [maxRoomPlayers, roomPlayers, roomFillBots, selectedGameIsExam])
   const rooms = roomsQuery.data ?? []
@@ -3329,7 +3333,7 @@ function GamesScreen() {
                 value={roomPlayers}
                 onChange={(event) => setRoomPlayers(Number(event.target.value))}
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8].filter((count) => count <= maxRoomPlayers && (selectedGameIsExam || count >= 2)).map((count) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8].filter((count) => count <= maxRoomPlayers && (selectedGameIsExam ? count === 2 : count >= 2)).map((count) => (
                   <option value={count} key={count}>{count} players</option>
                 ))}
               </select>

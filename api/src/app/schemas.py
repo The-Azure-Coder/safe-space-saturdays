@@ -402,6 +402,7 @@ class AbcRoomSettingsRequest(BaseModel):
 
 class GuestRoomJoinRequest(BaseModel):
     name: str = Field(min_length=2, max_length=80)
+    email: EmailStr
 
 
 class GuestRoomJoinResponse(BaseModel):

@@ -207,7 +207,11 @@ def can_manage_roles(user: User) -> bool:
 
 def can_access_csec_exam(user: User) -> bool:
     """Keep the private mock exam visible only to its invited users."""
-    return user.name.strip().casefold() in {"kashi miller", "tyrese", "tushai", "tushaii"}
+    return (
+        getattr(user, "is_guest", False)
+        or user.name.strip().casefold() in {"kashi miller", "tyrese", "tushai", "tushaii"}
+        or getattr(user, "role", None) in STAFF_ROLES
+    )
 
 
 def can_manage_content(user: User) -> bool:
@@ -756,7 +760,7 @@ def user_response(user: User) -> UserResponse:
 def game_capacity(game_name: str) -> int:
     normalized = game_name.strip().lower()
     if normalized in {"csec it mock exam", "csec mock exam", "csec-it-mock-exam"}:
-        return 1
+        return 2
     if normalized in {"connect four", "connect-four", "trivia", "trivia battle", "checkers", "draughts"}:
         return 2
     if normalized in {"ludo", "dominoes", "block dominoes", "scribble", "scribble game"}:
@@ -2057,6 +2061,7 @@ async def join_room_as_guest(
     if room is None or room.status != "open":
         raise HTTPException(status_code=404, detail="Room is not accepting players")
     guest_name = payload.name.strip()
+    guest_email = str(payload.email).strip().lower()
     existing_guest = await db.scalar(
         select(User)
         .join(RoomParticipant, RoomParticipant.user_id == User.id)
@@ -2067,8 +2072,7 @@ async def join_room_as_guest(
         )
     )
     if existing_guest is not None:
-        if existing_guest.email.endswith("@guest.invalid"):
-            existing_guest.email = new_guest_email()
+        existing_guest.email = guest_email
         guest_user = user_response(existing_guest)
         guest_room = await room_out(room, existing_guest.id, db)
         await set_session(response, db, existing_guest, remember_me=False)
@@ -2078,7 +2082,7 @@ async def join_room_as_guest(
         raise HTTPException(status_code=409, detail="Room is full")
     guest = User(
         name=guest_name,
-        email=new_guest_email(),
+        email=guest_email,
         password_hash=hash_password(secrets.token_urlsafe(32)),
         role="guest",
         is_guest=True,
@@ -2544,6 +2548,26 @@ async def create_game_session(
     seats, player_ids, bot_players, player_names = await build_match_seats(
         room, game_type, user.id, db, payload.fill_with_bots
     )
+    persisted_player_user_id = user.id
+    if game_type == "csec-it-mock-exam":
+        participants = (
+            await db.scalars(
+                select(RoomParticipant)
+                .where(RoomParticipant.room_id == room.id)
+                .order_by(RoomParticipant.seat_index, RoomParticipant.joined_at)
+            )
+        ).all()
+        candidate = next((participant for participant in participants if participant.user_id != user.id), None)
+        if candidate is None:
+            raise HTTPException(status_code=409, detail="Wait for the invited candidate to join before starting")
+        candidate_user = await db.get(User, candidate.user_id)
+        if candidate_user is None:
+            raise HTTPException(status_code=409, detail="The invited candidate could not be found")
+        seats = [{"seat_index": 0, "user_id": candidate_user.id, "player_type": "human", "display_name": candidate_user.name, "bot_difficulty": None}]
+        player_ids = {candidate_user.id: 0}
+        player_names = {0: candidate_user.name}
+        bot_players = ()
+        persisted_player_user_id = candidate_user.id
     progress = await db.scalar(select(GameProgress).where(
         GameProgress.user_id == user.id, GameProgress.game_type == game_type
     ))
@@ -2567,7 +2591,7 @@ async def create_game_session(
         match.state["categories"] = list(room.abc_categories or ["Animal", "Place", "Food", "Thing"])
         match.state["majority_invalid"] = room.abc_majority_invalid
     room.status = "active"
-    await create_persisted_match(db, match.id, room.id, game_type, user.id, match.state, seats)
+    await create_persisted_match(db, match.id, room.id, game_type, persisted_player_user_id, match.state, seats)
     await db.commit()
     return universal_response(match, user.id)
 
@@ -3153,8 +3177,8 @@ async def send_csec_results_if_ready(row: GameMatch, db: AsyncSession, grader_em
 
 @router.get("/admin/csec-exams", response_model=list[CsecExamSubmissionResponse])
 async def admin_csec_exams(admin: CurrentAdmin, db: DbSession) -> list[CsecExamSubmissionResponse]:
-    if admin.name.strip().casefold() != "tyrese":
-        raise HTTPException(status_code=403, detail="Only Tyrese can review CSEC exams")
+    if admin.role not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Invigilator access required")
     rows = (
         await db.scalars(
             select(GameMatch)
@@ -3173,8 +3197,8 @@ async def admin_grade_csec_exam(
     admin: CurrentAdmin,
     db: DbSession,
 ) -> CsecExamSubmissionResponse:
-    if admin.name.strip().casefold() != "tyrese":
-        raise HTTPException(status_code=403, detail="Only Tyrese can grade CSEC exams")
+    if admin.role not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Invigilator access required")
     row = await db.get(GameMatch, match_id)
     if row is None or row.game_type != "csec-it-mock-exam":
         raise HTTPException(status_code=404, detail="CSEC exam submission not found")
@@ -3207,8 +3231,8 @@ async def admin_send_csec_exam_results(
     admin: CurrentAdmin,
     db: DbSession,
 ) -> CsecExamSubmissionResponse:
-    if admin.name.strip().casefold() != "tyrese":
-        raise HTTPException(status_code=403, detail="Only Tyrese can send CSEC exam results")
+    if admin.role not in STAFF_ROLES:
+        raise HTTPException(status_code=403, detail="Invigilator access required")
     row = await db.get(GameMatch, match_id)
     if row is None or row.game_type != "csec-it-mock-exam":
         raise HTTPException(status_code=404, detail="CSEC exam submission not found")

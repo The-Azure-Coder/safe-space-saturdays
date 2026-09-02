@@ -13,6 +13,7 @@ function RoomInviteScreen() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const invite = useQuery({
     queryKey: ['room-invite', token],
     queryFn: () => api.roomInvite(token),
@@ -28,7 +29,7 @@ function RoomInviteScreen() {
     onSuccess: (room) => navigate({ to: '/games/rooms/$roomId', params: { roomId: String(room.id) } }),
   })
   const joinGuest = useMutation({
-    mutationFn: () => api.joinGuestRoom(token, name.trim()),
+    mutationFn: () => api.joinGuestRoom(token, name.trim(), email.trim()),
     onSuccess: async (result) => {
       queryClient.setQueryData(['me'], result.user)
       await navigate({ to: '/games/rooms/$roomId', params: { roomId: String(result.room.id) } })
@@ -53,10 +54,13 @@ function RoomInviteScreen() {
       <p className="muted-text">{room.game} · {room.players} of {room.max_players} seats filled</p>
       {room.status === 'active' && <p className="form-error" role="alert">This game has already started. Ask the host to invite you to the next round.</p>}
       {room.status === 'open' && isLoggedIn && <button className="button button--primary" type="button" disabled={busy} onClick={() => join.mutate()}>{join.isPending ? 'Joining…' : 'Join room'}</button>}
-      {room.status === 'open' && !isLoggedIn && <form onSubmit={(event) => { event.preventDefault(); if (name.trim()) joinGuest.mutate() }}>
-        <label className="field-label" htmlFor="guest-name">Your display name</label>
+      {room.status === 'open' && !isLoggedIn && <form onSubmit={(event) => { event.preventDefault(); if (name.trim() && email.trim()) joinGuest.mutate() }}>
+        <label className="field-label" htmlFor="guest-name">Your full name</label>
         <input id="guest-name" value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} required placeholder="e.g. Alex" />
-        <button className="button button--primary" type="submit" disabled={busy || name.trim().length < 2}>{joinGuest.isPending ? 'Joining…' : 'Join as guest'}</button>
+        <label className="field-label" htmlFor="guest-email">Email for your results</label>
+        <input id="guest-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required placeholder="you@example.com" />
+        <p className="muted-text">Your marked result will be sent to this address after grading.</p>
+        <button className="button button--primary" type="submit" disabled={busy || name.trim().length < 2 || !email.includes('@')}>{joinGuest.isPending ? 'Joining…' : 'Join exam lobby'}</button>
       </form>}
       {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : 'We could not join this room.'}</p>}
     </section>
