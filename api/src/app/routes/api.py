@@ -1969,7 +1969,7 @@ async def create_room(payload: RoomCreateRequest, user: CurrentUser, db: DbSessi
             detail=f"{game.name} supports at most {game_capacity(game.name)} players",
         )
     if game_type == "csec-it-mock-exam":
-        payload = payload.model_copy(update={"max_players": 1, "fill_with_bots": False})
+        payload = payload.model_copy(update={"max_players": 2, "fill_with_bots": False})
     room = GameRoom(
         game_id=payload.game_id,
         host_id=user.id,
